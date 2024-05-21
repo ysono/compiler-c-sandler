@@ -1,4 +1,5 @@
 use crate::{
+    asm_codegen::AsmCodeGenerator,
     files::{AsmFilepath, PreprocessedFilepath, ProgramFilepath, SrcFilepath},
     lexer::Lexer,
     parser::Parser,
@@ -42,7 +43,7 @@ impl TryFrom<CliArgs> for AppParams {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 enum CompilerUntil {
     Lexer,
     Parser,
@@ -102,21 +103,24 @@ fn preprocess(src_filepath: &SrcFilepath) -> Result<PreprocessedFilepath> {
 
 fn compile(pp_filepath: PreprocessedFilepath, until: CompilerUntil) -> Result<Option<AsmFilepath>> {
     let lexer = Lexer::try_from(&pp_filepath)?;
+    if until == CompilerUntil::Lexer {
+        return Ok(None);
+    }
 
     let mut parser = Parser::new(lexer);
-    let prog = parser.parse_program()?;
-    println!("Program: {prog:?}");
-
-    match until {
-        CompilerUntil::Lexer => return Ok(None),
-        CompilerUntil::Parser | CompilerUntil::AsmCodegen => {
-            // TODO
-            return Ok(None);
-        }
-        CompilerUntil::AsmEmission => {
-            return compile_mock(&pp_filepath);
-        }
+    let c_prog = parser.parse_program()?;
+    if until == CompilerUntil::Parser {
+        return Ok(None);
     }
+
+    let asm_prog = AsmCodeGenerator::gen_program(c_prog);
+    println!("Asm prog: {asm_prog:?}");
+    if until == CompilerUntil::AsmCodegen {
+        return Ok(None);
+    }
+
+    // TODO
+    return compile_mock(&pp_filepath);
 }
 
 fn compile_mock(pp_filepath: &PreprocessedFilepath) -> Result<Option<AsmFilepath>> {

@@ -13,20 +13,20 @@ use std::any;
 
 #[derive(Debug)]
 pub struct Program {
-    f: Function,
+    pub func: Function,
 }
 #[derive(Debug)]
 pub struct Function {
-    ident: Identifier,
-    stmt: Statement,
+    pub ident: Identifier,
+    pub stmt: Statement,
 }
 #[derive(Debug)]
-pub struct Statement {
-    exp: Expression,
+pub enum Statement {
+    Return(Expression),
 }
 #[derive(Debug)]
 pub struct Expression {
-    const_: Const,
+    pub const_: Const,
 }
 
 pub struct Parser<T> {
@@ -38,14 +38,14 @@ impl<T: Iterator<Item = Result<Token>>> Parser<T> {
     }
 
     pub fn parse_program(&mut self) -> Result<Program> {
-        let f = self.parse_function()?;
+        let f = self.parse_func()?;
         match self.tokens.next() {
             None => {}
             actual => return Err(anyhow!("Expected EOF but found {:?}", actual)),
         }
-        Ok(Program { f })
+        Ok(Program { func: f })
     }
-    fn parse_function(&mut self) -> Result<Function> {
+    fn parse_func(&mut self) -> Result<Function> {
         match self.tokens.next() {
             Some(Ok(Token::Keyword(Keyword::Int))) => {}
             actual => {
@@ -141,7 +141,7 @@ impl<T: Iterator<Item = Result<Token>>> Parser<T> {
                 ));
             }
         }
-        Ok(Statement { exp })
+        Ok(Statement::Return(exp))
     }
     fn parse_exp(&mut self) -> Result<Expression> {
         let const_ = match self.tokens.next() {
