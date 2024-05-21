@@ -113,7 +113,7 @@ impl Lexer {
                     match_len = mach.len();
                     let literal = &sfx[..match_len];
                     let literal = String::from(literal);
-                    token = Token::Identifier(literal);
+                    token = Token::Identifier(Identifier(literal));
                 } else {
                     return Err(anyhow!("Unknown syntax at {sfx}"));
                 }
@@ -154,7 +154,7 @@ mod token_matchers {
 
 #[derive(Debug)]
 pub enum Token {
-    Identifier(String),
+    Identifier(Identifier),
     Const(Const),
     Keyword(Keyword),
     ParenOpen,
@@ -163,6 +163,8 @@ pub enum Token {
     BraceClose,
     Semicolon,
 }
+#[derive(Debug)]
+pub struct Identifier(pub String);
 #[derive(Debug)]
 pub enum Const {
     Int(i64),

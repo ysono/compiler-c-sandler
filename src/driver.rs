@@ -1,15 +1,16 @@
 use crate::{
     files::{AsmFilepath, PreprocessedFilepath, ProgramFilepath, SrcFilepath},
     lexer::Lexer,
+    parser::Parser,
 };
 use anyhow::{Context, Result};
-use clap::Parser;
+use clap::Parser as ClapParser;
 use std::fs;
 use std::io::Write;
 use std::path::PathBuf;
 use std::process::Command;
 
-#[derive(Parser, Debug)]
+#[derive(ClapParser, Debug)]
 struct CliArgs {
     src_filepath: String,
 
@@ -101,10 +102,10 @@ fn preprocess(src_filepath: &SrcFilepath) -> Result<PreprocessedFilepath> {
 
 fn compile(pp_filepath: PreprocessedFilepath, until: CompilerUntil) -> Result<Option<AsmFilepath>> {
     let lexer = Lexer::try_from(&pp_filepath)?;
-    for res_token in lexer {
-        let token = res_token?;
-        println!("Token: {token:?}");
-    }
+
+    let mut parser = Parser::new(lexer);
+    let prog = parser.parse_program()?;
+    println!("Program: {prog:?}");
 
     match until {
         CompilerUntil::Lexer => return Ok(None),
