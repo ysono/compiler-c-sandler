@@ -18,7 +18,7 @@ pub struct Lexer {
 impl<'a> TryFrom<&'a PreprocessedFilepath> for Lexer {
     type Error = anyhow::Error;
     fn try_from(pp_filepath: &'a PreprocessedFilepath) -> Result<Self> {
-        let f = File::open(&pp_filepath as &PathBuf)
+        let f = File::open(pp_filepath as &PathBuf)
             .with_context(|| format!("Failed to open {pp_filepath:?}"))?;
         let br = BufReader::new(f);
         Ok(Self {

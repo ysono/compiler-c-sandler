@@ -1,3 +1,4 @@
+pub mod asm_codeemission;
 pub mod asm_codegen;
 pub mod driver;
 pub mod files;

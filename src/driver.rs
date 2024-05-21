@@ -1,4 +1,5 @@
 use crate::{
+    asm_codeemission::AsmCodeEmitter,
     asm_codegen::AsmCodeGenerator,
     files::{AsmFilepath, PreprocessedFilepath, ProgramFilepath, SrcFilepath},
     lexer::Lexer,
@@ -7,7 +8,6 @@ use crate::{
 use anyhow::{Context, Result};
 use clap::Parser as ClapParser;
 use std::fs;
-use std::io::Write;
 use std::path::PathBuf;
 use std::process::Command;
 
@@ -90,7 +90,7 @@ fn preprocess(src_filepath: &SrcFilepath) -> Result<PreprocessedFilepath> {
         "-o",
         pp_filepath.to_str().unwrap(),
     ]);
-    println!("Preprocessor: {cmd:?}");
+    eprintln!("Preprocessor: {cmd:?}");
     let mut child = cmd
         .spawn()
         .context("Failed to launch the preprocessor process.")?;
@@ -114,30 +114,13 @@ fn compile(pp_filepath: PreprocessedFilepath, until: CompilerUntil) -> Result<Op
     }
 
     let asm_prog = AsmCodeGenerator::gen_program(c_prog);
-    println!("Asm prog: {asm_prog:?}");
     if until == CompilerUntil::AsmCodegen {
         return Ok(None);
     }
 
-    // TODO
-    return compile_mock(&pp_filepath);
-}
-
-fn compile_mock(pp_filepath: &PreprocessedFilepath) -> Result<Option<AsmFilepath>> {
-    let asm_filepath = AsmFilepath::from(pp_filepath);
-
-    let mut asm_file = fs::OpenOptions::new()
-        .create(true)
-        .write(true)
-        .open(&asm_filepath as &PathBuf)?;
-    writeln!(asm_file, ".global main")?;
-    writeln!(asm_file, "main:")?;
-    writeln!(asm_file, "movl $123, %eax")?;
-    writeln!(asm_file, "ret")?;
-    asm_file.sync_all()?;
-
-    fs::remove_file(pp_filepath as &PathBuf)?;
-
+    let asm_filepath = AsmFilepath::from(&pp_filepath);
+    let asm_emitter = AsmCodeEmitter::try_from(&asm_filepath)?;
+    asm_emitter.emit_program(asm_prog)?;
     return Ok(Some(asm_filepath));
 }
 
@@ -150,7 +133,7 @@ fn assemble_and_link(asm_filepath: AsmFilepath) -> Result<ProgramFilepath> {
         "-o",
         prog_filepath.to_str().unwrap(),
     ]);
-    println!("Assembler and linker: {cmd:?}");
+    eprintln!("Assembler and linker: {cmd:?}");
     let mut child = cmd
         .spawn()
         .context("Failed to launch the preprocessor process.")?;
@@ -167,18 +150,18 @@ pub fn driver_main() -> Result<()> {
     let args = CliArgs::parse();
 
     let params = AppParams::try_from(args)?;
-    println!("{params:?}");
+    eprintln!("{params:?}");
 
     let pp_filepath = preprocess(&params.src_filepath)?;
-    println!("Preprocessor done -> {pp_filepath:?}");
+    eprintln!("Preprocessor done -> {pp_filepath:?}");
 
     let asm_filepath = compile(pp_filepath, params.compiler_driver_until.compiler_until())?;
-    println!("Assembly generator done -> {asm_filepath:?}");
+    eprintln!("Assembly generator done -> {asm_filepath:?}");
 
     match (params.compiler_driver_until, asm_filepath) {
         (CompilerDriverUntil::Linker, Some(asm_filepath)) => {
             let prog_filepath = assemble_and_link(asm_filepath)?;
-            println!("Linker done -> {prog_filepath:?}");
+            eprintln!("Linker done -> {prog_filepath:?}");
         }
         _ => {}
     }
