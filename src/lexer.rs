@@ -171,7 +171,7 @@ mod token_matchers {
     }
 }
 
-#[derive(From, Debug)]
+#[derive(From, PartialEq, Eq, Debug)]
 pub enum Token {
     Demarcator(Demarcator),
     Keyword(Keyword),
@@ -179,7 +179,7 @@ pub enum Token {
     Const(Const),
     Identifier(Identifier),
 }
-#[derive(Debug)]
+#[derive(PartialEq, Eq, Debug)]
 pub enum Demarcator {
     ParenOpen,
     ParenClose,
@@ -187,20 +187,20 @@ pub enum Demarcator {
     BraceClose,
     Semicolon,
 }
-#[derive(Debug)]
+#[derive(PartialEq, Eq, Debug)]
 pub enum Keyword {
     Int,
     Void,
     Return,
 }
-#[derive(Debug)]
+#[derive(PartialEq, Eq, Debug)]
 pub enum Operation {
     Complement,
     Negate,
 }
-#[derive(Debug)]
+#[derive(PartialEq, Eq, Debug)]
 pub enum Const {
     Int(i32),
 }
-#[derive(Debug)]
+#[derive(PartialEq, Eq, Debug)]
 pub struct Identifier(pub String);

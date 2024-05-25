@@ -38,24 +38,18 @@ impl<T: Iterator<Item = Result<Token>>> Parser<T> {
     }
 
     pub fn parse_program(&mut self) -> Result<Program> {
-        let f = self.parse_func()?;
+        let func = self.parse_func()?;
+
         match self.tokens.next() {
             None => {}
             actual => return Err(anyhow!("Expected EOF but found {:?}", actual)),
         }
-        Ok(Program { func: f })
+
+        Ok(Program { func })
     }
     fn parse_func(&mut self) -> Result<Function> {
-        match self.tokens.next() {
-            Some(Ok(Token::Keyword(Keyword::Int))) => {}
-            actual => {
-                return Err(anyhow!(
-                    "Expected {:?} but found {:?}",
-                    Keyword::Int,
-                    actual
-                ));
-            }
-        }
+        self.expect_exact([Keyword::Int.into()])?;
+
         let ident = match self.tokens.next() {
             Some(Ok(Token::Identifier(ident))) => ident,
             actual => {
@@ -66,81 +60,27 @@ impl<T: Iterator<Item = Result<Token>>> Parser<T> {
                 ));
             }
         };
-        match self.tokens.next() {
-            Some(Ok(Token::Demarcator(Demarcator::ParenOpen))) => {}
-            actual => {
-                return Err(anyhow!(
-                    "Expected {:?} but found {:?}",
-                    Demarcator::ParenOpen,
-                    actual
-                ));
-            }
-        }
-        match self.tokens.next() {
-            Some(Ok(Token::Keyword(Keyword::Void))) => {}
-            actual => {
-                return Err(anyhow!(
-                    "Expected {:?} but found {:?}",
-                    Keyword::Void,
-                    actual
-                ));
-            }
-        }
-        match self.tokens.next() {
-            Some(Ok(Token::Demarcator(Demarcator::ParenClose))) => {}
-            actual => {
-                return Err(anyhow!(
-                    "Expected {:?} but found {:?}",
-                    Demarcator::ParenClose,
-                    actual
-                ));
-            }
-        }
-        match self.tokens.next() {
-            Some(Ok(Token::Demarcator(Demarcator::BraceOpen))) => {}
-            actual => {
-                return Err(anyhow!(
-                    "Expected {:?} but found {:?}",
-                    Demarcator::BraceOpen,
-                    actual
-                ));
-            }
-        }
+
+        self.expect_exact([
+            Demarcator::ParenOpen.into(),
+            Keyword::Void.into(),
+            Demarcator::ParenClose.into(),
+            Demarcator::BraceOpen.into(),
+        ])?;
+
         let stmt = self.parse_stmt()?;
-        match self.tokens.next() {
-            Some(Ok(Token::Demarcator(Demarcator::BraceClose))) => {}
-            actual => {
-                return Err(anyhow!(
-                    "Expected {:?} but found {:?}",
-                    Demarcator::BraceClose,
-                    actual
-                ));
-            }
-        }
+
+        self.expect_exact([Demarcator::BraceClose.into()])?;
+
         Ok(Function { ident, stmt })
     }
     fn parse_stmt(&mut self) -> Result<Statement> {
-        match self.tokens.next() {
-            Some(Ok(Token::Keyword(Keyword::Return))) => {}
-            actual => {
-                return Err(anyhow!(
-                    "Expected {:?} but found {:?}",
-                    Keyword::Return,
-                    actual
-                ));
-            }
-        }
+        self.expect_exact([Keyword::Return.into()])?;
+
         let exp = self.parse_exp()?;
-        match self.tokens.next() {
-            Some(Ok(Token::Demarcator(Demarcator::Semicolon))) => {}
-            actual => {
-                return Err(anyhow!(
-                    "Expected {:?} but found {:?}",
-                    Demarcator::Semicolon,
-                    actual
-                ));
-            }
-        }
+
+        self.expect_exact([Demarcator::Semicolon.into()])?;
+
         Ok(Statement::Return(exp))
     }
     fn parse_exp(&mut self) -> Result<Expression> {
@@ -155,5 +95,15 @@ impl<T: Iterator<Item = Result<Token>>> Parser<T> {
             }
         };
         Ok(Expression { const_ })
+    }
+
+    fn expect_exact<const LEN: usize>(&mut self, next_tokens: [Token; LEN]) -> Result<()> {
+        for expected in next_tokens {
+            match self.tokens.next() {
+                Some(Ok(actual)) if expected == actual => {}
+                actual => return Err(anyhow!("Expected {:?} but found {:?}", expected, actual)),
+            }
+        }
+        Ok(())
     }
 }
