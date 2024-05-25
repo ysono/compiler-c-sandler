@@ -2,13 +2,15 @@
 //! <program> ::= <function>
 //! <function> ::= "int" <identifier> "(" "void" ")" "{" <statement> "}"
 //! <statement> ::= "return" <exp> ";"
-//! <exp> ::= <int>
+//! <exp> ::= <int> | <unop> <exp> | "(" <exp> ")"
+//! <unop> ::= "-" | "~"
 //! <identifier> ::= ? An identifier token ?
 //! <int> ::= ? A constant token ?
 //! ```
 
-use crate::lexer::{Const, Demarcator, Identifier, Keyword, Token};
+use crate::lexer::{Const, Demarcator, Identifier, Keyword, Operation, Token};
 use anyhow::{anyhow, Result};
+use derive_more::From;
 use std::any;
 
 #[derive(Debug)]
@@ -24,9 +26,15 @@ pub struct Function {
 pub enum Statement {
     Return(Expression),
 }
+#[derive(From, Debug)]
+pub enum Expression {
+    Const(Const),
+    Unary(UnaryOperator, Box<Expression>),
+}
 #[derive(Debug)]
-pub struct Expression {
-    pub const_: Const,
+pub enum UnaryOperator {
+    Complement,
+    Negate,
 }
 
 pub struct Parser<T> {
@@ -84,17 +92,30 @@ impl<T: Iterator<Item = Result<Token>>> Parser<T> {
         Ok(Statement::Return(exp))
     }
     fn parse_exp(&mut self) -> Result<Expression> {
-        let const_ = match self.tokens.next() {
-            Some(Ok(Token::Const(const_))) => const_,
+        match self.tokens.next() {
+            Some(Ok(Token::Const(const_))) => return Ok(const_.into()),
+            Some(Ok(Token::Operation(token_op))) => {
+                let ast_op = match token_op {
+                    Operation::Complement => UnaryOperator::Complement,
+                    Operation::Negate => UnaryOperator::Negate,
+                };
+                let exp = self.parse_exp()?;
+                let exp = Box::new(exp);
+                return Ok(Expression::Unary(ast_op, exp));
+            }
+            Some(Ok(Token::Demarcator(Demarcator::ParenOpen))) => {
+                let exp = self.parse_exp()?;
+                self.expect_exact([Demarcator::ParenClose.into()])?;
+                return Ok(exp);
+            }
             actual => {
                 return Err(anyhow!(
-                    "Expected {:?} but found {:?}",
-                    any::type_name::<Const>(),
+                    "Could not parse {} at {:?}",
+                    any::type_name::<Expression>(),
                     actual
                 ));
             }
-        };
-        Ok(Expression { const_ })
+        }
     }
 
     fn expect_exact<const LEN: usize>(&mut self, next_tokens: [Token; LEN]) -> Result<()> {

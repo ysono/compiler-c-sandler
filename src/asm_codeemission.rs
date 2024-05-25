@@ -18,6 +18,7 @@ impl<'a> TryFrom<&'a AsmFilepath> for AsmCodeEmitter {
     fn try_from(asm_filepath: &'a AsmFilepath) -> Result<Self> {
         let f = OpenOptions::new()
             .create(true)
+            .truncate(true)
             .write(true)
             .open(&asm_filepath as &PathBuf)?;
         let bw = BufWriter::new(f);

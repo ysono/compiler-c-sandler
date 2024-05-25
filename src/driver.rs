@@ -115,7 +115,7 @@ fn compile(pp_filepath: PreprocessedFilepath, until: CompilerUntil) -> Result<Op
         return Ok(None);
     }
 
-    let asm_prog = AsmCodeGenerator::gen_program(c_prog);
+    let asm_prog = AsmCodeGenerator::gen_program(c_prog)?;
     if until == CompilerUntil::AsmCodegen {
         return Ok(None);
     }

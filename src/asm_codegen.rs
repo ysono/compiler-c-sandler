@@ -5,6 +5,7 @@ use crate::{
         Statement as CStatement,
     },
 };
+use anyhow::{anyhow, Result};
 
 #[derive(Debug)]
 pub struct Program {
@@ -32,24 +33,29 @@ pub enum Register {
 
 pub struct AsmCodeGenerator {}
 impl AsmCodeGenerator {
-    pub fn gen_program(c_prog: CProgram) -> Program {
+    pub fn gen_program(c_prog: CProgram) -> Result<Program> {
         let CProgram { func } = c_prog;
-        let func = Self::gen_func(func);
-        Program { func }
+        let func = Self::gen_func(func)?;
+        Ok(Program { func })
     }
-    fn gen_func(c_func: CFunction) -> Function {
+    fn gen_func(c_func: CFunction) -> Result<Function> {
         let CFunction { ident, stmt } = c_func;
         let mut instructions = vec![];
-        Self::gen_instruction(stmt, &mut instructions);
-        Function {
+        Self::gen_instruction(stmt, &mut instructions)?;
+        Ok(Function {
             ident,
             instructions,
-        }
+        })
     }
-    fn gen_instruction(c_stmt: CStatement, asm_instructions: &mut Vec<Instruction>) {
+    fn gen_instruction(c_stmt: CStatement, asm_instructions: &mut Vec<Instruction>) -> Result<()> {
         let CStatement::Return(exp) = c_stmt;
-        let CExpression { const_ } = exp;
-        let Const::Int(val) = const_;
+
+        let val = match exp {
+            CExpression::Const(Const::Int(val_)) => val_,
+            CExpression::Unary(_, _) => {
+                return Err(anyhow!("Unary expression is not supported yet."))
+            }
+        };
 
         let instr = Instruction::Mov {
             src: Operand::ImmediateValue(val as i64),
@@ -59,5 +65,7 @@ impl AsmCodeGenerator {
 
         let instr = Instruction::Ret;
         asm_instructions.push(instr);
+
+        Ok(())
     }
 }
