@@ -104,6 +104,8 @@ fn preprocess(src_filepath: &SrcFilepath) -> Result<PreprocessedFilepath> {
 fn compile(pp_filepath: PreprocessedFilepath, until: CompilerUntil) -> Result<Option<AsmFilepath>> {
     let lexer = Lexer::try_from(&pp_filepath)?;
     if until == CompilerUntil::Lexer {
+        let tokens = lexer.collect::<Result<Vec<_>>>()?;
+        println!("tokens: {tokens:?}");
         return Ok(None);
     }
 

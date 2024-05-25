@@ -52,7 +52,7 @@ impl AsmCodeGenerator {
         let Const::Int(val) = const_;
 
         let instr = Instruction::Mov {
-            src: Operand::ImmediateValue(val),
+            src: Operand::ImmediateValue(val as i64),
             dst: Operand::Register(Register::Eax),
         };
         asm_instructions.push(instr);

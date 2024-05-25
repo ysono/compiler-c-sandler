@@ -7,7 +7,7 @@
 //! <int> ::= ? A constant token ?
 //! ```
 
-use crate::lexer::{Const, Identifier, Keyword, Token};
+use crate::lexer::{Const, Demarcator, Identifier, Keyword, Token};
 use anyhow::{anyhow, Result};
 use std::any;
 
@@ -67,11 +67,11 @@ impl<T: Iterator<Item = Result<Token>>> Parser<T> {
             }
         };
         match self.tokens.next() {
-            Some(Ok(Token::ParenOpen)) => {}
+            Some(Ok(Token::Demarcator(Demarcator::ParenOpen))) => {}
             actual => {
                 return Err(anyhow!(
                     "Expected {:?} but found {:?}",
-                    Token::ParenOpen,
+                    Demarcator::ParenOpen,
                     actual
                 ));
             }
@@ -87,32 +87,32 @@ impl<T: Iterator<Item = Result<Token>>> Parser<T> {
             }
         }
         match self.tokens.next() {
-            Some(Ok(Token::ParenClose)) => {}
+            Some(Ok(Token::Demarcator(Demarcator::ParenClose))) => {}
             actual => {
                 return Err(anyhow!(
                     "Expected {:?} but found {:?}",
-                    Token::ParenClose,
+                    Demarcator::ParenClose,
                     actual
                 ));
             }
         }
         match self.tokens.next() {
-            Some(Ok(Token::BraceOpen)) => {}
+            Some(Ok(Token::Demarcator(Demarcator::BraceOpen))) => {}
             actual => {
                 return Err(anyhow!(
                     "Expected {:?} but found {:?}",
-                    Token::BraceOpen,
+                    Demarcator::BraceOpen,
                     actual
                 ));
             }
         }
         let stmt = self.parse_stmt()?;
         match self.tokens.next() {
-            Some(Ok(Token::BraceClose)) => {}
+            Some(Ok(Token::Demarcator(Demarcator::BraceClose))) => {}
             actual => {
                 return Err(anyhow!(
                     "Expected {:?} but found {:?}",
-                    Token::BraceClose,
+                    Demarcator::BraceClose,
                     actual
                 ));
             }
@@ -132,11 +132,11 @@ impl<T: Iterator<Item = Result<Token>>> Parser<T> {
         }
         let exp = self.parse_exp()?;
         match self.tokens.next() {
-            Some(Ok(Token::Semicolon)) => {}
+            Some(Ok(Token::Demarcator(Demarcator::Semicolon))) => {}
             actual => {
                 return Err(anyhow!(
                     "Expected {:?} but found {:?}",
-                    Token::Semicolon,
+                    Demarcator::Semicolon,
                     actual
                 ));
             }

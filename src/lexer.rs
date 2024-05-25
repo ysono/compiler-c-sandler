@@ -1,5 +1,6 @@
 use crate::files::PreprocessedFilepath;
 use anyhow::{anyhow, Context, Result};
+use derive_more::From;
 use std::collections::VecDeque;
 use std::fs::File;
 use std::io::{BufRead, BufReader, Seek};
@@ -86,34 +87,42 @@ impl Lexer {
             return Ok(None);
         }
 
-        let match_len;
-        let token;
+        let match_len: usize;
+        let token: Token;
         match sfx.as_bytes()[0] {
-            PAREN_OPEN => (match_len, token) = (1, Token::ParenOpen),
-            PAREN_CLOSE => (match_len, token) = (1, Token::ParenClose),
-            BRACE_OPEN => (match_len, token) = (1, Token::BraceOpen),
-            BRACE_CLOSE => (match_len, token) = (1, Token::BraceClose),
-            SEMICOLON => (match_len, token) = (1, Token::Semicolon),
+            PAREN_OPEN => (match_len, token) = (1, Demarcator::ParenOpen.into()),
+            PAREN_CLOSE => (match_len, token) = (1, Demarcator::ParenClose.into()),
+            BRACE_OPEN => (match_len, token) = (1, Demarcator::BraceOpen.into()),
+            BRACE_CLOSE => (match_len, token) = (1, Demarcator::BraceClose.into()),
+            SEMICOLON => (match_len, token) = (1, Demarcator::Semicolon.into()),
+            TILDE => (match_len, token) = (1, Operation::Complement.into()),
             _ => {
                 if let Some(mach) = KW_INT.find(sfx) {
                     match_len = mach.len();
-                    token = Token::Keyword(Keyword::Int);
+                    token = Keyword::Int.into();
                 } else if let Some(mach) = KW_VOID.find(sfx) {
                     match_len = mach.len();
-                    token = Token::Keyword(Keyword::Void);
+                    token = Keyword::Void.into();
                 } else if let Some(mach) = KW_RET.find(sfx) {
                     match_len = mach.len();
-                    token = Token::Keyword(Keyword::Return);
-                } else if let Some(mach) = CONST_INT.find(sfx) {
+                    token = Keyword::Return.into();
+                } else if let Some(mach) = MINUS_SINGLE.find(sfx) {
+                    if mach.len() == "-".len() {
+                        match_len = mach.len();
+                        token = Operation::Negate.into();
+                    } else {
+                        return Err(anyhow!("Unknown syntax at {sfx}"));
+                    }
+                } else if let Some(mach) = DECIMALS.find(sfx) {
                     match_len = mach.len();
                     let literal = &sfx[..match_len];
-                    let literal = literal.parse::<i64>().context("Const integer")?;
-                    token = Token::Const(Const::Int(literal));
+                    let literal = literal.parse::<i32>().context("Const integer")?;
+                    token = Const::Int(literal).into();
                 } else if let Some(mach) = IDENT.find(sfx) {
                     match_len = mach.len();
                     let literal = &sfx[..match_len];
                     let literal = String::from(literal);
-                    token = Token::Identifier(Identifier(literal));
+                    token = Identifier(literal).into();
                 } else {
                     return Err(anyhow!("Unknown syntax at {sfx}"));
                 }
@@ -137,26 +146,41 @@ mod token_matchers {
     use lazy_static::lazy_static;
     use regex::Regex;
 
-    lazy_static! {
-        pub static ref IDENT: Regex = Regex::new(r"^[a-zA-Z_]\w*\b").unwrap();
-        pub static ref CONST_INT: Regex = Regex::new(r"^[0-9]+\b").unwrap();
-        pub static ref KW_INT: Regex = Regex::new(r"^int\b").unwrap();
-        pub static ref KW_VOID: Regex = Regex::new(r"^void\b").unwrap();
-        pub static ref KW_RET: Regex = Regex::new(r"^return\b").unwrap();
-    }
-
+    /* Tokens whose existence doesn't depend on the subsequent char (eg `\b`) */
+    /* Demarcators */
     pub const PAREN_OPEN: u8 = '(' as u8;
     pub const PAREN_CLOSE: u8 = ')' as u8;
     pub const BRACE_OPEN: u8 = '{' as u8;
     pub const BRACE_CLOSE: u8 = '}' as u8;
     pub const SEMICOLON: u8 = ';' as u8;
+    /* Operations */
+    pub const TILDE: u8 = '~' as u8;
+
+    lazy_static! {
+        /* Keywords */
+        pub static ref KW_INT: Regex = Regex::new(r"^int\b").unwrap();
+        pub static ref KW_VOID: Regex = Regex::new(r"^void\b").unwrap();
+        pub static ref KW_RET: Regex = Regex::new(r"^return\b").unwrap();
+
+        /* Operations */
+        pub static ref MINUS_SINGLE: Regex = Regex::new(r"^--?").unwrap();
+
+        /* Misc variable-length tokens */
+        pub static ref DECIMALS: Regex = Regex::new(r"^[0-9]+\b").unwrap();
+        pub static ref IDENT: Regex = Regex::new(r"^[a-zA-Z_]\w*\b").unwrap();
+    }
 }
 
-#[derive(Debug)]
+#[derive(From, Debug)]
 pub enum Token {
-    Identifier(Identifier),
-    Const(Const),
+    Demarcator(Demarcator),
     Keyword(Keyword),
+    Operation(Operation),
+    Const(Const),
+    Identifier(Identifier),
+}
+#[derive(Debug)]
+pub enum Demarcator {
     ParenOpen,
     ParenClose,
     BraceOpen,
@@ -164,14 +188,19 @@ pub enum Token {
     Semicolon,
 }
 #[derive(Debug)]
-pub struct Identifier(pub String);
-#[derive(Debug)]
-pub enum Const {
-    Int(i64),
-}
-#[derive(Debug)]
 pub enum Keyword {
     Int,
     Void,
     Return,
 }
+#[derive(Debug)]
+pub enum Operation {
+    Complement,
+    Negate,
+}
+#[derive(Debug)]
+pub enum Const {
+    Int(i32),
+}
+#[derive(Debug)]
+pub struct Identifier(pub String);
