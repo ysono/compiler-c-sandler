@@ -4,6 +4,7 @@ use crate::{
     files::{AsmFilepath, PreprocessedFilepath, ProgramFilepath, SrcFilepath},
     lexer::Lexer,
     parser::Parser,
+    tacky::Tackifier,
 };
 use anyhow::{Context, Result};
 use clap::Parser as ClapParser;
@@ -20,6 +21,9 @@ struct CliArgs {
 
     #[clap(long = "parse")]
     until_parser: bool,
+
+    #[clap(long = "tacky")]
+    until_tacky: bool,
 
     #[clap(long = "codegen")]
     until_asm_codegen: bool,
@@ -47,6 +51,7 @@ impl TryFrom<CliArgs> for AppParams {
 enum CompilerUntil {
     Lexer,
     Parser,
+    Tacky,
     AsmCodegen,
     AsmEmission,
 }
@@ -61,6 +66,8 @@ impl<'a> From<&'a CliArgs> for CompilerDriverUntil {
             Self::Compiler(CompilerUntil::AsmEmission)
         } else if args.until_asm_codegen {
             Self::Compiler(CompilerUntil::AsmCodegen)
+        } else if args.until_tacky {
+            Self::Compiler(CompilerUntil::Tacky)
         } else if args.until_parser {
             Self::Compiler(CompilerUntil::Parser)
         } else if args.until_lexer {
@@ -112,11 +119,19 @@ fn compile(pp_filepath: PreprocessedFilepath, until: CompilerUntil) -> Result<Op
     let mut parser = Parser::new(lexer);
     let c_prog = parser.parse_program()?;
     if until == CompilerUntil::Parser {
+        println!("c_prog: {c_prog:?}");
+        return Ok(None);
+    }
+
+    if until == CompilerUntil::Tacky {
+        let tacky_prog = Tackifier::tackify_program(c_prog);
+        println!("tacky_prog: {tacky_prog:?}");
         return Ok(None);
     }
 
     let asm_prog = AsmCodeGenerator::gen_program(c_prog)?;
     if until == CompilerUntil::AsmCodegen {
+        println!("asm_prog: {asm_prog:?}");
         return Ok(None);
     }
 
