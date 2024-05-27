@@ -123,13 +123,13 @@ fn compile(pp_filepath: PreprocessedFilepath, until: CompilerUntil) -> Result<Op
         return Ok(None);
     }
 
+    let tacky_prog = Tackifier::tackify_program(c_prog);
     if until == CompilerUntil::Tacky {
-        let tacky_prog = Tackifier::tackify_program(c_prog);
         println!("tacky_prog: {tacky_prog:?}");
         return Ok(None);
     }
 
-    let asm_prog = AsmCodeGenerator::gen_program(c_prog)?;
+    let asm_prog = AsmCodeGenerator::gen_program(tacky_prog);
     if until == CompilerUntil::AsmCodegen {
         println!("asm_prog: {asm_prog:?}");
         return Ok(None);

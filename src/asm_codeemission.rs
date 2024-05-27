@@ -58,6 +58,7 @@ impl AsmCodeEmitter {
             Instruction::Ret => {
                 writeln!(&mut self.bw, "{TAB}ret")?;
             }
+            _ => panic!("Non-supported {instr:?}"),
         }
         Ok(())
     }
@@ -66,9 +67,10 @@ impl AsmCodeEmitter {
             Operand::ImmediateValue(val) => {
                 write!(&mut self.bw, "${val}")?;
             }
-            Operand::Register(Register::Eax) => {
+            Operand::Register(Register::AX) => {
                 write!(&mut self.bw, "%eax")?;
             }
+            _ => panic!("Non-supported {operand:?}"),
         }
         Ok(())
     }

@@ -29,13 +29,15 @@ pub enum ReadableValue {
     Constant(i32),
     Variable(Rc<Variable>),
 }
-#[derive(PartialEq, Eq, Debug)]
-pub struct Variable(u64);
+#[derive(PartialEq, Eq, Hash, Debug)]
+pub struct Variable {
+    id: u64,
+}
 impl Variable {
     fn new() -> Self {
         static NEXT_ID: AtomicU64 = AtomicU64::new(0);
         let curr_id = NEXT_ID.fetch_add(1, Ordering::SeqCst);
-        Self(curr_id)
+        Self { id: curr_id }
     }
 }
 
