@@ -1,5 +1,5 @@
 use crate::{lexer::Identifier, parser, tacky};
-use derive_more::From;
+use derive_more::{Deref, From};
 use std::collections::HashMap;
 use std::mem::{self, MaybeUninit};
 use std::rc::Rc;
@@ -38,7 +38,7 @@ pub enum Register {
     R10,
 }
 /// Abs offset from RBP. I.e. negation of at-runtime offset from RBP.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Deref, Debug)]
 pub struct StackPosition(usize);
 
 pub struct AsmCodeGenerator {}

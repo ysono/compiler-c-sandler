@@ -101,9 +101,13 @@ fn preprocess(src_filepath: &SrcFilepath) -> Result<PreprocessedFilepath> {
     let mut child = cmd
         .spawn()
         .context("Failed to launch the preprocessor process.")?;
-    child
+    let child_code = child
         .wait()
-        .context("The preprocessor process did not succeed.")?;
+        .context("The preprocessor process was not running.")?;
+    assert!(
+        child_code.success(),
+        "The preprocessor exit code = {child_code}",
+    );
 
     Ok(pp_filepath)
 }
@@ -153,10 +157,14 @@ fn assemble_and_link(asm_filepath: AsmFilepath) -> Result<ProgramFilepath> {
     eprintln!("Assembler and linker: {cmd:?}");
     let mut child = cmd
         .spawn()
-        .context("Failed to launch the preprocessor process.")?;
-    child
+        .context("Failed to launch the assembler and linker process.")?;
+    let child_code = child
         .wait()
-        .context("The preprocessor process did not succeed.")?;
+        .context("The assembler and linker process was not running.")?;
+    assert!(
+        child_code.success(),
+        "The assembler and linker exit code = {child_code}",
+    );
 
     fs::remove_file(&asm_filepath as &PathBuf)?;
 

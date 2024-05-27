@@ -1,9 +1,9 @@
 use crate::{
-    asm_codegen::{Function, Instruction, Operand, Program, Register},
+    asm_codegen::{Function, Instruction, Operand, Program, Register, UnaryOperator},
     files::AsmFilepath,
     lexer::Identifier,
 };
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use std::fs::{File, OpenOptions};
 use std::io::{BufWriter, Write};
 use std::path::PathBuf;
@@ -41,6 +41,8 @@ impl AsmCodeEmitter {
         let Identifier(ident) = ident;
         writeln!(&mut self.bw, "{TAB}.globl{TAB}{ident}")?;
         writeln!(&mut self.bw, "{ident}:")?;
+        writeln!(&mut self.bw, "{TAB}pushq{TAB}%rbp")?;
+        writeln!(&mut self.bw, "{TAB}movq{TAB}%rsp, %rbp")?;
         for instr in instructions.into_iter() {
             self.write_instr(instr)?;
         }
@@ -55,10 +57,23 @@ impl AsmCodeEmitter {
                 self.write_operand(dst)?;
                 writeln!(&mut self.bw, "")?;
             }
+            Instruction::Unary(op, operand) => {
+                let op = match op {
+                    UnaryOperator::Not => "notl",
+                    UnaryOperator::Neg => "negl",
+                };
+                write!(&mut self.bw, "{TAB}{op}{TAB}")?;
+                self.write_operand(operand)?;
+                writeln!(&mut self.bw, "")?;
+            }
+            Instruction::AllocateStack(stkpos) => {
+                writeln!(&mut self.bw, "{TAB}subq{TAB}${}, %rsp", *stkpos)?;
+            }
             Instruction::Ret => {
+                writeln!(&mut self.bw, "{TAB}movq{TAB}%rbp, %rsp")?;
+                writeln!(&mut self.bw, "{TAB}popq{TAB}%rbp")?;
                 writeln!(&mut self.bw, "{TAB}ret")?;
             }
-            _ => panic!("Non-supported {instr:?}"),
         }
         Ok(())
     }
@@ -67,10 +82,20 @@ impl AsmCodeEmitter {
             Operand::ImmediateValue(val) => {
                 write!(&mut self.bw, "${val}")?;
             }
-            Operand::Register(Register::AX) => {
-                write!(&mut self.bw, "%eax")?;
+            Operand::Register(reg) => match reg {
+                Register::AX => {
+                    write!(&mut self.bw, "%eax")?;
+                }
+                Register::R10 => {
+                    write!(&mut self.bw, "%r10d")?;
+                }
+            },
+            Operand::PseudoRegister(_) => {
+                return Err(anyhow!("Unexpected {operand:?}"));
             }
-            _ => panic!("Non-supported {operand:?}"),
+            Operand::StackPosition(stkpos) => {
+                write!(&mut self.bw, "-{}(%rbp)", *stkpos)?;
+            }
         }
         Ok(())
     }
