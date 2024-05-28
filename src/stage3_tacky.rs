@@ -2,7 +2,10 @@ use crate::{stage1_lexer::tokens::Const, stage2_parser::c_ast};
 use std::rc::Rc;
 
 pub mod tacky_ir {
-    use crate::{stage1_lexer::tokens::Identifier, stage2_parser::c_ast::UnaryOperator};
+    use crate::{
+        stage1_lexer::tokens::Identifier,
+        stage2_parser::c_ast::{BinaryOperator, UnaryOperator},
+    };
     use derive_more::From;
     use std::rc::Rc;
     use std::sync::atomic::{AtomicU64, Ordering};
@@ -22,6 +25,12 @@ pub mod tacky_ir {
         Unary {
             op: UnaryOperator,
             src: ReadableValue,
+            dst: Rc<Variable>,
+        },
+        Binary {
+            op: BinaryOperator,
+            src1: ReadableValue,
+            src2: ReadableValue,
             dst: Rc<Variable>,
         },
     }
@@ -81,7 +90,19 @@ impl Tackifier {
                 instrs.push(instr);
                 ReadableValue::Variable(dst)
             }
-            c_ast::Expression::Binary(..) => panic!("Non-supported expression: {c_exp:?}"),
+            c_ast::Expression::Binary(op, exp1, exp2) => {
+                let src1 = Self::tackify_exp(*exp1, instrs);
+                let src2 = Self::tackify_exp(*exp2, instrs);
+                let dst = Rc::new(Variable::new());
+                let instr = Instruction::Binary {
+                    op,
+                    src1,
+                    src2,
+                    dst: Rc::clone(&dst),
+                };
+                instrs.push(instr);
+                ReadableValue::Variable(dst)
+            }
         }
     }
 }

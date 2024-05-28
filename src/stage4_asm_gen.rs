@@ -97,6 +97,9 @@ impl AsmCodeGenerator {
 
                 [asm_instr_1, asm_instr_2]
             }
+            tacky_ir::Instruction::Binary { .. } => {
+                panic!("Non-supported Tacky IR: {t_instr:?}");
+            }
         })
     }
     fn convert_unary_op(c_op: c_ast::UnaryOperator) -> UnaryOperator {
