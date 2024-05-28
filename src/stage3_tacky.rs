@@ -81,6 +81,7 @@ impl Tackifier {
                 instrs.push(instr);
                 ReadableValue::Variable(dst)
             }
+            c_ast::Expression::Binary(..) => panic!("Non-supported expression: {c_exp:?}"),
         }
     }
 }

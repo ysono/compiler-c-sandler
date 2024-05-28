@@ -96,9 +96,24 @@ impl Lexer {
             BRACE_OPEN => (match_len, token) = (1, Demarcator::BraceOpen.into()),
             BRACE_CLOSE => (match_len, token) = (1, Demarcator::BraceClose.into()),
             SEMICOLON => (match_len, token) = (1, Demarcator::Semicolon.into()),
-            TILDE => (match_len, token) = (1, Operation::Complement.into()),
+            TILDE => (match_len, token) = (1, Operator::Tilde.into()),
+            STAR => (match_len, token) = (1, Operator::Star.into()),
+            SLASH => (match_len, token) = (1, Operator::Slash.into()),
+            PERCENT => (match_len, token) = (1, Operator::Percent.into()),
             _ => {
-                if let Some(mach) = KW_INT.find(sfx) {
+                if let Some(mach) = MINUSES.find(sfx) {
+                    if mach.len() == "-".len() {
+                        (match_len, token) = (mach.len(), Operator::Minus.into());
+                    } else {
+                        return Err(anyhow!("Unknown syntax at {sfx}"));
+                    }
+                } else if let Some(mach) = PLUSES.find(sfx) {
+                    if mach.len() == "+".len() {
+                        (match_len, token) = (mach.len(), Operator::Plus.into());
+                    } else {
+                        return Err(anyhow!("Unknown syntax at {sfx}"));
+                    }
+                } else if let Some(mach) = KW_INT.find(sfx) {
                     match_len = mach.len();
                     token = Keyword::Int.into();
                 } else if let Some(mach) = KW_VOID.find(sfx) {
@@ -107,13 +122,6 @@ impl Lexer {
                 } else if let Some(mach) = KW_RET.find(sfx) {
                     match_len = mach.len();
                     token = Keyword::Return.into();
-                } else if let Some(mach) = MINUS_SINGLE.find(sfx) {
-                    if mach.len() == "-".len() {
-                        match_len = mach.len();
-                        token = Operation::Negate.into();
-                    } else {
-                        return Err(anyhow!("Unknown syntax at {sfx}"));
-                    }
                 } else if let Some(mach) = DECIMALS.find(sfx) {
                     match_len = mach.len();
                     let literal = &sfx[..match_len];
@@ -156,15 +164,19 @@ mod token_matchers {
     pub const SEMICOLON: u8 = ';' as u8;
     /* Operations */
     pub const TILDE: u8 = '~' as u8;
+    pub const STAR: u8 = '*' as u8;
+    pub const SLASH: u8 = '/' as u8;
+    pub const PERCENT: u8 = '%' as u8;
 
     lazy_static! {
+        /* Operations */
+        pub static ref MINUSES: Regex = Regex::new(r"^--?").unwrap();
+        pub static ref PLUSES: Regex = Regex::new(r"^\+\+?").unwrap();
+
         /* Keywords */
         pub static ref KW_INT: Regex = Regex::new(r"^int\b").unwrap();
         pub static ref KW_VOID: Regex = Regex::new(r"^void\b").unwrap();
         pub static ref KW_RET: Regex = Regex::new(r"^return\b").unwrap();
-
-        /* Operations */
-        pub static ref MINUS_SINGLE: Regex = Regex::new(r"^--?").unwrap();
 
         /* Misc variable-length tokens */
         pub static ref DECIMALS: Regex = Regex::new(r"^[0-9]+\b").unwrap();
@@ -179,7 +191,7 @@ pub mod tokens {
     pub enum Token {
         Demarcator(Demarcator),
         Keyword(Keyword),
-        Operation(Operation),
+        Operator(Operator),
         Const(Const),
         Identifier(Identifier),
     }
@@ -198,9 +210,13 @@ pub mod tokens {
         Return,
     }
     #[derive(PartialEq, Eq, Debug)]
-    pub enum Operation {
-        Complement,
-        Negate,
+    pub enum Operator {
+        Tilde,
+        Minus,
+        Plus,
+        Star,
+        Slash,
+        Percent,
     }
     #[derive(PartialEq, Eq, Debug)]
     pub enum Const {
