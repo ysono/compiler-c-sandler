@@ -1,6 +1,8 @@
 use crate::{
     files::AsmFilepath,
-    stage4_asm_gen::asm_code::{Function, Instruction, Operand, Program, Register, UnaryOperator},
+    stage4_asm_gen::asm_code::{
+        BinaryOperator, Function, Instruction, Operand, Program, Register, UnaryOperator,
+    },
 };
 use anyhow::{anyhow, Result};
 use std::fs::{File, OpenOptions};
@@ -65,6 +67,26 @@ impl AsmCodeEmitter {
                 self.write_operand(operand)?;
                 writeln!(&mut self.bw, "")?;
             }
+            Instruction::Binary(op, operand1, operand2) => {
+                let op = match op {
+                    BinaryOperator::Add => "addl",
+                    BinaryOperator::Sub => "subl",
+                    BinaryOperator::Mul => "imull",
+                };
+                write!(&mut self.bw, "{TAB}{op}{TAB}")?;
+                self.write_operand(operand1)?;
+                write!(&mut self.bw, ", ")?;
+                self.write_operand(operand2)?;
+                writeln!(&mut self.bw, "")?;
+            }
+            Instruction::Idiv(operand) => {
+                write!(&mut self.bw, "{TAB}idivl{TAB}")?;
+                self.write_operand(operand)?;
+                writeln!(&mut self.bw, "")?;
+            }
+            Instruction::Cdq => {
+                writeln!(&mut self.bw, "cdq")?;
+            }
             Instruction::AllocateStack(stkpos) => {
                 writeln!(&mut self.bw, "{TAB}subq{TAB}${}, %rsp", *stkpos)?;
             }
@@ -85,8 +107,14 @@ impl AsmCodeEmitter {
                 Register::AX => {
                     write!(&mut self.bw, "%eax")?;
                 }
+                Register::DX => {
+                    write!(&mut self.bw, "%edx")?;
+                }
                 Register::R10 => {
                     write!(&mut self.bw, "%r10d")?;
+                }
+                Register::R11 => {
+                    write!(&mut self.bw, "%r11d")?;
                 }
             },
             Operand::PseudoRegister(_) => {
