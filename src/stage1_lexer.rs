@@ -1,11 +1,12 @@
 use crate::files::PreprocessedFilepath;
 use anyhow::{anyhow, Context, Result};
-use derive_more::From;
 use std::collections::VecDeque;
 use std::fs::File;
 use std::io::{BufRead, BufReader, Seek};
 use std::path::PathBuf;
 use std::str::Chars;
+
+use tokens::*;
 
 pub struct Lexer {
     br: BufReader<File>,
@@ -171,36 +172,40 @@ mod token_matchers {
     }
 }
 
-#[derive(From, PartialEq, Eq, Debug)]
-pub enum Token {
-    Demarcator(Demarcator),
-    Keyword(Keyword),
-    Operation(Operation),
-    Const(Const),
-    Identifier(Identifier),
+pub mod tokens {
+    use derive_more::{From, Into};
+
+    #[derive(From, PartialEq, Eq, Debug)]
+    pub enum Token {
+        Demarcator(Demarcator),
+        Keyword(Keyword),
+        Operation(Operation),
+        Const(Const),
+        Identifier(Identifier),
+    }
+    #[derive(PartialEq, Eq, Debug)]
+    pub enum Demarcator {
+        ParenOpen,
+        ParenClose,
+        BraceOpen,
+        BraceClose,
+        Semicolon,
+    }
+    #[derive(PartialEq, Eq, Debug)]
+    pub enum Keyword {
+        Int,
+        Void,
+        Return,
+    }
+    #[derive(PartialEq, Eq, Debug)]
+    pub enum Operation {
+        Complement,
+        Negate,
+    }
+    #[derive(PartialEq, Eq, Debug)]
+    pub enum Const {
+        Int(i32),
+    }
+    #[derive(Into, PartialEq, Eq, Debug)]
+    pub struct Identifier(pub(super) String);
 }
-#[derive(PartialEq, Eq, Debug)]
-pub enum Demarcator {
-    ParenOpen,
-    ParenClose,
-    BraceOpen,
-    BraceClose,
-    Semicolon,
-}
-#[derive(PartialEq, Eq, Debug)]
-pub enum Keyword {
-    Int,
-    Void,
-    Return,
-}
-#[derive(PartialEq, Eq, Debug)]
-pub enum Operation {
-    Complement,
-    Negate,
-}
-#[derive(PartialEq, Eq, Debug)]
-pub enum Const {
-    Int(i32),
-}
-#[derive(PartialEq, Eq, Debug)]
-pub struct Identifier(pub String);

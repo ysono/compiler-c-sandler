@@ -1,10 +1,10 @@
 use crate::{
-    asm_codeemission::AsmCodeEmitter,
-    asm_codegen::AsmCodeGenerator,
     files::{AsmFilepath, PreprocessedFilepath, ProgramFilepath, SrcFilepath},
-    lexer::Lexer,
-    parser::Parser,
-    tacky::Tackifier,
+    stage1_lexer::Lexer,
+    stage2_parser::Parser,
+    stage3_tacky::Tackifier,
+    stage4_asm_gen::AsmCodeGenerator,
+    stage5_asm_emit::AsmCodeEmitter,
 };
 use anyhow::{Context, Result};
 use clap::Parser as ClapParser;

@@ -1,7 +1,7 @@
-pub mod asm_codeemission;
-pub mod asm_codegen;
 pub mod driver;
 pub mod files;
-pub mod lexer;
-pub mod parser;
-pub mod tacky;
+pub mod stage1_lexer;
+pub mod stage2_parser;
+pub mod stage3_tacky;
+pub mod stage4_asm_gen;
+pub mod stage5_asm_emit;

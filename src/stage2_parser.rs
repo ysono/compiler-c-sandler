@@ -8,34 +8,39 @@
 //! <int> ::= ? A constant token ?
 //! ```
 
-use crate::lexer::{Const, Demarcator, Identifier, Keyword, Operation, Token};
+use crate::stage1_lexer::tokens::{Demarcator, Identifier, Keyword, Operation, Token};
 use anyhow::{anyhow, Result};
-use derive_more::From;
 use std::any;
 
-#[derive(Debug)]
-pub struct Program {
-    pub func: Function,
+pub mod c_ast {
+    use crate::stage1_lexer::tokens::{Const, Identifier};
+    use derive_more::From;
+
+    #[derive(Debug)]
+    pub struct Program {
+        pub func: Function,
+    }
+    #[derive(Debug)]
+    pub struct Function {
+        pub ident: Identifier,
+        pub stmt: Statement,
+    }
+    #[derive(Debug)]
+    pub enum Statement {
+        Return(Expression),
+    }
+    #[derive(From, Debug)]
+    pub enum Expression {
+        Const(Const),
+        Unary(UnaryOperator, Box<Expression>),
+    }
+    #[derive(Debug)]
+    pub enum UnaryOperator {
+        Complement,
+        Negate,
+    }
 }
-#[derive(Debug)]
-pub struct Function {
-    pub ident: Identifier,
-    pub stmt: Statement,
-}
-#[derive(Debug)]
-pub enum Statement {
-    Return(Expression),
-}
-#[derive(From, Debug)]
-pub enum Expression {
-    Const(Const),
-    Unary(UnaryOperator, Box<Expression>),
-}
-#[derive(Debug)]
-pub enum UnaryOperator {
-    Complement,
-    Negate,
-}
+use c_ast::*;
 
 pub struct Parser<T> {
     tokens: T,

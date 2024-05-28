@@ -1,7 +1,6 @@
 use crate::{
-    asm_codegen::{Function, Instruction, Operand, Program, Register, UnaryOperator},
     files::AsmFilepath,
-    lexer::Identifier,
+    stage4_asm_gen::asm_code::{Function, Instruction, Operand, Program, Register, UnaryOperator},
 };
 use anyhow::{anyhow, Result};
 use std::fs::{File, OpenOptions};
@@ -38,7 +37,7 @@ impl AsmCodeEmitter {
             ident,
             instructions,
         } = func;
-        let Identifier(ident) = ident;
+        let ident: String = ident.into();
         writeln!(&mut self.bw, "{TAB}.globl{TAB}{ident}")?;
         writeln!(&mut self.bw, "{ident}:")?;
         writeln!(&mut self.bw, "{TAB}pushq{TAB}%rbp")?;

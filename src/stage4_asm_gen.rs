@@ -1,55 +1,61 @@
-use crate::{lexer::Identifier, parser, tacky};
-use derive_more::{Deref, From};
+use crate::{stage2_parser::c_ast, stage3_tacky::tacky_ir};
 use std::collections::HashMap;
 use std::mem::{self, MaybeUninit};
 use std::rc::Rc;
 
-#[derive(Debug)]
-pub struct Program {
-    pub func: Function,
+pub mod asm_code {
+    use crate::{stage1_lexer::tokens::Identifier, stage3_tacky::tacky_ir::Variable};
+    use derive_more::{Deref, From};
+    use std::rc::Rc;
+
+    #[derive(Debug)]
+    pub struct Program {
+        pub func: Function,
+    }
+    #[derive(Debug)]
+    pub struct Function {
+        pub ident: Identifier,
+        pub instructions: Vec<Instruction>,
+    }
+    #[derive(Debug)]
+    pub enum Instruction {
+        Mov { src: Operand, dst: Operand },
+        Unary(UnaryOperator, Operand),
+        AllocateStack(StackPosition),
+        Ret,
+    }
+    #[derive(Debug)]
+    pub enum UnaryOperator {
+        Not,
+        Neg,
+    }
+    #[derive(From, Clone, Debug)]
+    pub enum Operand {
+        ImmediateValue(i32),
+        Register(Register),
+        PseudoRegister(Rc<Variable>),
+        StackPosition(StackPosition),
+    }
+    #[derive(Clone, Copy, Debug)]
+    pub enum Register {
+        AX,
+        R10,
+    }
+    /// Abs offset from RBP. I.e. negation of at-runtime offset from RBP.
+    #[derive(Clone, Copy, Deref, Debug)]
+    pub struct StackPosition(pub(super) usize);
 }
-#[derive(Debug)]
-pub struct Function {
-    pub ident: Identifier,
-    pub instructions: Vec<Instruction>,
-}
-#[derive(Debug)]
-pub enum Instruction {
-    Mov { src: Operand, dst: Operand },
-    Unary(UnaryOperator, Operand),
-    AllocateStack(StackPosition),
-    Ret,
-}
-#[derive(Debug)]
-pub enum UnaryOperator {
-    Not,
-    Neg,
-}
-#[derive(From, Clone, Debug)]
-pub enum Operand {
-    ImmediateValue(i32),
-    Register(Register),
-    PseudoRegister(Rc<tacky::Variable>),
-    StackPosition(StackPosition),
-}
-#[derive(Clone, Copy, Debug)]
-pub enum Register {
-    AX,
-    R10,
-}
-/// Abs offset from RBP. I.e. negation of at-runtime offset from RBP.
-#[derive(Clone, Copy, Deref, Debug)]
-pub struct StackPosition(usize);
+use asm_code::*;
 
 pub struct AsmCodeGenerator {}
 impl AsmCodeGenerator {
-    pub fn gen_program(t_prog: tacky::Program) -> Program {
-        let tacky::Program { func } = t_prog;
+    pub fn gen_program(t_prog: tacky_ir::Program) -> Program {
+        let tacky_ir::Program { func } = t_prog;
         let func = Self::gen_func(func);
         Program { func }
     }
-    fn gen_func(t_func: tacky::Function) -> Function {
-        let tacky::Function {
+    fn gen_func(t_func: tacky_ir::Function) -> Function {
+        let tacky_ir::Function {
             ident,
             instructions: t_intrs,
         } = t_func;
@@ -64,9 +70,9 @@ impl AsmCodeGenerator {
             instructions: asm_instrs,
         }
     }
-    fn gen_instructions(t_instrs: Vec<tacky::Instruction>) -> impl Iterator<Item = Instruction> {
+    fn gen_instructions(t_instrs: Vec<tacky_ir::Instruction>) -> impl Iterator<Item = Instruction> {
         t_instrs.into_iter().flat_map(|t_instr| match t_instr {
-            tacky::Instruction::Return(t_val) => {
+            tacky_ir::Instruction::Return(t_val) => {
                 let asm_src = Self::convert_operand(t_val);
                 let asm_dst = Operand::Register(Register::AX);
                 let asm_instr_1 = Instruction::Mov {
@@ -78,9 +84,9 @@ impl AsmCodeGenerator {
 
                 [asm_instr_1, asm_instr_2]
             }
-            tacky::Instruction::Unary { op, src, dst } => {
+            tacky_ir::Instruction::Unary { op, src, dst } => {
                 let asm_src = Self::convert_operand(src);
-                let asm_dst = Self::convert_operand(tacky::ReadableValue::Variable(dst));
+                let asm_dst = Self::convert_operand(tacky_ir::ReadableValue::Variable(dst));
                 let asm_instr_1 = Instruction::Mov {
                     src: asm_src,
                     dst: asm_dst.clone(),
@@ -93,23 +99,23 @@ impl AsmCodeGenerator {
             }
         })
     }
-    fn convert_unary_op(c_op: parser::UnaryOperator) -> UnaryOperator {
+    fn convert_unary_op(c_op: c_ast::UnaryOperator) -> UnaryOperator {
         match c_op {
-            parser::UnaryOperator::Complement => UnaryOperator::Not,
-            parser::UnaryOperator::Negate => UnaryOperator::Neg,
+            c_ast::UnaryOperator::Complement => UnaryOperator::Not,
+            c_ast::UnaryOperator::Negate => UnaryOperator::Neg,
         }
     }
-    fn convert_operand(t_val: tacky::ReadableValue) -> Operand {
+    fn convert_operand(t_val: tacky_ir::ReadableValue) -> Operand {
         match t_val {
-            tacky::ReadableValue::Constant(intval) => Operand::ImmediateValue(intval),
-            tacky::ReadableValue::Variable(v) => Operand::PseudoRegister(v),
+            tacky_ir::ReadableValue::Constant(intval) => Operand::ImmediateValue(intval),
+            tacky_ir::ReadableValue::Variable(v) => Operand::PseudoRegister(v),
         }
     }
 }
 
 struct FuncOptimizer {
     last_used_stack_pos: StackPosition,
-    var_to_stack_pos: HashMap<Rc<tacky::Variable>, StackPosition>,
+    var_to_stack_pos: HashMap<Rc<tacky_ir::Variable>, StackPosition>,
 }
 impl FuncOptimizer {
     fn new() -> Self {
@@ -165,7 +171,7 @@ impl FuncOptimizer {
             _ => operand,
         }
     }
-    fn var_to_stack_pos(&mut self, var: Rc<tacky::Variable>) -> StackPosition {
+    fn var_to_stack_pos(&mut self, var: Rc<tacky_ir::Variable>) -> StackPosition {
         /* For now, all C AST `Expression`s and all Tacky `Value`s are 32-bit values. */
         const VAL_BYTELEN: usize = mem::size_of::<i32>();
         let pos = self.var_to_stack_pos.entry(var).or_insert_with(|| {
