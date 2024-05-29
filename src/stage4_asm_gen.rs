@@ -156,6 +156,14 @@ impl AsmCodeGenerator {
 
                         vec![asm_instr_1, asm_instr_2, asm_instr_3, asm_instr_4]
                     }
+                    CBinOp::And
+                    | CBinOp::Or
+                    | CBinOp::Eq
+                    | CBinOp::Neq
+                    | CBinOp::Lt
+                    | CBinOp::Lte
+                    | CBinOp::Gt
+                    | CBinOp::Gte => todo!(),
                 }
             }
         })
@@ -164,6 +172,7 @@ impl AsmCodeGenerator {
         match c_op {
             c_ast::UnaryOperator::Complement => UnaryOperator::Not,
             c_ast::UnaryOperator::Negate => UnaryOperator::Neg,
+            c_ast::UnaryOperator::Not => todo!(),
         }
     }
     fn convert_operand(t_val: tacky_ir::ReadableValue) -> Operand {

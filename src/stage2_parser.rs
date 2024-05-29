@@ -4,8 +4,8 @@
 //! <statement> ::= "return" <exp> ";"
 //! <exp> ::= <factor> | <exp> <binop> <exp>
 //! <factor> ::= <int> | <unop> <factor> | "(" <exp> ")"
-//! <unop> ::= "-" | "~"
-//! <binop> ::= "-" | "+" | "*" | "/" | "%"
+//! <unop> ::= "-" | "~" | "!"
+//! <binop> ::= "-" | "+" | "*" | "/" | "%" | "&&" | "||" | "==" | "!=" | "<" | "<=" | ">" | ">="
 //! <identifier> ::= ? An identifier token ?
 //! <int> ::= ? A constant token ?
 //! ```
@@ -39,16 +39,30 @@ pub mod c_ast {
     }
     #[derive(Debug)]
     pub enum UnaryOperator {
+        /* -> int */
         Complement,
         Negate,
+        /* -> bool */
+        Not,
     }
     #[derive(Debug)]
     pub enum BinaryOperator {
+        /* -> int */
         Sub,
         Add,
         Mul,
         Div,
         Rem,
+        /* -(logic)-> bool */
+        And,
+        Or,
+        /* -(compare)-> bool */
+        Eq,
+        Neq,
+        Lt,
+        Lte,
+        Gt,
+        Gte,
     }
 }
 use c_ast::*;
@@ -57,12 +71,14 @@ use c_ast::*;
 struct BinaryOperatorPrecedence(u8);
 impl<'a> From<&'a BinaryOperator> for BinaryOperatorPrecedence {
     fn from(op: &'a BinaryOperator) -> Self {
+        use BinaryOperator as BO;
         match op {
-            BinaryOperator::Sub => Self(45),
-            BinaryOperator::Add => Self(45),
-            BinaryOperator::Mul => Self(50),
-            BinaryOperator::Div => Self(50),
-            BinaryOperator::Rem => Self(50),
+            BO::Mul | BO::Div | BO::Rem => Self(50),
+            BO::Sub | BO::Add => Self(45),
+            BO::Lt | BO::Lte | BO::Gt | BO::Gte => Self(35),
+            BO::Eq | BO::Neq => Self(30),
+            BO::And => Self(10),
+            BO::Or => Self(5),
         }
     }
 }
@@ -156,7 +172,7 @@ impl<T: Iterator<Item = Result<Token>>> Parser<T> {
         let err =
             |actual: Option<Result<Token>>| Err(anyhow!("Could not parse <factor> at {actual:?}"));
         match self.tokens.next() {
-            Some(Ok(Token::Const(const_))) => return Ok(Expression::Const(const_)),
+            Some(Ok(Token::Const(konst))) => return Ok(Expression::Const(konst)),
             Some(Ok(Token::Operator(op))) => {
                 if let Some(op) = Self::convert_unary_op(&op) {
                     let exp = self.parse_factor()?;
@@ -180,6 +196,14 @@ impl<T: Iterator<Item = Result<Token>>> Parser<T> {
                 Operator::Star => return Some(BinaryOperator::Mul),
                 Operator::Slash => return Some(BinaryOperator::Div),
                 Operator::Percent => return Some(BinaryOperator::Rem),
+                Operator::And => return Some(BinaryOperator::And),
+                Operator::Or => return Some(BinaryOperator::Or),
+                Operator::Eq => return Some(BinaryOperator::Eq),
+                Operator::Neq => return Some(BinaryOperator::Neq),
+                Operator::Lt => return Some(BinaryOperator::Lt),
+                Operator::Lte => return Some(BinaryOperator::Lte),
+                Operator::Gt => return Some(BinaryOperator::Gt),
+                Operator::Gte => return Some(BinaryOperator::Gte),
                 _ => {}
             }
         }
@@ -189,6 +213,7 @@ impl<T: Iterator<Item = Result<Token>>> Parser<T> {
         match op {
             Operator::Tilde => return Some(UnaryOperator::Complement),
             Operator::Minus => return Some(UnaryOperator::Negate),
+            Operator::Not => return Some(UnaryOperator::Not),
             _ => {}
         }
         None

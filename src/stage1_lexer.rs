@@ -101,7 +101,13 @@ impl Lexer {
             SLASH => (match_len, token) = (1, Operator::Slash.into()),
             PERCENT => (match_len, token) = (1, Operator::Percent.into()),
             _ => {
-                if let Some(mach) = MINUSES.find(sfx) {
+                if sfx.starts_with(AND) {
+                    (match_len, token) = (AND.len(), Operator::And.into());
+                } else if sfx.starts_with(OR) {
+                    (match_len, token) = (OR.len(), Operator::Or.into());
+                } else if sfx.starts_with(EQ) {
+                    (match_len, token) = (EQ.len(), Operator::Eq.into());
+                } else if let Some(mach) = MINUSES.find(sfx) {
                     if mach.len() == "-".len() {
                         (match_len, token) = (mach.len(), Operator::Minus.into());
                     } else {
@@ -112,6 +118,27 @@ impl Lexer {
                         (match_len, token) = (mach.len(), Operator::Plus.into());
                     } else {
                         return Err(anyhow!("Unknown syntax at {sfx}"));
+                    }
+                } else if let Some(mach) = BANG_EQ.find(sfx) {
+                    match_len = mach.len();
+                    if mach.len() == "!=".len() {
+                        token = Operator::Neq.into();
+                    } else {
+                        token = Operator::Not.into();
+                    }
+                } else if let Some(mach) = LT_EQ.find(sfx) {
+                    match_len = mach.len();
+                    if mach.len() == "<=".len() {
+                        token = Operator::Lte.into();
+                    } else {
+                        token = Operator::Lt.into();
+                    }
+                } else if let Some(mach) = GT_EQ.find(sfx) {
+                    match_len = mach.len();
+                    if mach.len() == ">=".len() {
+                        token = Operator::Gte.into();
+                    } else {
+                        token = Operator::Gt.into();
                     }
                 } else if let Some(mach) = KW_INT.find(sfx) {
                     match_len = mach.len();
@@ -167,11 +194,17 @@ mod token_matchers {
     pub const STAR: u8 = '*' as u8;
     pub const SLASH: u8 = '/' as u8;
     pub const PERCENT: u8 = '%' as u8;
+    pub const AND: &str = "&&";
+    pub const OR: &str = "||";
+    pub const EQ: &str = "==";
 
     lazy_static! {
         /* Operations */
         pub static ref MINUSES: Regex = Regex::new(r"^--?").unwrap();
         pub static ref PLUSES: Regex = Regex::new(r"^\+\+?").unwrap();
+        pub static ref BANG_EQ: Regex = Regex::new(r"^\!=?").unwrap();
+        pub static ref LT_EQ: Regex = Regex::new(r"^<=?").unwrap();
+        pub static ref GT_EQ: Regex = Regex::new(r"^>=?").unwrap();
 
         /* Keywords */
         pub static ref KW_INT: Regex = Regex::new(r"^int\b").unwrap();
@@ -211,12 +244,27 @@ pub mod tokens {
     }
     #[derive(PartialEq, Eq, Debug)]
     pub enum Operator {
+        /* unary -> int */
         Tilde,
+        /* unary -> bool */
+        Not,
+        /* unary or binary -> int */
         Minus,
+        /* binary -> int */
         Plus,
         Star,
         Slash,
         Percent,
+        /* binary -(logic)-> boolean */
+        And,
+        Or,
+        /* binary -(compare)-> boolean */
+        Eq,
+        Neq,
+        Lt,
+        Gt,
+        Lte,
+        Gte,
     }
     #[derive(PartialEq, Eq, Debug)]
     pub enum Const {
