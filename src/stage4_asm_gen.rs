@@ -1,4 +1,4 @@
-use crate::{stage2_parser::c_ast, stage3_tacky::tacky_ir};
+use crate::stage3_tacky::tacky_ir;
 use std::collections::HashMap;
 use std::mem::{self, MaybeUninit};
 use std::rc::Rc;
@@ -29,8 +29,8 @@ pub mod asm_code {
     }
     #[derive(Debug)]
     pub enum UnaryOperator {
-        Not,
-        Neg,
+        Not, // Bitwise complement
+        Neg, // Two's complement
     }
     #[derive(Debug)]
     pub enum BinaryOperator {
@@ -113,30 +113,30 @@ impl AsmCodeGenerator {
                 src2,
                 dst,
             } => {
-                use c_ast::BinaryOperator as CBinOp;
+                use tacky_ir::BinaryOperator as TBO;
 
                 let asm_src1 = Self::convert_operand(src1);
                 let asm_src2 = Self::convert_operand(src2);
                 let asm_dst = Self::convert_operand(tacky_ir::ReadableValue::Variable(dst));
 
                 match op {
-                    CBinOp::Add | CBinOp::Sub | CBinOp::Mul => {
+                    TBO::Add | TBO::Sub | TBO::Mul => {
                         let asm_instr_1 = Instruction::Mov {
                             src: asm_src1,
                             dst: asm_dst.clone(),
                         };
 
                         let asm_op = match op {
-                            CBinOp::Add => BinaryOperator::Add,
-                            CBinOp::Sub => BinaryOperator::Sub,
-                            CBinOp::Mul => BinaryOperator::Mul,
+                            TBO::Add => BinaryOperator::Add,
+                            TBO::Sub => BinaryOperator::Sub,
+                            TBO::Mul => BinaryOperator::Mul,
                             _ => panic!("Impossible"),
                         };
                         let asm_instr_2 = Instruction::Binary(asm_op, asm_src2, asm_dst);
 
                         vec![asm_instr_1, asm_instr_2]
                     }
-                    CBinOp::Div | CBinOp::Rem => {
+                    TBO::Div | TBO::Rem => {
                         let asm_instr_1 = Instruction::Mov {
                             src: asm_src1,
                             dst: Register::AX.into(),
@@ -145,8 +145,8 @@ impl AsmCodeGenerator {
                         let asm_instr_3 = Instruction::Idiv(asm_src2);
 
                         let ans_reg = match op {
-                            CBinOp::Div => Register::AX,
-                            CBinOp::Rem => Register::DX,
+                            TBO::Div => Register::AX,
+                            TBO::Rem => Register::DX,
                             _ => panic!("Impossible"),
                         };
                         let asm_instr_4 = Instruction::Mov {
@@ -156,23 +156,21 @@ impl AsmCodeGenerator {
 
                         vec![asm_instr_1, asm_instr_2, asm_instr_3, asm_instr_4]
                     }
-                    CBinOp::And
-                    | CBinOp::Or
-                    | CBinOp::Eq
-                    | CBinOp::Neq
-                    | CBinOp::Lt
-                    | CBinOp::Lte
-                    | CBinOp::Gt
-                    | CBinOp::Gte => todo!(),
+                    TBO::Eq | TBO::Neq | TBO::Lt | TBO::Lte | TBO::Gt | TBO::Gte => todo!(),
                 }
             }
+            tacky_ir::Instruction::Copy { .. } => todo!(),
+            tacky_ir::Instruction::Jump(..) => todo!(),
+            tacky_ir::Instruction::JumpIfZero { .. } => todo!(),
+            tacky_ir::Instruction::JumpIfNotZero { .. } => todo!(),
+            tacky_ir::Instruction::Label(..) => todo!(),
         })
     }
-    fn convert_unary_op(c_op: c_ast::UnaryOperator) -> UnaryOperator {
-        match c_op {
-            c_ast::UnaryOperator::Complement => UnaryOperator::Not,
-            c_ast::UnaryOperator::Negate => UnaryOperator::Neg,
-            c_ast::UnaryOperator::Not => todo!(),
+    fn convert_unary_op(t_op: tacky_ir::UnaryOperator) -> UnaryOperator {
+        match t_op {
+            tacky_ir::UnaryOperator::Complement => UnaryOperator::Not,
+            tacky_ir::UnaryOperator::Negate => UnaryOperator::Neg,
+            tacky_ir::UnaryOperator::Not => todo!(),
         }
     }
     fn convert_operand(t_val: tacky_ir::ReadableValue) -> Operand {
