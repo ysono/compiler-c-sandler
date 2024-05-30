@@ -20,31 +20,43 @@ pub mod tacky_ir {
     #[derive(Debug)]
     pub enum Instruction {
         Return(ReadableValue),
-        Unary {
-            op: UnaryOperator,
-            src: ReadableValue,
-            dst: Rc<Variable>,
-        },
-        Binary {
-            op: BinaryOperator,
-            src1: ReadableValue,
-            src2: ReadableValue,
-            dst: Rc<Variable>,
-        },
-        Copy {
-            src: ReadableValue,
-            dst: Rc<Variable>,
-        },
+        Unary(instruction::Unary),
+        Binary(instruction::Binary),
+        Copy(instruction::Copy),
         Jump(Rc<LabelIdentifier>),
-        JumpIfZero {
-            condition: ReadableValue,
-            tgt: Rc<LabelIdentifier>,
-        },
-        JumpIfNotZero {
-            condition: ReadableValue,
-            tgt: Rc<LabelIdentifier>,
-        },
+        JumpIfZero(instruction::JumpIf),
+        JumpIfNotZero(instruction::JumpIf),
         Label(Rc<LabelIdentifier>),
+    }
+    pub mod instruction {
+        use super::*;
+
+        #[derive(Debug)]
+        pub struct Unary {
+            pub op: UnaryOperator,
+            pub src: ReadableValue,
+            pub dst: Rc<Variable>,
+        }
+
+        #[derive(Debug)]
+        pub struct Binary {
+            pub op: BinaryOperator,
+            pub src1: ReadableValue,
+            pub src2: ReadableValue,
+            pub dst: Rc<Variable>,
+        }
+
+        #[derive(Debug)]
+        pub struct Copy {
+            pub src: ReadableValue,
+            pub dst: Rc<Variable>,
+        }
+
+        #[derive(Debug)]
+        pub struct JumpIf {
+            pub condition: ReadableValue,
+            pub tgt: Rc<LabelIdentifier>,
+        }
     }
 
     #[derive(Debug)]
@@ -106,6 +118,7 @@ pub mod tacky_ir {
         }
     }
 }
+use tacky_ir::instruction::*;
 use tacky_ir::*;
 
 enum BinaryOperatorType {
@@ -162,11 +175,11 @@ impl StmtToInstrs {
         let op = Self::convert_unary_op(c_unary.op);
         let src = self.tackify_exp(*c_unary.sub_exp);
         let dst = Rc::new(Variable::new());
-        self.instrs.push(Instruction::Unary {
+        self.instrs.push(Instruction::Unary(Unary {
             op,
             src,
             dst: Rc::clone(&dst),
-        });
+        }));
         ReadableValue::Variable(dst)
     }
 
@@ -190,12 +203,12 @@ impl StmtToInstrs {
         let src1 = self.tackify_exp(*c_binary.lhs);
         let src2 = self.tackify_exp(*c_binary.rhs);
         let dst = Rc::new(Variable::new());
-        self.instrs.push(Instruction::Binary {
+        self.instrs.push(Instruction::Binary(Binary {
             op,
             src1,
             src2,
             dst: Rc::clone(&dst),
-        });
+        }));
         ReadableValue::Variable(dst)
     }
     fn tackify_binary_shortcirc_exp(
@@ -213,9 +226,10 @@ impl StmtToInstrs {
         let label_end = Rc::new(LabelIdentifier::new(Some(format!("{op_name}_end"))));
         let new_shortcirc_jump_instr = |condition: ReadableValue| {
             let tgt = Rc::clone(&label_shortcirc);
+            let jumpif = JumpIf { condition, tgt };
             match op_type {
-                ShortCircuitBOT::And => Instruction::JumpIfZero { condition, tgt },
-                ShortCircuitBOT::Or => Instruction::JumpIfNotZero { condition, tgt },
+                ShortCircuitBOT::And => Instruction::JumpIfZero(jumpif),
+                ShortCircuitBOT::Or => Instruction::JumpIfNotZero(jumpif),
             }
         };
         let (shortcirc_val, fully_evald_val) = match op_type {
@@ -234,19 +248,19 @@ impl StmtToInstrs {
 
         self.instrs.push(new_shortcirc_jump_instr(rhs_val));
 
-        self.instrs.push(Instruction::Copy {
+        self.instrs.push(Instruction::Copy(Copy {
             src: ReadableValue::Constant(fully_evald_val),
             dst: Rc::clone(&dst),
-        });
+        }));
 
         self.instrs.push(Instruction::Jump(Rc::clone(&label_end)));
 
         self.instrs.push(Instruction::Label(label_shortcirc));
 
-        self.instrs.push(Instruction::Copy {
+        self.instrs.push(Instruction::Copy(Copy {
             src: ReadableValue::Constant(shortcirc_val),
             dst: Rc::clone(&dst),
-        });
+        }));
 
         self.instrs.push(Instruction::Label(label_end));
 

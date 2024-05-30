@@ -83,82 +83,9 @@ impl AsmCodeGenerator {
     }
     fn gen_instructions(t_instrs: Vec<tacky_ir::Instruction>) -> impl Iterator<Item = Instruction> {
         t_instrs.into_iter().flat_map(|t_instr| match t_instr {
-            tacky_ir::Instruction::Return(t_val) => {
-                let asm_src = Self::convert_operand(t_val);
-                let asm_instr_1 = Instruction::Mov {
-                    src: asm_src,
-                    dst: Register::AX.into(),
-                };
-
-                let asm_instr_2 = Instruction::Ret;
-
-                vec![asm_instr_1, asm_instr_2]
-            }
-            tacky_ir::Instruction::Unary { op, src, dst } => {
-                let asm_src = Self::convert_operand(src);
-                let asm_dst = Self::convert_operand(tacky_ir::ReadableValue::Variable(dst));
-                let asm_instr_1 = Instruction::Mov {
-                    src: asm_src,
-                    dst: asm_dst.clone(),
-                };
-
-                let asm_op = Self::convert_unary_op(op);
-                let asm_instr_2 = Instruction::Unary(asm_op, asm_dst);
-
-                vec![asm_instr_1, asm_instr_2]
-            }
-            tacky_ir::Instruction::Binary {
-                op,
-                src1,
-                src2,
-                dst,
-            } => {
-                use tacky_ir::BinaryOperator as TBO;
-
-                let asm_src1 = Self::convert_operand(src1);
-                let asm_src2 = Self::convert_operand(src2);
-                let asm_dst = Self::convert_operand(tacky_ir::ReadableValue::Variable(dst));
-
-                match op {
-                    TBO::Add | TBO::Sub | TBO::Mul => {
-                        let asm_instr_1 = Instruction::Mov {
-                            src: asm_src1,
-                            dst: asm_dst.clone(),
-                        };
-
-                        let asm_op = match op {
-                            TBO::Add => BinaryOperator::Add,
-                            TBO::Sub => BinaryOperator::Sub,
-                            TBO::Mul => BinaryOperator::Mul,
-                            _ => panic!("Impossible"),
-                        };
-                        let asm_instr_2 = Instruction::Binary(asm_op, asm_src2, asm_dst);
-
-                        vec![asm_instr_1, asm_instr_2]
-                    }
-                    TBO::Div | TBO::Rem => {
-                        let asm_instr_1 = Instruction::Mov {
-                            src: asm_src1,
-                            dst: Register::AX.into(),
-                        };
-                        let asm_instr_2 = Instruction::Cdq;
-                        let asm_instr_3 = Instruction::Idiv(asm_src2);
-
-                        let ans_reg = match op {
-                            TBO::Div => Register::AX,
-                            TBO::Rem => Register::DX,
-                            _ => panic!("Impossible"),
-                        };
-                        let asm_instr_4 = Instruction::Mov {
-                            src: ans_reg.into(),
-                            dst: asm_dst,
-                        };
-
-                        vec![asm_instr_1, asm_instr_2, asm_instr_3, asm_instr_4]
-                    }
-                    TBO::Eq | TBO::Neq | TBO::Lt | TBO::Lte | TBO::Gt | TBO::Gte => todo!(),
-                }
-            }
+            tacky_ir::Instruction::Return(t_val) => Self::gen_return_instrs(t_val),
+            tacky_ir::Instruction::Unary(unary) => Self::gen_unary_instrs(unary),
+            tacky_ir::Instruction::Binary(binary) => Self::gen_binary_instrs(binary),
             tacky_ir::Instruction::Copy { .. } => todo!(),
             tacky_ir::Instruction::Jump(..) => todo!(),
             tacky_ir::Instruction::JumpIfZero { .. } => todo!(),
@@ -166,16 +93,101 @@ impl AsmCodeGenerator {
             tacky_ir::Instruction::Label(..) => todo!(),
         })
     }
-    fn convert_unary_op(t_op: tacky_ir::UnaryOperator) -> UnaryOperator {
-        match t_op {
+
+    /* Tacky Return */
+
+    fn gen_return_instrs(t_val: tacky_ir::ReadableValue) -> Vec<Instruction> {
+        let asm_src = Self::convert_val_operand(t_val);
+        let asm_instr_1 = Instruction::Mov {
+            src: asm_src,
+            dst: Register::AX.into(),
+        };
+
+        let asm_instr_2 = Instruction::Ret;
+
+        vec![asm_instr_1, asm_instr_2]
+    }
+
+    /* Tacky Unary */
+
+    fn gen_unary_instrs(t_unary: tacky_ir::instruction::Unary) -> Vec<Instruction> {
+        let asm_src = Self::convert_val_operand(t_unary.src);
+        let asm_dst = Self::convert_var_operand(t_unary.dst);
+        let asm_instr_1 = Instruction::Mov {
+            src: asm_src,
+            dst: asm_dst.clone(),
+        };
+
+        let asm_op = match t_unary.op {
             tacky_ir::UnaryOperator::Complement => UnaryOperator::Not,
             tacky_ir::UnaryOperator::Negate => UnaryOperator::Neg,
             tacky_ir::UnaryOperator::Not => todo!(),
+        };
+        let asm_instr_2 = Instruction::Unary(asm_op, asm_dst);
+
+        vec![asm_instr_1, asm_instr_2]
+    }
+
+    /* Tacky Binary */
+
+    fn gen_binary_instrs(t_binary: tacky_ir::instruction::Binary) -> Vec<Instruction> {
+        use tacky_ir::BinaryOperator as TBO;
+
+        match t_binary.op {
+            TBO::Add => Self::gen_arithmetic_instrs(BinaryOperator::Add, t_binary),
+            TBO::Sub => Self::gen_arithmetic_instrs(BinaryOperator::Sub, t_binary),
+            TBO::Mul => Self::gen_arithmetic_instrs(BinaryOperator::Mul, t_binary),
+
+            TBO::Div => Self::gen_divrem_instrs(Register::AX, t_binary),
+            TBO::Rem => Self::gen_divrem_instrs(Register::DX, t_binary),
+
+            TBO::Eq | TBO::Neq | TBO::Lt | TBO::Lte | TBO::Gt | TBO::Gte => todo!(),
         }
     }
-    fn convert_operand(t_val: tacky_ir::ReadableValue) -> Operand {
+    fn gen_arithmetic_instrs(
+        asm_op: asm_code::BinaryOperator,
+        t_binary: tacky_ir::instruction::Binary,
+    ) -> Vec<Instruction> {
+        let asm_src1 = Self::convert_val_operand(t_binary.src1);
+        let asm_src2 = Self::convert_val_operand(t_binary.src2);
+        let asm_dst = Self::convert_var_operand(t_binary.dst);
+
+        let asm_instr_1 = Instruction::Mov {
+            src: asm_src1,
+            dst: asm_dst.clone(),
+        };
+        let asm_instr_2 = Instruction::Binary(asm_op, asm_src2, asm_dst);
+        vec![asm_instr_1, asm_instr_2]
+    }
+    fn gen_divrem_instrs(
+        ans_reg: asm_code::Register,
+        t_binary: tacky_ir::instruction::Binary,
+    ) -> Vec<Instruction> {
+        let asm_src1 = Self::convert_val_operand(t_binary.src1);
+        let asm_src2 = Self::convert_val_operand(t_binary.src2);
+        let asm_dst = Self::convert_var_operand(t_binary.dst);
+
+        let asm_instr_1 = Instruction::Mov {
+            src: asm_src1,
+            dst: Register::AX.into(),
+        };
+        let asm_instr_2 = Instruction::Cdq;
+        let asm_instr_3 = Instruction::Idiv(asm_src2);
+        let asm_instr_4 = Instruction::Mov {
+            src: ans_reg.into(),
+            dst: asm_dst,
+        };
+        vec![asm_instr_1, asm_instr_2, asm_instr_3, asm_instr_4]
+    }
+
+    /* Operand */
+
+    fn convert_var_operand(t_var: Rc<tacky_ir::Variable>) -> Operand {
+        Self::convert_val_operand(tacky_ir::ReadableValue::Variable(t_var))
+    }
+    fn convert_val_operand(t_val: tacky_ir::ReadableValue) -> Operand {
         match t_val {
-            tacky_ir::ReadableValue::Constant(intval) => Operand::ImmediateValue(intval),
+            tacky_ir::ReadableValue::Constant(i) => Operand::ImmediateValue(i),
             tacky_ir::ReadableValue::Variable(v) => Operand::PseudoRegister(v),
         }
     }
