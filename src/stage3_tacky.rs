@@ -1,4 +1,5 @@
 use crate::{stage1_lexer::tokens, stage2_parser::c_ast};
+use derive_more::Display;
 use std::rc::Rc;
 
 pub mod tacky_ir {
@@ -105,9 +106,7 @@ pub mod tacky_ir {
 
     #[derive(Debug)]
     pub struct LabelIdentifier {
-        #[allow(dead_code)]
         id: u64,
-        #[allow(dead_code)]
         name: Option<String>,
     }
     impl LabelIdentifier {
@@ -115,6 +114,12 @@ pub mod tacky_ir {
             static NEXT_ID: AtomicU64 = AtomicU64::new(0);
             let curr_id = NEXT_ID.fetch_add(1, Ordering::SeqCst);
             Self { id: curr_id, name }
+        }
+        pub fn id(&self) -> u64 {
+            self.id
+        }
+        pub fn name(&self) -> &Option<String> {
+            &self.name
         }
     }
 }
@@ -125,6 +130,7 @@ enum BinaryOperatorType {
     EvaluateBothHands(tacky_ir::BinaryOperator),
     ShortCircuit(ShortCircuitBOT),
 }
+#[derive(Display)]
 enum ShortCircuitBOT {
     And,
     Or,
@@ -216,14 +222,10 @@ impl StmtToInstrs {
         op_type: ShortCircuitBOT,
         c_binary: c_ast::expression::Binary,
     ) -> ReadableValue {
-        let op_name = match op_type {
-            ShortCircuitBOT::And => "And",
-            ShortCircuitBOT::Or => "Or",
-        };
         let label_shortcirc = Rc::new(LabelIdentifier::new(Some(format!(
-            "{op_name}_shortcircuit"
+            "{op_type}_shortcircuit"
         ))));
-        let label_end = Rc::new(LabelIdentifier::new(Some(format!("{op_name}_end"))));
+        let label_end = Rc::new(LabelIdentifier::new(Some(format!("{op_type}_end"))));
         let new_shortcirc_jump_instr = |condition: ReadableValue| {
             let tgt = Rc::clone(&label_shortcirc);
             let jumpif = JumpIf { condition, tgt };
