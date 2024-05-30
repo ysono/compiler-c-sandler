@@ -21,9 +21,16 @@ pub mod asm_code {
 
     #[derive(Debug)]
     pub enum Instruction<Oprnd> {
-        Mov { src: Oprnd, dst: Oprnd },
+        Mov {
+            src: Oprnd,
+            dst: Oprnd,
+        },
         Unary(UnaryOperator, Oprnd),
-        Binary(BinaryOperator, Oprnd, Oprnd),
+        Binary {
+            op: BinaryOperator,
+            arg: Oprnd, // Semantic RHS. Asm operand #1.
+            tgt: Oprnd, // Semantic LHS, as well as output. Asm operand #2.
+        },
         Idiv(Oprnd),
         Cdq,
         AllocateStack(StackPosition),
@@ -32,8 +39,8 @@ pub mod asm_code {
 
     #[derive(Debug)]
     pub enum UnaryOperator {
-        Not, // Bitwise complement
-        Neg, // Two's complement
+        BitwiseComplement,
+        TwosComplement,
     }
 
     #[derive(Debug)]
@@ -136,8 +143,8 @@ impl AsmCodeGenerator {
         };
 
         let asm_op = match t_unary.op {
-            tacky_ir::UnaryOperator::Complement => UnaryOperator::Not,
-            tacky_ir::UnaryOperator::Negate => UnaryOperator::Neg,
+            tacky_ir::UnaryOperator::Complement => UnaryOperator::BitwiseComplement,
+            tacky_ir::UnaryOperator::Negate => UnaryOperator::TwosComplement,
             tacky_ir::UnaryOperator::Not => todo!(),
         };
         let asm_instr_2 = Instruction::Unary(asm_op, asm_dst);
@@ -175,7 +182,11 @@ impl AsmCodeGenerator {
             src: asm_src1,
             dst: asm_dst.clone(),
         };
-        let asm_instr_2 = Instruction::Binary(asm_op, asm_src2, asm_dst);
+        let asm_instr_2 = Instruction::Binary {
+            op: asm_op,
+            tgt: asm_dst,
+            arg: asm_src2,
+        };
         vec![asm_instr_1, asm_instr_2]
     }
     fn gen_divrem_instrs(
@@ -229,7 +240,7 @@ impl InstrsFinalizer {
     ) -> Vec<Instruction<Operand>> {
         let instrs = in_instrs.into_iter();
         let instrs = self.convert_operands(instrs);
-        let instrs = Self::correct_invalid_instrs(instrs);
+        let instrs = correct_invalid_operands::correct_invalid_operands(instrs);
 
         #[allow(invalid_value)]
         let dummy_alloc_stk_instr = unsafe { MaybeUninit::uninit().assume_init() };
@@ -258,10 +269,10 @@ impl InstrsFinalizer {
                 let operand = self.convert_operand(operand);
                 Instruction::Unary(op, operand)
             }
-            Instruction::Binary(op, operand1, operand2) => {
-                let operand1 = self.convert_operand(operand1);
-                let operand2 = self.convert_operand(operand2);
-                Instruction::Binary(op, operand1, operand2)
+            Instruction::Binary { op, arg, tgt } => {
+                let arg = self.convert_operand(arg);
+                let tgt = self.convert_operand(tgt);
+                Instruction::Binary { op, arg, tgt }
             }
             Instruction::Idiv(operand) => {
                 let operand = self.convert_operand(operand);
@@ -289,8 +300,12 @@ impl InstrsFinalizer {
         });
         *pos
     }
+}
 
-    fn correct_invalid_instrs<'a>(
+mod correct_invalid_operands {
+    use super::*;
+
+    pub fn correct_invalid_operands<'a>(
         in_instrs: impl 'a + Iterator<Item = Instruction<Operand>>,
     ) -> impl 'a + Iterator<Item = Instruction<Operand>> {
         in_instrs.flat_map(|in_instr| match in_instr {
@@ -299,52 +314,70 @@ impl InstrsFinalizer {
                 dst: dst @ Operand::StackPosition(_),
             } => {
                 let reg = Register::R10;
-                let out_instr_1 = Instruction::Mov {
-                    src,
-                    dst: reg.into(),
-                };
-                let out_instr_2 = Instruction::Mov {
+                let instr_at_reg = Instruction::Mov {
                     src: reg.into(),
                     dst,
                 };
-                vec![out_instr_1, out_instr_2]
+                to_reg(src, reg, instr_at_reg)
             }
-            Instruction::Binary(
-                op @ (BinaryOperator::Add | BinaryOperator::Sub),
-                src @ Operand::StackPosition(_),
-                dst @ Operand::StackPosition(_),
-            ) => {
+            Instruction::Binary {
+                op: op @ (BinaryOperator::Add | BinaryOperator::Sub),
+                arg: arg @ Operand::StackPosition(_),
+                tgt: tgt @ Operand::StackPosition(_),
+            } => {
                 let reg = Register::R10;
-                let out_instr_1 = Instruction::Mov {
-                    src,
-                    dst: reg.into(),
+                let instr_at_reg = Instruction::Binary {
+                    op,
+                    arg: reg.into(),
+                    tgt,
                 };
-                let out_instr_2 = Instruction::Binary(op, reg.into(), dst);
-                vec![out_instr_1, out_instr_2]
+                to_reg(arg, reg, instr_at_reg)
             }
-            Instruction::Binary(BinaryOperator::Mul, src, dst @ Operand::StackPosition(_)) => {
+            Instruction::Binary {
+                op: op @ BinaryOperator::Mul,
+                arg,
+                tgt: tgt @ Operand::StackPosition(_),
+            } => {
                 let reg = Register::R11;
-                let out_instr_1 = Instruction::Mov {
-                    src: dst.clone(),
-                    dst: reg.into(),
+                let instr_at_reg = Instruction::Binary {
+                    op,
+                    arg,
+                    tgt: reg.into(),
                 };
-                let out_instr_2 = Instruction::Binary(BinaryOperator::Mul, src, reg.into());
-                let out_instr_3 = Instruction::Mov {
-                    src: reg.into(),
-                    dst: dst,
-                };
-                vec![out_instr_1, out_instr_2, out_instr_3]
+                to_and_from_reg(tgt, reg, instr_at_reg)
             }
             Instruction::Idiv(imm @ Operand::ImmediateValue(_)) => {
                 let reg = Register::R10;
-                let out_instr_1 = Instruction::Mov {
-                    src: imm,
-                    dst: reg.into(),
-                };
-                let out_instr_2 = Instruction::Idiv(reg.into());
-                vec![out_instr_1, out_instr_2]
+                let instr_at_reg = Instruction::Idiv(reg.into());
+                to_reg(imm, reg, instr_at_reg)
             }
             _ => vec![in_instr],
         })
+    }
+    fn to_reg(
+        operand_to_reg: Operand,
+        reg: Register,
+        instr_at_reg: Instruction<Operand>,
+    ) -> Vec<Instruction<Operand>> {
+        let instr_to_reg = Instruction::Mov {
+            src: operand_to_reg,
+            dst: reg.into(),
+        };
+        vec![instr_to_reg, instr_at_reg]
+    }
+    fn to_and_from_reg(
+        operand_to_and_from_reg: Operand,
+        reg: Register,
+        instr_at_reg: Instruction<Operand>,
+    ) -> Vec<Instruction<Operand>> {
+        let instr_to_reg = Instruction::Mov {
+            src: operand_to_and_from_reg.clone(),
+            dst: reg.into(),
+        };
+        let instr_from_reg = Instruction::Mov {
+            src: reg.into(),
+            dst: operand_to_and_from_reg,
+        };
+        vec![instr_to_reg, instr_at_reg, instr_from_reg]
     }
 }

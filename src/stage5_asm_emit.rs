@@ -60,23 +60,23 @@ impl AsmCodeEmitter {
             }
             Instruction::Unary(op, operand) => {
                 let op = match op {
-                    UnaryOperator::Not => "notl",
-                    UnaryOperator::Neg => "negl",
+                    UnaryOperator::BitwiseComplement => "notl",
+                    UnaryOperator::TwosComplement => "negl",
                 };
                 write!(&mut self.bw, "{TAB}{op}{TAB}")?;
                 self.write_operand(operand)?;
                 writeln!(&mut self.bw, "")?;
             }
-            Instruction::Binary(op, operand1, operand2) => {
+            Instruction::Binary { op, arg, tgt } => {
                 let op = match op {
                     BinaryOperator::Add => "addl",
                     BinaryOperator::Sub => "subl",
                     BinaryOperator::Mul => "imull",
                 };
                 write!(&mut self.bw, "{TAB}{op}{TAB}")?;
-                self.write_operand(operand1)?;
+                self.write_operand(arg)?;
                 write!(&mut self.bw, ", ")?;
-                self.write_operand(operand2)?;
+                self.write_operand(tgt)?;
                 writeln!(&mut self.bw, "")?;
             }
             Instruction::Idiv(operand) => {
