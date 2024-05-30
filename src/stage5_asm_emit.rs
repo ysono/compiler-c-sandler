@@ -79,6 +79,7 @@ impl AsmCodeEmitter {
                 self.write_operand(tgt)?;
                 writeln!(&mut self.bw, "")?;
             }
+            Instruction::Cmp { .. } => todo!(),
             Instruction::Idiv(operand) => {
                 write!(&mut self.bw, "{TAB}idivl{TAB}")?;
                 self.write_operand(operand)?;
@@ -87,6 +88,10 @@ impl AsmCodeEmitter {
             Instruction::Cdq => {
                 writeln!(&mut self.bw, "cdq")?;
             }
+            Instruction::Jmp(..) => todo!(),
+            Instruction::JmpCC(..) => todo!(),
+            Instruction::SetCC(..) => todo!(),
+            Instruction::Label(..) => todo!(),
             Instruction::AllocateStack(stkpos) => {
                 writeln!(&mut self.bw, "{TAB}subq{TAB}${}, %rsp", *stkpos)?;
             }

@@ -4,7 +4,10 @@ use std::mem::{self, MaybeUninit};
 use std::rc::Rc;
 
 pub mod asm_code {
-    use crate::{stage1_lexer::tokens::Identifier, stage3_tacky::tacky_ir::Variable};
+    use crate::{
+        stage1_lexer::tokens::Identifier,
+        stage3_tacky::tacky_ir::{LabelIdentifier, Variable},
+    };
     use derive_more::{Deref, From};
     use std::rc::Rc;
 
@@ -31,8 +34,16 @@ pub mod asm_code {
             arg: Oprnd, // Semantic RHS. Asm operand #1.
             tgt: Oprnd, // Semantic LHS, as well as output. Asm operand #2.
         },
+        Cmp {
+            arg: Oprnd, // Semantic RHS. Asm operand #1.
+            tgt: Oprnd, // Semantic LHS, non-modified. Asm operand #2.
+        },
         Idiv(Oprnd),
         Cdq,
+        Jmp(Rc<LabelIdentifier>),
+        JmpCC(ConditionCode, Rc<LabelIdentifier>),
+        SetCC(ConditionCode, Oprnd),
+        Label(Rc<LabelIdentifier>),
         AllocateStack(StackPosition),
         Ret,
     }
@@ -75,6 +86,16 @@ pub mod asm_code {
     /// Abs offset from RBP. I.e. negation of at-runtime offset from RBP.
     #[derive(Clone, Copy, Deref, Debug)]
     pub struct StackPosition(pub(super) usize);
+
+    #[derive(Debug)]
+    pub enum ConditionCode {
+        E,
+        Ne,
+        L,
+        Le,
+        G,
+        Ge,
+    }
 }
 use asm_code::*;
 
@@ -108,11 +129,15 @@ impl AsmCodeGenerator {
             tacky_ir::Instruction::Return(t_val) => Self::gen_return_instrs(t_val),
             tacky_ir::Instruction::Unary(unary) => Self::gen_unary_instrs(unary),
             tacky_ir::Instruction::Binary(binary) => Self::gen_binary_instrs(binary),
-            tacky_ir::Instruction::Copy { .. } => todo!(),
-            tacky_ir::Instruction::Jump(..) => todo!(),
-            tacky_ir::Instruction::JumpIfZero { .. } => todo!(),
-            tacky_ir::Instruction::JumpIfNotZero { .. } => todo!(),
-            tacky_ir::Instruction::Label(..) => todo!(),
+            tacky_ir::Instruction::Copy(copy) => Self::gen_copy_instrs(copy),
+            tacky_ir::Instruction::Jump(lbl) => vec![Instruction::Jmp(lbl)],
+            tacky_ir::Instruction::JumpIfZero(jumpif) => {
+                Self::gen_jumpif_instrs(ConditionCode::E, jumpif)
+            }
+            tacky_ir::Instruction::JumpIfNotZero(jumpif) => {
+                Self::gen_jumpif_instrs(ConditionCode::Ne, jumpif)
+            }
+            tacky_ir::Instruction::Label(lbl) => vec![Instruction::Label(lbl)],
         })
     }
 
@@ -135,21 +160,42 @@ impl AsmCodeGenerator {
     fn gen_unary_instrs(
         t_unary: tacky_ir::instruction::Unary,
     ) -> Vec<Instruction<PreFinalOperand>> {
+        use tacky_ir::UnaryOperator as TUO;
+
+        match t_unary.op {
+            TUO::Complement => {
+                Self::gen_unary_inplace_instrs(UnaryOperator::BitwiseComplement, t_unary)
+            }
+            TUO::Negate => Self::gen_unary_inplace_instrs(UnaryOperator::TwosComplement, t_unary),
+            TUO::Not => Self::gen_unary_comparison_instrs(t_unary),
+        }
+    }
+    fn gen_unary_inplace_instrs(
+        asm_op: asm_code::UnaryOperator,
+        t_unary: tacky_ir::instruction::Unary,
+    ) -> Vec<Instruction<PreFinalOperand>> {
         let asm_src = Self::convert_val_operand(t_unary.src);
         let asm_dst = Self::convert_var_operand(t_unary.dst);
+
         let asm_instr_1 = Instruction::Mov {
             src: asm_src,
             dst: asm_dst.clone(),
         };
-
-        let asm_op = match t_unary.op {
-            tacky_ir::UnaryOperator::Complement => UnaryOperator::BitwiseComplement,
-            tacky_ir::UnaryOperator::Negate => UnaryOperator::TwosComplement,
-            tacky_ir::UnaryOperator::Not => todo!(),
-        };
         let asm_instr_2 = Instruction::Unary(asm_op, asm_dst);
-
         vec![asm_instr_1, asm_instr_2]
+    }
+    fn gen_unary_comparison_instrs(
+        t_unary: tacky_ir::instruction::Unary,
+    ) -> Vec<Instruction<PreFinalOperand>> {
+        let asm_src = Self::convert_val_operand(t_unary.src);
+        let asm_dst = Self::convert_var_operand(t_unary.dst);
+
+        Self::gen_comparison_instrs_from_asm(
+            ConditionCode::E,
+            asm_src,
+            PreFinalOperand::ImmediateValue(0),
+            asm_dst,
+        )
     }
 
     /* Tacky Binary */
@@ -167,7 +213,12 @@ impl AsmCodeGenerator {
             TBO::Div => Self::gen_divrem_instrs(Register::AX, t_binary),
             TBO::Rem => Self::gen_divrem_instrs(Register::DX, t_binary),
 
-            TBO::Eq | TBO::Neq | TBO::Lt | TBO::Lte | TBO::Gt | TBO::Gte => todo!(),
+            TBO::Eq => Self::gen_comparison_instrs(ConditionCode::E, t_binary),
+            TBO::Neq => Self::gen_comparison_instrs(ConditionCode::Ne, t_binary),
+            TBO::Lt => Self::gen_comparison_instrs(ConditionCode::L, t_binary),
+            TBO::Lte => Self::gen_comparison_instrs(ConditionCode::Le, t_binary),
+            TBO::Gt => Self::gen_comparison_instrs(ConditionCode::G, t_binary),
+            TBO::Gte => Self::gen_comparison_instrs(ConditionCode::Ge, t_binary),
         }
     }
     fn gen_arithmetic_instrs(
@@ -208,6 +259,56 @@ impl AsmCodeGenerator {
             dst: asm_dst,
         };
         vec![asm_instr_1, asm_instr_2, asm_instr_3, asm_instr_4]
+    }
+    fn gen_comparison_instrs(
+        cmp_0_cc: ConditionCode,
+        t_binary: tacky_ir::instruction::Binary,
+    ) -> Vec<Instruction<PreFinalOperand>> {
+        let asm_src1 = Self::convert_val_operand(t_binary.src1);
+        let asm_src2 = Self::convert_val_operand(t_binary.src2);
+        let asm_dst = Self::convert_var_operand(t_binary.dst);
+
+        Self::gen_comparison_instrs_from_asm(cmp_0_cc, asm_src1, asm_src2, asm_dst)
+    }
+    fn gen_comparison_instrs_from_asm(
+        cmp_0_cc: ConditionCode,
+        asm_src1: asm_code::PreFinalOperand,
+        asm_src2: asm_code::PreFinalOperand,
+        asm_dst: asm_code::PreFinalOperand,
+    ) -> Vec<Instruction<PreFinalOperand>> {
+        let asm_instr_1 = Instruction::Cmp {
+            tgt: asm_src1,
+            arg: asm_src2,
+        };
+        let asm_instr_2 = Instruction::Mov {
+            src: PreFinalOperand::ImmediateValue(0),
+            dst: asm_dst.clone(),
+        };
+        let asm_instr_3 = Instruction::SetCC(cmp_0_cc, asm_dst);
+        vec![asm_instr_1, asm_instr_2, asm_instr_3]
+    }
+
+    /* Tacky Copy */
+
+    fn gen_copy_instrs(t_copy: tacky_ir::instruction::Copy) -> Vec<Instruction<PreFinalOperand>> {
+        let src = Self::convert_val_operand(t_copy.src);
+        let dst = Self::convert_var_operand(t_copy.dst);
+        vec![Instruction::Mov { src, dst }]
+    }
+
+    /* Tacky Jump */
+
+    fn gen_jumpif_instrs(
+        cmp_0_cc: ConditionCode,
+        t_jumpif: tacky_ir::instruction::JumpIf,
+    ) -> Vec<Instruction<PreFinalOperand>> {
+        let condition = Self::convert_val_operand(t_jumpif.condition);
+        let asm_instr_1 = Instruction::Cmp {
+            tgt: condition,
+            arg: PreFinalOperand::ImmediateValue(0),
+        };
+        let asm_instr_2 = Instruction::JmpCC(cmp_0_cc, t_jumpif.tgt);
+        vec![asm_instr_1, asm_instr_2]
     }
 
     /* Operand */
@@ -274,11 +375,23 @@ impl InstrsFinalizer {
                 let tgt = self.convert_operand(tgt);
                 Instruction::Binary { op, arg, tgt }
             }
+            Instruction::Cmp { arg, tgt } => {
+                let arg = self.convert_operand(arg);
+                let tgt = self.convert_operand(tgt);
+                Instruction::Cmp { arg, tgt }
+            }
             Instruction::Idiv(operand) => {
                 let operand = self.convert_operand(operand);
                 Instruction::Idiv(operand)
             }
             Instruction::Cdq => Instruction::Cdq,
+            Instruction::Jmp(l) => Instruction::Jmp(l),
+            Instruction::JmpCC(c, l) => Instruction::JmpCC(c, l),
+            Instruction::SetCC(c, o) => {
+                let operand = self.convert_operand(o);
+                Instruction::SetCC(c, operand)
+            }
+            Instruction::Label(l) => Instruction::Label(l),
             Instruction::AllocateStack(s) => Instruction::AllocateStack(s),
             Instruction::Ret => Instruction::Ret,
         })
@@ -345,6 +458,28 @@ mod correct_invalid_operands {
                     tgt: reg.into(),
                 };
                 to_and_from_reg(tgt, reg, instr_at_reg)
+            }
+            Instruction::Cmp {
+                arg: arg @ Operand::StackPosition(_),
+                tgt: tgt @ Operand::StackPosition(_),
+            } => {
+                let reg = Register::R10;
+                let instr_at_reg = Instruction::Cmp {
+                    arg,
+                    tgt: reg.into(),
+                };
+                to_reg(tgt, reg, instr_at_reg)
+            }
+            Instruction::Cmp {
+                arg,
+                tgt: tgt @ Operand::ImmediateValue(_),
+            } => {
+                let reg = Register::R11;
+                let instr_at_reg = Instruction::Cmp {
+                    arg,
+                    tgt: reg.into(),
+                };
+                to_reg(tgt, reg, instr_at_reg)
             }
             Instruction::Idiv(imm @ Operand::ImmediateValue(_)) => {
                 let reg = Register::R10;
