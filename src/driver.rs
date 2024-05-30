@@ -8,6 +8,7 @@ use crate::{
 };
 use anyhow::{Context, Result};
 use clap::Parser as ClapParser;
+use log;
 use std::fs;
 use std::path::PathBuf;
 use std::process::Command;
@@ -97,7 +98,7 @@ fn preprocess(src_filepath: &SrcFilepath) -> Result<PreprocessedFilepath> {
         "-o",
         pp_filepath.to_str().unwrap(),
     ]);
-    eprintln!("Preprocessor: {cmd:?}");
+    log::info!("Preprocessor: {cmd:?}");
     let mut child = cmd
         .spawn()
         .context("Failed to launch the preprocessor process.")?;
@@ -154,7 +155,7 @@ fn assemble_and_link(asm_filepath: AsmFilepath) -> Result<ProgramFilepath> {
         "-o",
         prog_filepath.to_str().unwrap(),
     ]);
-    eprintln!("Assembler and linker: {cmd:?}");
+    log::info!("Assembler and linker: {cmd:?}");
     let mut child = cmd
         .spawn()
         .context("Failed to launch the assembler and linker process.")?;
@@ -172,21 +173,23 @@ fn assemble_and_link(asm_filepath: AsmFilepath) -> Result<ProgramFilepath> {
 }
 
 pub fn driver_main() -> Result<()> {
+    env_logger::init();
+
     let args = CliArgs::parse();
 
     let params = AppParams::try_from(args)?;
-    eprintln!("{params:?}");
+    log::info!("{params:?}");
 
     let pp_filepath = preprocess(&params.src_filepath)?;
-    eprintln!("Preprocessor done -> {pp_filepath:?}");
+    log::info!("Preprocessor done -> {pp_filepath:?}");
 
     let asm_filepath = compile(pp_filepath, params.compiler_driver_until.compiler_until())?;
-    eprintln!("Assembly generator done -> {asm_filepath:?}");
+    log::info!("Assembly generator done -> {asm_filepath:?}");
 
     match (params.compiler_driver_until, asm_filepath) {
         (CompilerDriverUntil::Linker, Some(asm_filepath)) => {
             let prog_filepath = assemble_and_link(asm_filepath)?;
-            eprintln!("Linker done -> {prog_filepath:?}");
+            log::info!("Linker done -> {prog_filepath:?}");
         }
         _ => {}
     }
