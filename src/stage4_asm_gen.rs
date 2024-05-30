@@ -9,42 +9,54 @@ pub mod asm_code {
     use std::rc::Rc;
 
     #[derive(Debug)]
-    pub struct Program {
-        pub func: Function,
+    pub struct Program<Oprnd> {
+        pub func: Function<Oprnd>,
     }
+
     #[derive(Debug)]
-    pub struct Function {
+    pub struct Function<Oprnd> {
         pub ident: Identifier,
-        pub instructions: Vec<Instruction>,
+        pub instructions: Vec<Instruction<Oprnd>>,
     }
+
     #[derive(Debug)]
-    pub enum Instruction {
-        Mov { src: Operand, dst: Operand },
-        Unary(UnaryOperator, Operand),
-        Binary(BinaryOperator, Operand, Operand),
-        Idiv(Operand),
+    pub enum Instruction<Oprnd> {
+        Mov { src: Oprnd, dst: Oprnd },
+        Unary(UnaryOperator, Oprnd),
+        Binary(BinaryOperator, Oprnd, Oprnd),
+        Idiv(Oprnd),
         Cdq,
         AllocateStack(StackPosition),
         Ret,
     }
+
     #[derive(Debug)]
     pub enum UnaryOperator {
         Not, // Bitwise complement
         Neg, // Two's complement
     }
+
     #[derive(Debug)]
     pub enum BinaryOperator {
         Add,
         Sub,
         Mul,
     }
+
+    #[derive(From, Clone, Debug)]
+    pub(super) enum PreFinalOperand {
+        ImmediateValue(i32),
+        Register(Register),
+        PseudoRegister(Rc<Variable>),
+    }
+
     #[derive(From, Clone, Debug)]
     pub enum Operand {
         ImmediateValue(i32),
         Register(Register),
-        PseudoRegister(Rc<Variable>),
         StackPosition(StackPosition),
     }
+
     #[derive(Clone, Copy, Debug)]
     pub enum Register {
         AX,
@@ -52,6 +64,7 @@ pub mod asm_code {
         R10,
         R11,
     }
+
     /// Abs offset from RBP. I.e. negation of at-runtime offset from RBP.
     #[derive(Clone, Copy, Deref, Debug)]
     pub struct StackPosition(pub(super) usize);
@@ -60,12 +73,12 @@ use asm_code::*;
 
 pub struct AsmCodeGenerator {}
 impl AsmCodeGenerator {
-    pub fn gen_program(t_prog: tacky_ir::Program) -> Program {
+    pub fn gen_program(t_prog: tacky_ir::Program) -> Program<Operand> {
         let tacky_ir::Program { func } = t_prog;
         let func = Self::gen_func(func);
         Program { func }
     }
-    fn gen_func(t_func: tacky_ir::Function) -> Function {
+    fn gen_func(t_func: tacky_ir::Function) -> Function<Operand> {
         let tacky_ir::Function {
             ident,
             instructions: t_intrs,
@@ -73,15 +86,17 @@ impl AsmCodeGenerator {
 
         let asm_instrs = Self::gen_instructions(t_intrs);
 
-        let mut opt = FuncOptimizer::new();
-        let asm_instrs = opt.optimize_instrs(asm_instrs);
+        let mut fin = InstrsFinalizer::new();
+        let asm_instrs = fin.finalize_instrs(asm_instrs);
 
         Function {
             ident,
             instructions: asm_instrs,
         }
     }
-    fn gen_instructions(t_instrs: Vec<tacky_ir::Instruction>) -> impl Iterator<Item = Instruction> {
+    fn gen_instructions(
+        t_instrs: Vec<tacky_ir::Instruction>,
+    ) -> impl Iterator<Item = Instruction<PreFinalOperand>> {
         t_instrs.into_iter().flat_map(|t_instr| match t_instr {
             tacky_ir::Instruction::Return(t_val) => Self::gen_return_instrs(t_val),
             tacky_ir::Instruction::Unary(unary) => Self::gen_unary_instrs(unary),
@@ -96,7 +111,7 @@ impl AsmCodeGenerator {
 
     /* Tacky Return */
 
-    fn gen_return_instrs(t_val: tacky_ir::ReadableValue) -> Vec<Instruction> {
+    fn gen_return_instrs(t_val: tacky_ir::ReadableValue) -> Vec<Instruction<PreFinalOperand>> {
         let asm_src = Self::convert_val_operand(t_val);
         let asm_instr_1 = Instruction::Mov {
             src: asm_src,
@@ -110,7 +125,9 @@ impl AsmCodeGenerator {
 
     /* Tacky Unary */
 
-    fn gen_unary_instrs(t_unary: tacky_ir::instruction::Unary) -> Vec<Instruction> {
+    fn gen_unary_instrs(
+        t_unary: tacky_ir::instruction::Unary,
+    ) -> Vec<Instruction<PreFinalOperand>> {
         let asm_src = Self::convert_val_operand(t_unary.src);
         let asm_dst = Self::convert_var_operand(t_unary.dst);
         let asm_instr_1 = Instruction::Mov {
@@ -130,7 +147,9 @@ impl AsmCodeGenerator {
 
     /* Tacky Binary */
 
-    fn gen_binary_instrs(t_binary: tacky_ir::instruction::Binary) -> Vec<Instruction> {
+    fn gen_binary_instrs(
+        t_binary: tacky_ir::instruction::Binary,
+    ) -> Vec<Instruction<PreFinalOperand>> {
         use tacky_ir::BinaryOperator as TBO;
 
         match t_binary.op {
@@ -147,7 +166,7 @@ impl AsmCodeGenerator {
     fn gen_arithmetic_instrs(
         asm_op: asm_code::BinaryOperator,
         t_binary: tacky_ir::instruction::Binary,
-    ) -> Vec<Instruction> {
+    ) -> Vec<Instruction<PreFinalOperand>> {
         let asm_src1 = Self::convert_val_operand(t_binary.src1);
         let asm_src2 = Self::convert_val_operand(t_binary.src2);
         let asm_dst = Self::convert_var_operand(t_binary.dst);
@@ -162,7 +181,7 @@ impl AsmCodeGenerator {
     fn gen_divrem_instrs(
         ans_reg: asm_code::Register,
         t_binary: tacky_ir::instruction::Binary,
-    ) -> Vec<Instruction> {
+    ) -> Vec<Instruction<PreFinalOperand>> {
         let asm_src1 = Self::convert_val_operand(t_binary.src1);
         let asm_src2 = Self::convert_val_operand(t_binary.src2);
         let asm_dst = Self::convert_var_operand(t_binary.dst);
@@ -182,34 +201,34 @@ impl AsmCodeGenerator {
 
     /* Operand */
 
-    fn convert_var_operand(t_var: Rc<tacky_ir::Variable>) -> Operand {
+    fn convert_var_operand(t_var: Rc<tacky_ir::Variable>) -> PreFinalOperand {
         Self::convert_val_operand(tacky_ir::ReadableValue::Variable(t_var))
     }
-    fn convert_val_operand(t_val: tacky_ir::ReadableValue) -> Operand {
+    fn convert_val_operand(t_val: tacky_ir::ReadableValue) -> PreFinalOperand {
         match t_val {
-            tacky_ir::ReadableValue::Constant(i) => Operand::ImmediateValue(i),
-            tacky_ir::ReadableValue::Variable(v) => Operand::PseudoRegister(v),
+            tacky_ir::ReadableValue::Constant(i) => PreFinalOperand::ImmediateValue(i),
+            tacky_ir::ReadableValue::Variable(v) => PreFinalOperand::PseudoRegister(v),
         }
     }
 }
 
-struct FuncOptimizer {
+struct InstrsFinalizer {
     last_used_stack_pos: StackPosition,
     var_to_stack_pos: HashMap<Rc<tacky_ir::Variable>, StackPosition>,
 }
-impl FuncOptimizer {
+impl InstrsFinalizer {
     fn new() -> Self {
         Self {
             last_used_stack_pos: StackPosition(0),
             var_to_stack_pos: HashMap::new(),
         }
     }
-    fn optimize_instrs<I>(&mut self, in_instrs: I) -> Vec<Instruction>
-    where
-        I: Iterator<Item = Instruction>,
-    {
+    fn finalize_instrs(
+        &mut self,
+        in_instrs: impl Iterator<Item = Instruction<PreFinalOperand>>,
+    ) -> Vec<Instruction<Operand>> {
         let instrs = in_instrs.into_iter();
-        let instrs = self.convert_pseudo_to_stackpos(instrs);
+        let instrs = self.convert_operands(instrs);
         let instrs = Self::correct_invalid_instrs(instrs);
 
         #[allow(invalid_value)]
@@ -225,43 +244,44 @@ impl FuncOptimizer {
         out_instrs
     }
 
-    fn convert_pseudo_to_stackpos<'a, I>(
+    fn convert_operands<'a>(
         &'a mut self,
-        in_instrs: I,
-    ) -> impl 'a + Iterator<Item = Instruction>
-    where
-        I: 'a + Iterator<Item = Instruction>,
-    {
+        in_instrs: impl 'a + Iterator<Item = Instruction<PreFinalOperand>>,
+    ) -> impl 'a + Iterator<Item = Instruction<Operand>> {
         in_instrs.map(move |in_instr| match in_instr {
             Instruction::Mov { src, dst } => {
-                let src = self.operand_to_non_pseudo(src);
-                let dst = self.operand_to_non_pseudo(dst);
+                let src = self.convert_operand(src);
+                let dst = self.convert_operand(dst);
                 Instruction::Mov { src, dst }
             }
             Instruction::Unary(op, operand) => {
-                let operand = self.operand_to_non_pseudo(operand);
+                let operand = self.convert_operand(operand);
                 Instruction::Unary(op, operand)
             }
             Instruction::Binary(op, operand1, operand2) => {
-                let operand1 = self.operand_to_non_pseudo(operand1);
-                let operand2 = self.operand_to_non_pseudo(operand2);
+                let operand1 = self.convert_operand(operand1);
+                let operand2 = self.convert_operand(operand2);
                 Instruction::Binary(op, operand1, operand2)
             }
             Instruction::Idiv(operand) => {
-                let operand = self.operand_to_non_pseudo(operand);
+                let operand = self.convert_operand(operand);
                 Instruction::Idiv(operand)
             }
-            Instruction::Cdq | Instruction::AllocateStack(_) | Instruction::Ret => in_instr,
+            Instruction::Cdq => Instruction::Cdq,
+            Instruction::AllocateStack(s) => Instruction::AllocateStack(s),
+            Instruction::Ret => Instruction::Ret,
         })
     }
-    fn operand_to_non_pseudo(&mut self, operand: Operand) -> Operand {
-        match operand {
-            Operand::PseudoRegister(var) => self.var_to_stack_pos(var).into(),
-            _ => operand,
+    fn convert_operand(&mut self, pfo: PreFinalOperand) -> Operand {
+        use PreFinalOperand as PFO;
+        match pfo {
+            PFO::PseudoRegister(var) => self.var_to_stack_pos(var).into(),
+            PFO::ImmediateValue(i) => Operand::ImmediateValue(i),
+            PFO::Register(r) => Operand::Register(r),
         }
     }
     fn var_to_stack_pos(&mut self, var: Rc<tacky_ir::Variable>) -> StackPosition {
-        /* For now, all C AST `Expression`s and all Tacky `Value`s are 32-bit values. */
+        /* For now, all Tacky Values represent 32-bit values. */
         const VAL_BYTELEN: usize = mem::size_of::<i32>();
         let pos = self.var_to_stack_pos.entry(var).or_insert_with(|| {
             self.last_used_stack_pos.0 += VAL_BYTELEN;
@@ -270,10 +290,9 @@ impl FuncOptimizer {
         *pos
     }
 
-    fn correct_invalid_instrs<'a, I>(in_instrs: I) -> impl 'a + Iterator<Item = Instruction>
-    where
-        I: 'a + Iterator<Item = Instruction>,
-    {
+    fn correct_invalid_instrs<'a>(
+        in_instrs: impl 'a + Iterator<Item = Instruction<Operand>>,
+    ) -> impl 'a + Iterator<Item = Instruction<Operand>> {
         in_instrs.flat_map(|in_instr| match in_instr {
             Instruction::Mov {
                 src: src @ Operand::StackPosition(_),

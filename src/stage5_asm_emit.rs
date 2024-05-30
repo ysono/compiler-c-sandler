@@ -4,7 +4,7 @@ use crate::{
         BinaryOperator, Function, Instruction, Operand, Program, Register, UnaryOperator,
     },
 };
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use std::fs::{File, OpenOptions};
 use std::io::{BufWriter, Write};
 use std::path::PathBuf;
@@ -27,14 +27,14 @@ impl<'a> TryFrom<&'a AsmFilepath> for AsmCodeEmitter {
     }
 }
 impl AsmCodeEmitter {
-    pub fn emit_program(mut self, prog: Program) -> Result<()> {
+    pub fn emit_program(mut self, prog: Program<Operand>) -> Result<()> {
         let Program { func } = prog;
         self.write_func(func)?;
         writeln!(&mut self.bw, "{TAB}.section	.note.GNU-stack,\"\",@progbits")?;
         self.bw.flush()?;
         Ok(())
     }
-    fn write_func(&mut self, func: Function) -> Result<()> {
+    fn write_func(&mut self, func: Function<Operand>) -> Result<()> {
         let Function {
             ident,
             instructions,
@@ -49,7 +49,7 @@ impl AsmCodeEmitter {
         }
         Ok(())
     }
-    fn write_instr(&mut self, instr: Instruction) -> Result<()> {
+    fn write_instr(&mut self, instr: Instruction<Operand>) -> Result<()> {
         match instr {
             Instruction::Mov { src, dst } => {
                 write!(&mut self.bw, "{TAB}movl{TAB}")?;
@@ -117,9 +117,6 @@ impl AsmCodeEmitter {
                     write!(&mut self.bw, "%r11d")?;
                 }
             },
-            Operand::PseudoRegister(_) => {
-                return Err(anyhow!("Unexpected {operand:?}"));
-            }
             Operand::StackPosition(stkpos) => {
                 write!(&mut self.bw, "-{}(%rbp)", *stkpos)?;
             }
