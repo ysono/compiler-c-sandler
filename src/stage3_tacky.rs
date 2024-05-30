@@ -126,107 +126,135 @@ impl Tackifier {
     }
     fn tackify_func(c_func: c_ast::Function) -> Function {
         let c_ast::Function { ident, stmt } = c_func;
-        let instructions = Self::tackify_stmt(stmt);
+
+        let stmt_converter = StmtToInstrs::default();
+        let instructions = stmt_converter.tackify_stmt(stmt);
+
         Function {
             ident,
             instructions,
         }
     }
-    fn tackify_stmt(c_stmt: c_ast::Statement) -> Vec<Instruction> {
+}
+
+#[derive(Default)]
+struct StmtToInstrs {
+    instrs: Vec<Instruction>,
+}
+impl StmtToInstrs {
+    fn tackify_stmt(mut self, c_stmt: c_ast::Statement) -> Vec<Instruction> {
         let c_ast::Statement::Return(c_root_exp) = c_stmt;
-        let mut instrs = vec![];
-        let root_exp = Self::tackify_exp(c_root_exp, &mut instrs);
-        let root_instr = Instruction::Return(root_exp);
-        instrs.push(root_instr);
-        instrs
+        let t_root_val = self.tackify_exp(c_root_exp);
+        self.instrs.push(Instruction::Return(t_root_val));
+        self.instrs
     }
-    fn tackify_exp(c_exp: c_ast::Expression, instrs: &mut Vec<Instruction>) -> ReadableValue {
+    fn tackify_exp(&mut self, c_exp: c_ast::Expression) -> ReadableValue {
         match c_exp {
             c_ast::Expression::Const(tokens::Const::Int(intval)) => ReadableValue::Constant(intval),
-            c_ast::Expression::Unary(op, sub_exp) => {
-                let op = Self::convert_unary_op(op);
-                let src = Self::tackify_exp(*sub_exp, instrs);
-                let dst = Rc::new(Variable::new());
-                let instr = Instruction::Unary {
-                    op,
-                    src,
-                    dst: Rc::clone(&dst),
-                };
-                instrs.push(instr);
-                ReadableValue::Variable(dst)
+            c_ast::Expression::Unary(unary) => self.tackify_unary_exp(unary),
+            c_ast::Expression::Binary(binary) => self.tackify_binary_exp(binary),
+        }
+    }
+
+    /* C Unary */
+
+    fn tackify_unary_exp(&mut self, c_unary: c_ast::expression::Unary) -> ReadableValue {
+        let op = Self::convert_unary_op(c_unary.op);
+        let src = self.tackify_exp(*c_unary.sub_exp);
+        let dst = Rc::new(Variable::new());
+        self.instrs.push(Instruction::Unary {
+            op,
+            src,
+            dst: Rc::clone(&dst),
+        });
+        ReadableValue::Variable(dst)
+    }
+
+    /* C Binary */
+
+    fn tackify_binary_exp(&mut self, c_binary: c_ast::expression::Binary) -> ReadableValue {
+        match Self::convert_binary_op(&c_binary.op) {
+            BinaryOperatorType::EvaluateBothHands(t_op) => {
+                self.tackify_binary_evalboth_exp(t_op, c_binary)
             }
-            c_ast::Expression::Binary(op, exp1, exp2) => {
-                match Self::convert_binary_op(op) {
-                    BinaryOperatorType::EvaluateBothHands(op) => {
-                        let src1 = Self::tackify_exp(*exp1, instrs);
-                        let src2 = Self::tackify_exp(*exp2, instrs);
-                        let dst = Rc::new(Variable::new());
-                        let instr = Instruction::Binary {
-                            op,
-                            src1,
-                            src2,
-                            dst: Rc::clone(&dst),
-                        };
-                        instrs.push(instr);
-                        ReadableValue::Variable(dst)
-                    }
-                    BinaryOperatorType::ShortCircuit(op) => {
-                        let op_name = match op {
-                            ShortCircuitBOT::And => "And",
-                            ShortCircuitBOT::Or => "Or",
-                        };
-                        let label_shortcirc = Rc::new(LabelIdentifier::new(Some(format!(
-                            "{op_name}_shortcircuit"
-                        ))));
-                        let label_end =
-                            Rc::new(LabelIdentifier::new(Some(format!("{op_name}_end"))));
-                        let new_shortcircuit_jump_instr = |condition: ReadableValue| {
-                            let tgt = Rc::clone(&label_shortcirc);
-                            match op {
-                                ShortCircuitBOT::And => Instruction::JumpIfZero { condition, tgt },
-                                ShortCircuitBOT::Or => {
-                                    Instruction::JumpIfNotZero { condition, tgt }
-                                }
-                            }
-                        };
-                        let (shortcirc_val, fully_evald_val) = match op {
-                            ShortCircuitBOT::And => (0, 1),
-                            ShortCircuitBOT::Or => (1, 0),
-                        };
-                        let dst = Rc::new(Variable::new());
-
-                        /* Begin instructions */
-
-                        let lhs_val = Self::tackify_exp(*exp1, instrs);
-
-                        instrs.push(new_shortcircuit_jump_instr(lhs_val));
-
-                        let rhs_val = Self::tackify_exp(*exp2, instrs);
-
-                        instrs.push(new_shortcircuit_jump_instr(rhs_val));
-
-                        instrs.push(Instruction::Copy {
-                            src: ReadableValue::Constant(fully_evald_val),
-                            dst: Rc::clone(&dst),
-                        });
-
-                        instrs.push(Instruction::Jump(Rc::clone(&label_end)));
-
-                        instrs.push(Instruction::Label(label_shortcirc));
-
-                        instrs.push(Instruction::Copy {
-                            src: ReadableValue::Constant(shortcirc_val),
-                            dst: Rc::clone(&dst),
-                        });
-
-                        instrs.push(Instruction::Label(label_end));
-
-                        ReadableValue::Variable(dst)
-                    }
-                }
+            BinaryOperatorType::ShortCircuit(t_op) => {
+                self.tackify_binary_shortcirc_exp(t_op, c_binary)
             }
         }
     }
+    fn tackify_binary_evalboth_exp(
+        &mut self,
+        op: tacky_ir::BinaryOperator,
+        c_binary: c_ast::expression::Binary,
+    ) -> ReadableValue {
+        let src1 = self.tackify_exp(*c_binary.lhs);
+        let src2 = self.tackify_exp(*c_binary.rhs);
+        let dst = Rc::new(Variable::new());
+        self.instrs.push(Instruction::Binary {
+            op,
+            src1,
+            src2,
+            dst: Rc::clone(&dst),
+        });
+        ReadableValue::Variable(dst)
+    }
+    fn tackify_binary_shortcirc_exp(
+        &mut self,
+        op_type: ShortCircuitBOT,
+        c_binary: c_ast::expression::Binary,
+    ) -> ReadableValue {
+        let op_name = match op_type {
+            ShortCircuitBOT::And => "And",
+            ShortCircuitBOT::Or => "Or",
+        };
+        let label_shortcirc = Rc::new(LabelIdentifier::new(Some(format!(
+            "{op_name}_shortcircuit"
+        ))));
+        let label_end = Rc::new(LabelIdentifier::new(Some(format!("{op_name}_end"))));
+        let new_shortcirc_jump_instr = |condition: ReadableValue| {
+            let tgt = Rc::clone(&label_shortcirc);
+            match op_type {
+                ShortCircuitBOT::And => Instruction::JumpIfZero { condition, tgt },
+                ShortCircuitBOT::Or => Instruction::JumpIfNotZero { condition, tgt },
+            }
+        };
+        let (shortcirc_val, fully_evald_val) = match op_type {
+            ShortCircuitBOT::And => (0, 1),
+            ShortCircuitBOT::Or => (1, 0),
+        };
+        let dst = Rc::new(Variable::new());
+
+        /* Begin instructions */
+
+        let lhs_val = self.tackify_exp(*c_binary.lhs);
+
+        self.instrs.push(new_shortcirc_jump_instr(lhs_val));
+
+        let rhs_val = self.tackify_exp(*c_binary.rhs);
+
+        self.instrs.push(new_shortcirc_jump_instr(rhs_val));
+
+        self.instrs.push(Instruction::Copy {
+            src: ReadableValue::Constant(fully_evald_val),
+            dst: Rc::clone(&dst),
+        });
+
+        self.instrs.push(Instruction::Jump(Rc::clone(&label_end)));
+
+        self.instrs.push(Instruction::Label(label_shortcirc));
+
+        self.instrs.push(Instruction::Copy {
+            src: ReadableValue::Constant(shortcirc_val),
+            dst: Rc::clone(&dst),
+        });
+
+        self.instrs.push(Instruction::Label(label_end));
+
+        ReadableValue::Variable(dst)
+    }
+
+    /* C Operator */
+
     fn convert_unary_op(c_unary_op: c_ast::UnaryOperator) -> UnaryOperator {
         use c_ast::UnaryOperator as CUO;
         match c_unary_op {
@@ -235,7 +263,7 @@ impl Tackifier {
             CUO::Not => UnaryOperator::Not,
         }
     }
-    fn convert_binary_op(c_binary_op: c_ast::BinaryOperator) -> BinaryOperatorType {
+    fn convert_binary_op(c_binary_op: &c_ast::BinaryOperator) -> BinaryOperatorType {
         use c_ast::BinaryOperator as CBO;
         use tacky_ir::BinaryOperator as TBO;
         use BinaryOperatorType as BOT;

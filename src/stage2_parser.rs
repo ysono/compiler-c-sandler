@@ -22,21 +22,41 @@ pub mod c_ast {
     pub struct Program {
         pub func: Function,
     }
+
     #[derive(Debug)]
     pub struct Function {
         pub ident: Identifier,
         pub stmt: Statement,
     }
+
     #[derive(Debug)]
     pub enum Statement {
         Return(Expression),
     }
+
     #[derive(Debug)]
     pub enum Expression {
         Const(Const),
-        Unary(UnaryOperator, Box<Expression>),
-        Binary(BinaryOperator, Box<Expression>, Box<Expression>),
+        Unary(expression::Unary),
+        Binary(expression::Binary),
     }
+    pub mod expression {
+        use super::*;
+
+        #[derive(Debug)]
+        pub struct Unary {
+            pub op: UnaryOperator,
+            pub sub_exp: Box<Expression>,
+        }
+
+        #[derive(Debug)]
+        pub struct Binary {
+            pub op: BinaryOperator,
+            pub lhs: Box<Expression>,
+            pub rhs: Box<Expression>,
+        }
+    }
+
     #[derive(Debug)]
     pub enum UnaryOperator {
         /* -> int */
@@ -45,6 +65,7 @@ pub mod c_ast {
         /* -> bool */
         Not,
     }
+
     #[derive(Debug)]
     pub enum BinaryOperator {
         /* -> int */
@@ -65,6 +86,7 @@ pub mod c_ast {
         Gte,
     }
 }
+use c_ast::expression::*;
 use c_ast::*;
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -151,14 +173,18 @@ impl<T: Iterator<Item = Result<Token>>> Parser<T> {
         let mut lhs: Expression = self.parse_factor()?;
 
         loop {
-            if let Some(op) = self.peek_binary_op() {
-                let nxt_prec = BinaryOperatorPrecedence::from(&op);
+            if let Some(c_op) = self.peek_binary_op() {
+                let nxt_prec = BinaryOperatorPrecedence::from(&c_op);
                 if nxt_prec >= min_prec {
                     self.tokens.next();
 
                     let rhs = self.parse_exp(nxt_prec.inc1())?;
 
-                    lhs = Expression::Binary(op, Box::new(lhs), Box::new(rhs));
+                    lhs = Expression::Binary(Binary {
+                        op: c_op,
+                        lhs: Box::new(lhs),
+                        rhs: Box::new(rhs),
+                    });
 
                     continue;
                 }
@@ -173,12 +199,15 @@ impl<T: Iterator<Item = Result<Token>>> Parser<T> {
             |actual: Option<Result<Token>>| Err(anyhow!("Could not parse <factor> at {actual:?}"));
         match self.tokens.next() {
             Some(Ok(Token::Const(konst))) => return Ok(Expression::Const(konst)),
-            Some(Ok(Token::Operator(op))) => {
-                if let Some(op) = Self::convert_unary_op(&op) {
+            Some(Ok(Token::Operator(t_op))) => {
+                if let Some(c_op) = Self::convert_unary_op(&t_op) {
                     let exp = self.parse_factor()?;
-                    return Ok(Expression::Unary(op, Box::new(exp)));
+                    return Ok(Expression::Unary(Unary {
+                        op: c_op,
+                        sub_exp: Box::new(exp),
+                    }));
                 }
-                return err(Some(Ok(Token::Operator(op))));
+                return err(Some(Ok(Token::Operator(t_op))));
             }
             Some(Ok(Token::Demarcator(Demarcator::ParenOpen))) => {
                 let exp = self.parse_exp(BinaryOperatorPrecedence::min())?;
