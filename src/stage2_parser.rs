@@ -11,8 +11,7 @@
 //! ```
 
 use crate::stage1_lexer::tokens::{Demarcator, Identifier, Keyword, Operator, Token};
-use anyhow::{anyhow, Result};
-use std::any;
+use anyhow::{anyhow, Context, Result};
 use std::iter::Peekable;
 
 pub mod c_ast {
@@ -124,98 +123,114 @@ impl<T: Iterator<Item = Result<Token>>> Parser<T> {
     }
 
     pub fn parse_program(&mut self) -> Result<Program> {
-        let func = self.parse_func()?;
+        let mut inner = || -> Result<Program> {
+            let func = self.parse_func()?;
 
-        match self.tokens.next() {
-            None => {}
-            actual => return Err(anyhow!("Expected EOF but found {:?}", actual)),
-        }
+            match self.tokens.next() {
+                None => {}
+                actual => return Err(anyhow!("Expected end-of-tokens but found {actual:?}")),
+            }
 
-        Ok(Program { func })
+            Ok(Program { func })
+        };
+        inner().context("<program>")
     }
     fn parse_func(&mut self) -> Result<Function> {
-        self.expect_exact([Keyword::Int.into()])?;
+        let mut inner = || -> Result<Function> {
+            self.expect_exact([Keyword::Int.into()])?;
 
-        let ident = match self.tokens.next() {
-            Some(Ok(Token::Identifier(ident))) => ident,
-            actual => {
-                return Err(anyhow!(
-                    "Expected {:?} but found {:?}",
-                    any::type_name::<Identifier>(),
-                    actual
-                ));
+            let ident = self.parse_ident()?;
+
+            self.expect_exact([
+                Demarcator::ParenOpen.into(),
+                Keyword::Void.into(),
+                Demarcator::ParenClose.into(),
+                Demarcator::BraceOpen.into(),
+            ])?;
+
+            let stmt = self.parse_stmt()?;
+
+            self.expect_exact([Demarcator::BraceClose.into()])?;
+
+            Ok(Function { ident, stmt })
+        };
+        inner().context("<function>")
+    }
+    fn parse_ident(&mut self) -> Result<Identifier> {
+        let mut inner = || -> Result<Identifier> {
+            match self.tokens.next() {
+                Some(Ok(Token::Identifier(ident))) => Ok(ident),
+                actual => Err(anyhow!("{actual:?}")),
             }
         };
-
-        self.expect_exact([
-            Demarcator::ParenOpen.into(),
-            Keyword::Void.into(),
-            Demarcator::ParenClose.into(),
-            Demarcator::BraceOpen.into(),
-        ])?;
-
-        let stmt = self.parse_stmt()?;
-
-        self.expect_exact([Demarcator::BraceClose.into()])?;
-
-        Ok(Function { ident, stmt })
+        inner().context("<identifier>")
     }
     fn parse_stmt(&mut self) -> Result<Statement> {
-        self.expect_exact([Keyword::Return.into()])?;
+        let mut inner = || -> Result<Statement> {
+            self.expect_exact([Keyword::Return.into()])?;
 
-        let exp = self.parse_exp(BinaryOperatorPrecedence::min())?;
+            let exp = self.parse_exp(BinaryOperatorPrecedence::min())?;
 
-        self.expect_exact([Demarcator::Semicolon.into()])?;
+            self.expect_exact([Demarcator::Semicolon.into()])?;
 
-        Ok(Statement::Return(exp))
+            Ok(Statement::Return(exp))
+        };
+        inner().context("<statement>")
     }
     fn parse_exp(&mut self, min_prec: BinaryOperatorPrecedence) -> Result<Expression> {
-        let mut lhs: Expression = self.parse_factor()?;
+        let mut inner = || -> Result<Expression> {
+            let mut lhs: Expression = self.parse_factor()?;
 
-        loop {
-            if let Some(c_op) = self.peek_binary_op() {
-                let nxt_prec = BinaryOperatorPrecedence::from(&c_op);
-                if nxt_prec >= min_prec {
-                    self.tokens.next();
+            loop {
+                if let Some(c_op) = self.peek_binary_op() {
+                    let nxt_prec = BinaryOperatorPrecedence::from(&c_op);
+                    if nxt_prec >= min_prec {
+                        self.tokens.next();
 
-                    let rhs = self.parse_exp(nxt_prec.inc1())?;
+                        let rhs = self.parse_exp(nxt_prec.inc1())?;
 
-                    lhs = Expression::Binary(Binary {
-                        op: c_op,
-                        lhs: Box::new(lhs),
-                        rhs: Box::new(rhs),
-                    });
+                        lhs = Expression::Binary(Binary {
+                            op: c_op,
+                            lhs: Box::new(lhs),
+                            rhs: Box::new(rhs),
+                        });
 
-                    continue;
+                        continue;
+                    }
                 }
+                break;
             }
-            break;
-        }
 
-        Ok(lhs)
+            Ok(lhs)
+        };
+        inner().context("<exp>")
     }
     fn parse_factor(&mut self) -> Result<Expression> {
-        let err =
-            |actual: Option<Result<Token>>| Err(anyhow!("Could not parse <factor> at {actual:?}"));
-        match self.tokens.next() {
-            Some(Ok(Token::Const(konst))) => return Ok(Expression::Const(konst)),
-            Some(Ok(Token::Operator(t_op))) => {
-                if let Some(c_op) = Self::convert_unary_op(&t_op) {
-                    let exp = self.parse_factor()?;
-                    return Ok(Expression::Unary(Unary {
-                        op: c_op,
-                        sub_exp: Box::new(exp),
-                    }));
+        let mut inner = || -> Result<Expression> {
+            match self.tokens.next() {
+                Some(Ok(Token::Const(konst))) => return Ok(Expression::Const(konst)),
+                Some(Ok(Token::Operator(t_op))) => match Self::convert_unary_op(&t_op) {
+                    Some(c_op) => {
+                        let exp = self.parse_factor()?;
+                        return Ok(Expression::Unary(Unary {
+                            op: c_op,
+                            sub_exp: Box::new(exp),
+                        }));
+                    }
+                    None => {
+                        let actual: Option<Result<Token>> = Some(Ok(Token::Operator(t_op)));
+                        return Err(anyhow!("{actual:?}"));
+                    }
+                },
+                Some(Ok(Token::Demarcator(Demarcator::ParenOpen))) => {
+                    let exp = self.parse_exp(BinaryOperatorPrecedence::min())?;
+                    self.expect_exact([Demarcator::ParenClose.into()])?;
+                    return Ok(exp);
                 }
-                return err(Some(Ok(Token::Operator(t_op))));
+                actual => return Err(anyhow!("{actual:?}")),
             }
-            Some(Ok(Token::Demarcator(Demarcator::ParenOpen))) => {
-                let exp = self.parse_exp(BinaryOperatorPrecedence::min())?;
-                self.expect_exact([Demarcator::ParenClose.into()])?;
-                return Ok(exp);
-            }
-            actual => return err(actual),
-        }
+        };
+        inner().context("<factor>")
     }
     fn peek_binary_op(&mut self) -> Option<BinaryOperator> {
         if let Some(Ok(Token::Operator(op))) = self.tokens.peek() {
@@ -238,14 +253,13 @@ impl<T: Iterator<Item = Result<Token>>> Parser<T> {
         }
         None
     }
-    fn convert_unary_op(op: &Operator) -> Option<UnaryOperator> {
-        match op {
-            Operator::Tilde => return Some(UnaryOperator::Complement),
-            Operator::Minus => return Some(UnaryOperator::Negate),
-            Operator::Not => return Some(UnaryOperator::Not),
-            _ => {}
+    fn convert_unary_op(t_op: &Operator) -> Option<UnaryOperator> {
+        match t_op {
+            Operator::Tilde => Some(UnaryOperator::Complement),
+            Operator::Minus => Some(UnaryOperator::Negate),
+            Operator::Not => Some(UnaryOperator::Not),
+            _ => None,
         }
-        None
     }
 
     fn expect_exact<const LEN: usize>(&mut self, next_tokens: [Token; LEN]) -> Result<()> {
