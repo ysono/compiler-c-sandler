@@ -6,11 +6,10 @@ use crate::{
         UnaryOperator,
     },
 };
-use anyhow::Result;
 use lazy_static::lazy_static;
 use regex::Regex;
 use std::fs::{File, OpenOptions};
-use std::io::{BufWriter, Write};
+use std::io::{self, BufWriter, Write};
 use std::path::PathBuf;
 
 const TAB: &str = "\t";
@@ -28,8 +27,8 @@ pub struct AsmCodeEmitter {
     bw: BufWriter<File>,
 }
 impl<'a> TryFrom<&'a AsmFilepath> for AsmCodeEmitter {
-    type Error = anyhow::Error;
-    fn try_from(asm_filepath: &'a AsmFilepath) -> Result<Self> {
+    type Error = io::Error;
+    fn try_from(asm_filepath: &'a AsmFilepath) -> Result<Self, io::Error> {
         let f = OpenOptions::new()
             .create(true)
             .truncate(true)
@@ -40,7 +39,7 @@ impl<'a> TryFrom<&'a AsmFilepath> for AsmCodeEmitter {
     }
 }
 impl AsmCodeEmitter {
-    pub fn emit_program(mut self, prog: Program<Operand>) -> Result<()> {
+    pub fn emit_program(mut self, prog: Program<Operand>) -> Result<(), io::Error> {
         let Program { func } = prog;
 
         self.write_func(func)?;
@@ -52,7 +51,7 @@ impl AsmCodeEmitter {
         self.bw.flush()?;
         Ok(())
     }
-    fn write_func(&mut self, func: Function<Operand>) -> Result<()> {
+    fn write_func(&mut self, func: Function<Operand>) -> Result<(), io::Error> {
         const IDENT_PFX: &str = if cfg!(target_os = "macos") { "_" } else { "" };
         let ident: String = func.ident.into();
 
@@ -65,7 +64,7 @@ impl AsmCodeEmitter {
         }
         Ok(())
     }
-    fn write_instr(&mut self, instr: Instruction<Operand>) -> Result<()> {
+    fn write_instr(&mut self, instr: Instruction<Operand>) -> Result<(), io::Error> {
         match instr {
             Instruction::Mov { src, dst } => {
                 write!(&mut self.bw, "{TAB}movl{TAB}")?;
@@ -142,7 +141,7 @@ impl AsmCodeEmitter {
         }
         Ok(())
     }
-    fn write_operand(&mut self, operand: Operand, obl: OperandByteLen) -> Result<()> {
+    fn write_operand(&mut self, operand: Operand, obl: OperandByteLen) -> Result<(), io::Error> {
         use OperandByteLen as OBL;
         match operand {
             Operand::ImmediateValue(val) => {
@@ -167,7 +166,7 @@ impl AsmCodeEmitter {
         }
         Ok(())
     }
-    fn write_label(&mut self, lbl: &LabelIdentifier) -> Result<()> {
+    fn write_label(&mut self, lbl: &LabelIdentifier) -> Result<(), io::Error> {
         const NAME_PFX: &str = if cfg!(target_os = "macos") {
             "L."
         } else {
