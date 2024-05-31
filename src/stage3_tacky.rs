@@ -144,10 +144,19 @@ impl Tackifier {
         Program { func }
     }
     fn tackify_func(c_func: c_ast::Function) -> Function {
-        let c_ast::Function { ident, stmt } = c_func;
+        let c_ast::Function { ident, body } = c_func;
 
-        let stmt_converter = StmtToInstrs::default();
-        let instructions = stmt_converter.tackify_stmt(stmt);
+        let mut instructions = vec![];
+        for item in body {
+            match item {
+                c_ast::BlockItem::Declaration(_) => todo!(),
+                c_ast::BlockItem::Statement(stmt) => {
+                    let stmt_converter = StmtToInstrs::default();
+                    let instrs = stmt_converter.tackify_stmt(stmt);
+                    instructions.extend(instrs);
+                }
+            }
+        }
 
         Function {
             ident,
@@ -162,16 +171,24 @@ struct StmtToInstrs {
 }
 impl StmtToInstrs {
     fn tackify_stmt(mut self, c_stmt: c_ast::Statement) -> Vec<Instruction> {
-        let c_ast::Statement::Return(c_root_exp) = c_stmt;
-        let t_root_val = self.tackify_exp(c_root_exp);
-        self.instrs.push(Instruction::Return(t_root_val));
+        match c_stmt {
+            c_ast::Statement::Return(c_root_exp) => {
+                let t_root_val = self.tackify_exp(c_root_exp);
+                self.instrs.push(Instruction::Return(t_root_val));
+            }
+            c_ast::Statement::Expression(_) => todo!(),
+            c_ast::Statement::Null => todo!(),
+        }
+
         self.instrs
     }
     fn tackify_exp(&mut self, c_exp: c_ast::Expression) -> ReadableValue {
         match c_exp {
             c_ast::Expression::Const(tokens::Const::Int(intval)) => ReadableValue::Constant(intval),
+            c_ast::Expression::Var(_) => todo!(),
             c_ast::Expression::Unary(unary) => self.tackify_unary_exp(unary),
             c_ast::Expression::Binary(binary) => self.tackify_binary_exp(binary),
+            c_ast::Expression::Assignment(_) => todo!(),
         }
     }
 

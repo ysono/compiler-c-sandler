@@ -1,16 +1,18 @@
-//! ```
+//! ```ebnf
 //! <program> ::= <function>
-//! <function> ::= "int" <identifier> "(" "void" ")" "{" <statement> "}"
-//! <statement> ::= "return" <exp> ";"
+//! <function> ::= "int" <identifier> "(" "void" ")" "{" { <block-item> } "}"
+//! <block-item> ::= <statement> | <declaration>
+//! <declaration> ::= "int" <identifier> [ "=" <exp> ] ";"
+//! <statement> ::= "return" <exp> ";" | <exp> ";" | ";"
 //! <exp> ::= <factor> | <exp> <binop> <exp>
-//! <factor> ::= <int> | <unop> <factor> | "(" <exp> ")"
+//! <factor> ::= <int> | <identifier> | <unop> <factor> | "(" <exp> ")"
 //! <unop> ::= "-" | "~" | "!"
-//! <binop> ::= "-" | "+" | "*" | "/" | "%" | "&&" | "||" | "==" | "!=" | "<" | "<=" | ">" | ">="
+//! <binop> ::= "-" | "+" | "*" | "/" | "%" | "&&" | "||" | "==" | "!=" | "<" | "<=" | ">" | ">=" | "="
 //! <identifier> ::= ? An identifier token ?
 //! <int> ::= ? A constant token ?
 //! ```
 
-use crate::stage1_lexer::tokens::{Demarcator, Identifier, Keyword, Operator, Token};
+use crate::stage1_lexer::tokens::{self, Demarcator, Identifier, Keyword, Operator, Token};
 use anyhow::{anyhow, Context, Result};
 use std::iter::Peekable;
 
@@ -25,19 +27,35 @@ pub mod c_ast {
     #[derive(Debug)]
     pub struct Function {
         pub ident: Identifier,
-        pub stmt: Statement,
+        pub body: Vec<BlockItem>,
+    }
+
+    #[derive(Debug)]
+    pub enum BlockItem {
+        Declaration(Declaration),
+        Statement(Statement),
+    }
+
+    #[derive(Debug)]
+    pub struct Declaration {
+        pub ident: Identifier,
+        pub init: Option<Expression>,
     }
 
     #[derive(Debug)]
     pub enum Statement {
         Return(Expression),
+        Expression(Expression),
+        Null,
     }
 
     #[derive(Debug)]
     pub enum Expression {
         Const(Const),
+        Var(Identifier),
         Unary(expression::Unary),
         Binary(expression::Binary),
+        Assignment(expression::Assignment),
     }
     pub mod expression {
         use super::*;
@@ -51,6 +69,12 @@ pub mod c_ast {
         #[derive(Debug)]
         pub struct Binary {
             pub op: BinaryOperator,
+            pub lhs: Box<Expression>,
+            pub rhs: Box<Expression>,
+        }
+
+        #[derive(Debug)]
+        pub struct Assignment {
             pub lhs: Box<Expression>,
             pub rhs: Box<Expression>,
         }
@@ -88,18 +112,49 @@ pub mod c_ast {
 use c_ast::expression::*;
 use c_ast::*;
 
+enum BinaryOperatorInfo {
+    Generic(BinaryOperator),
+    Assign,
+}
+impl BinaryOperatorInfo {
+    fn from(t_op: &tokens::Operator) -> Option<Self> {
+        use c_ast::BinaryOperator as CBO;
+        use tokens::Operator as TO;
+        match t_op {
+            TO::Minus => Some(Self::Generic(CBO::Sub)),
+            TO::Plus => Some(Self::Generic(CBO::Add)),
+            TO::Star => Some(Self::Generic(CBO::Mul)),
+            TO::Slash => Some(Self::Generic(CBO::Div)),
+            TO::Percent => Some(Self::Generic(CBO::Rem)),
+            TO::And => Some(Self::Generic(CBO::And)),
+            TO::Or => Some(Self::Generic(CBO::Or)),
+            TO::Eq => Some(Self::Generic(CBO::Eq)),
+            TO::Neq => Some(Self::Generic(CBO::Neq)),
+            TO::Lt => Some(Self::Generic(CBO::Lt)),
+            TO::Lte => Some(Self::Generic(CBO::Lte)),
+            TO::Gt => Some(Self::Generic(CBO::Gt)),
+            TO::Gte => Some(Self::Generic(CBO::Gte)),
+            TO::Assign => Some(Self::Assign),
+            _ => None,
+        }
+    }
+}
+
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 struct BinaryOperatorPrecedence(u8);
-impl<'a> From<&'a BinaryOperator> for BinaryOperatorPrecedence {
-    fn from(op: &'a BinaryOperator) -> Self {
+impl<'a> From<&'a BinaryOperatorInfo> for BinaryOperatorPrecedence {
+    fn from(boi: &'a BinaryOperatorInfo) -> Self {
         use BinaryOperator as BO;
-        match op {
-            BO::Mul | BO::Div | BO::Rem => Self(50),
-            BO::Sub | BO::Add => Self(45),
-            BO::Lt | BO::Lte | BO::Gt | BO::Gte => Self(35),
-            BO::Eq | BO::Neq => Self(30),
-            BO::And => Self(10),
-            BO::Or => Self(5),
+        match boi {
+            BinaryOperatorInfo::Generic(bo) => match bo {
+                BO::Mul | BO::Div | BO::Rem => Self(50),
+                BO::Sub | BO::Add => Self(45),
+                BO::Lt | BO::Lte | BO::Gt | BO::Gte => Self(35),
+                BO::Eq | BO::Neq => Self(30),
+                BO::And => Self(10),
+                BO::Or => Self(5),
+            },
+            BinaryOperatorInfo::Assign => Self(1),
         }
     }
 }
@@ -109,6 +164,19 @@ impl BinaryOperatorPrecedence {
     }
     fn inc1(&self) -> Self {
         Self(self.0 + 1)
+    }
+}
+
+enum BinaryOperatorAssociativity {
+    Left,
+    Right,
+}
+impl<'a> From<&'a BinaryOperatorInfo> for BinaryOperatorAssociativity {
+    fn from(boi: &'a BinaryOperatorInfo) -> Self {
+        match boi {
+            BinaryOperatorInfo::Generic(_) => Self::Left,
+            BinaryOperatorInfo::Assign => Self::Right,
+        }
     }
 }
 
@@ -148,11 +216,21 @@ impl<T: Iterator<Item = Result<Token>>> Parser<T> {
                 Demarcator::BraceOpen.into(),
             ])?;
 
-            let stmt = self.parse_stmt()?;
+            let mut body = vec![];
+            loop {
+                match self.tokens.peek() {
+                    Some(Ok(Token::Demarcator(Demarcator::BraceClose))) => {
+                        self.tokens.next();
+                        break;
+                    }
+                    _ => {
+                        let block_item = self.parse_block_item()?;
+                        body.push(block_item);
+                    }
+                }
+            }
 
-            self.expect_exact([Demarcator::BraceClose.into()])?;
-
-            Ok(Function { ident, stmt })
+            Ok(Function { ident, body })
         };
         inner().context("<function>")
     }
@@ -165,15 +243,64 @@ impl<T: Iterator<Item = Result<Token>>> Parser<T> {
         };
         inner().context("<identifier>")
     }
-    fn parse_stmt(&mut self) -> Result<Statement> {
-        let mut inner = || -> Result<Statement> {
-            self.expect_exact([Keyword::Return.into()])?;
+    fn parse_block_item(&mut self) -> Result<BlockItem> {
+        let mut inner = || -> Result<BlockItem> {
+            match self.tokens.peek() {
+                Some(Ok(Token::Keyword(Keyword::Int))) => {
+                    self.parse_declaration().map(BlockItem::Declaration)
+                }
+                _ => self.parse_stmt().map(BlockItem::Statement),
+            }
+        };
+        inner().context("<block-item>")
+    }
+    fn parse_declaration(&mut self) -> Result<Declaration> {
+        let mut inner = || -> Result<Declaration> {
+            self.expect_exact([Keyword::Int.into()])?;
 
-            let exp = self.parse_exp(BinaryOperatorPrecedence::min())?;
+            let ident = self.parse_ident()?;
+
+            let init = match self.tokens.peek() {
+                Some(Ok(Token::Operator(Operator::Assign))) => {
+                    self.tokens.next();
+
+                    let exp = self.parse_exp(BinaryOperatorPrecedence::min())?;
+                    Some(exp)
+                }
+                _ => None,
+            };
 
             self.expect_exact([Demarcator::Semicolon.into()])?;
 
-            Ok(Statement::Return(exp))
+            Ok(Declaration { ident, init })
+        };
+        inner().context("<declaration>")
+    }
+    fn parse_stmt(&mut self) -> Result<Statement> {
+        let mut inner = || -> Result<Statement> {
+            match self.tokens.peek() {
+                Some(Ok(Token::Demarcator(Demarcator::Semicolon))) => {
+                    self.tokens.next();
+
+                    Ok(Statement::Null)
+                }
+                Some(Ok(Token::Keyword(Keyword::Return))) => {
+                    self.tokens.next();
+
+                    let exp = self.parse_exp(BinaryOperatorPrecedence::min())?;
+
+                    self.expect_exact([Demarcator::Semicolon.into()])?;
+
+                    Ok(Statement::Return(exp))
+                }
+                _ => {
+                    let exp = self.parse_exp(BinaryOperatorPrecedence::min())?;
+
+                    self.expect_exact([Demarcator::Semicolon.into()])?;
+
+                    Ok(Statement::Expression(exp))
+                }
+            }
         };
         inner().context("<statement>")
     }
@@ -182,18 +309,34 @@ impl<T: Iterator<Item = Result<Token>>> Parser<T> {
             let mut lhs: Expression = self.parse_factor()?;
 
             loop {
-                if let Some(c_op) = self.peek_binary_op() {
-                    let nxt_prec = BinaryOperatorPrecedence::from(&c_op);
+                if let Some(boi) = self.peek_binary_op() {
+                    let nxt_prec = BinaryOperatorPrecedence::from(&boi);
                     if nxt_prec >= min_prec {
                         self.tokens.next();
 
-                        let rhs = self.parse_exp(nxt_prec.inc1())?;
+                        let nxt_assoc = BinaryOperatorAssociativity::from(&boi);
+                        let beyond_prec = match nxt_assoc {
+                            BinaryOperatorAssociativity::Left => nxt_prec.inc1(),
+                            BinaryOperatorAssociativity::Right => nxt_prec,
+                        };
 
-                        lhs = Expression::Binary(Binary {
-                            op: c_op,
-                            lhs: Box::new(lhs),
-                            rhs: Box::new(rhs),
-                        });
+                        let rhs = self.parse_exp(beyond_prec)?;
+
+                        match boi {
+                            BinaryOperatorInfo::Generic(c_op) => {
+                                lhs = Expression::Binary(Binary {
+                                    op: c_op,
+                                    lhs: Box::new(lhs),
+                                    rhs: Box::new(rhs),
+                                });
+                            }
+                            BinaryOperatorInfo::Assign => {
+                                lhs = Expression::Assignment(Assignment {
+                                    lhs: Box::new(lhs),
+                                    rhs: Box::new(rhs),
+                                });
+                            }
+                        }
 
                         continue;
                     }
@@ -209,6 +352,7 @@ impl<T: Iterator<Item = Result<Token>>> Parser<T> {
         let mut inner = || -> Result<Expression> {
             match self.tokens.next() {
                 Some(Ok(Token::Const(konst))) => return Ok(Expression::Const(konst)),
+                Some(Ok(Token::Identifier(ident))) => return Ok(Expression::Var(ident)),
                 Some(Ok(Token::Operator(t_op))) => match Self::convert_unary_op(&t_op) {
                     Some(c_op) => {
                         let exp = self.parse_factor()?;
@@ -232,26 +376,11 @@ impl<T: Iterator<Item = Result<Token>>> Parser<T> {
         };
         inner().context("<factor>")
     }
-    fn peek_binary_op(&mut self) -> Option<BinaryOperator> {
-        if let Some(Ok(Token::Operator(op))) = self.tokens.peek() {
-            match op {
-                Operator::Minus => return Some(BinaryOperator::Sub),
-                Operator::Plus => return Some(BinaryOperator::Add),
-                Operator::Star => return Some(BinaryOperator::Mul),
-                Operator::Slash => return Some(BinaryOperator::Div),
-                Operator::Percent => return Some(BinaryOperator::Rem),
-                Operator::And => return Some(BinaryOperator::And),
-                Operator::Or => return Some(BinaryOperator::Or),
-                Operator::Eq => return Some(BinaryOperator::Eq),
-                Operator::Neq => return Some(BinaryOperator::Neq),
-                Operator::Lt => return Some(BinaryOperator::Lt),
-                Operator::Lte => return Some(BinaryOperator::Lte),
-                Operator::Gt => return Some(BinaryOperator::Gt),
-                Operator::Gte => return Some(BinaryOperator::Gte),
-                _ => {}
-            }
+    fn peek_binary_op(&mut self) -> Option<BinaryOperatorInfo> {
+        match self.tokens.peek() {
+            Some(Ok(Token::Operator(t_op))) => BinaryOperatorInfo::from(t_op),
+            _ => None,
         }
-        None
     }
     fn convert_unary_op(t_op: &Operator) -> Option<UnaryOperator> {
         match t_op {

@@ -105,8 +105,6 @@ impl Lexer {
                     (match_len, token) = (AND.len(), Operator::And.into());
                 } else if sfx.starts_with(OR) {
                     (match_len, token) = (OR.len(), Operator::Or.into());
-                } else if sfx.starts_with(EQ) {
-                    (match_len, token) = (EQ.len(), Operator::Eq.into());
                 } else if let Some(mach) = MINUSES.find(sfx) {
                     if mach.len() == "-".len() {
                         (match_len, token) = (mach.len(), Operator::Minus.into());
@@ -139,6 +137,13 @@ impl Lexer {
                         token = Operator::Gte.into();
                     } else {
                         token = Operator::Gt.into();
+                    }
+                } else if let Some(mach) = EQ_EQ.find(sfx) {
+                    match_len = mach.len();
+                    if mach.len() == "==".len() {
+                        token = Operator::Eq.into();
+                    } else {
+                        token = Operator::Assign.into();
                     }
                 } else if let Some(mach) = KW_INT.find(sfx) {
                     match_len = mach.len();
@@ -196,7 +201,6 @@ mod token_matchers {
     pub const PERCENT: u8 = '%' as u8;
     pub const AND: &str = "&&";
     pub const OR: &str = "||";
-    pub const EQ: &str = "==";
 
     lazy_static! {
         /* Operations */
@@ -205,6 +209,7 @@ mod token_matchers {
         pub static ref BANG_EQ: Regex = Regex::new(r"^\!=?").unwrap();
         pub static ref LT_EQ: Regex = Regex::new(r"^<=?").unwrap();
         pub static ref GT_EQ: Regex = Regex::new(r"^>=?").unwrap();
+        pub static ref EQ_EQ: Regex = Regex::new(r"^==?").unwrap();
 
         /* Keywords */
         pub static ref KW_INT: Regex = Regex::new(r"^int\b").unwrap();
@@ -265,6 +270,8 @@ pub mod tokens {
         Gt,
         Lte,
         Gte,
+        /* assign */
+        Assign,
     }
     #[derive(PartialEq, Eq, Debug)]
     pub enum Const {
