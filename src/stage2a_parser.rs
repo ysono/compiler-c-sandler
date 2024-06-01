@@ -201,7 +201,7 @@ impl<T: Iterator<Item = Result<Token>>> Parser<T> {
 
             Ok(Program { func })
         };
-        inner().context("<program>")
+        inner().context("tokens -> c_ast <program>")
     }
     fn parse_func(&mut self) -> Result<Function> {
         let mut inner = || -> Result<Function> {
@@ -306,7 +306,7 @@ impl<T: Iterator<Item = Result<Token>>> Parser<T> {
     }
     fn parse_exp(&mut self, min_prec: BinaryOperatorPrecedence) -> Result<Expression> {
         let mut inner = || -> Result<Expression> {
-            let mut lhs: Expression = self.parse_factor()?;
+            let mut lhs = self.parse_factor()?;
 
             loop {
                 if let Some(boi) = self.peek_binary_op() {

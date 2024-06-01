@@ -276,6 +276,6 @@ pub mod tokens {
     pub enum Const {
         Int(i32),
     }
-    #[derive(Into, PartialEq, Eq, Debug)]
+    #[derive(Into, PartialEq, Eq, Hash, Debug)]
     pub struct Identifier(pub(super) String);
 }

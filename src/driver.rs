@@ -1,7 +1,8 @@
 use crate::{
     files::{AsmFilepath, PreprocessedFilepath, ProgramFilepath, SrcFilepath},
     stage1_lexer::Lexer,
-    stage2_parser::Parser,
+    stage2a_parser::Parser,
+    stage2b_validate::CAstValidator,
     stage3_tacky::Tackifier,
     stage4_asm_gen::AsmCodeGenerator,
     stage5_asm_emit::AsmCodeEmitter,
@@ -22,6 +23,9 @@ struct CliArgs {
 
     #[clap(long = "parse")]
     until_parser: bool,
+
+    #[clap(long = "validate")]
+    until_parser_validate: bool,
 
     #[clap(long = "tacky")]
     until_tacky: bool,
@@ -71,6 +75,13 @@ fn compile(pp_filepath: PreprocessedFilepath, args: &CliArgs) -> Result<Option<A
     let c_prog = parser.parse_program()?;
     if args.until_parser {
         println!("c_prog: {c_prog:?}");
+        return Ok(None);
+    }
+
+    let mut vadlidator = CAstValidator::default();
+    let c_prog = vadlidator.resolve_program(c_prog)?;
+    if args.until_parser_validate {
+        println!("validated c_prog: {c_prog:?}");
         return Ok(None);
     }
 

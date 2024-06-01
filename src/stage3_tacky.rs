@@ -1,6 +1,6 @@
 pub mod tacky_ir {
     pub use self::instruction::*;
-    pub use crate::stage2_parser::c_ast::Identifier;
+    pub use crate::stage2b_validate::c_ast::{Identifier, Variable};
     use std::rc::Rc;
     use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -89,18 +89,6 @@ pub mod tacky_ir {
         Variable(Rc<Variable>),
     }
 
-    #[derive(PartialEq, Eq, Hash, Debug)]
-    pub struct Variable {
-        id: u64,
-    }
-    impl Variable {
-        pub(super) fn new() -> Self {
-            static NEXT_ID: AtomicU64 = AtomicU64::new(0);
-            let curr_id = NEXT_ID.fetch_add(1, Ordering::SeqCst);
-            Self { id: curr_id }
-        }
-    }
-
     #[derive(Debug)]
     pub struct LabelIdentifier {
         id: u64,
@@ -122,7 +110,7 @@ pub mod tacky_ir {
 }
 
 use self::tacky_ir::*;
-use crate::stage2_parser::c_ast;
+use crate::stage2b_validate::c_ast;
 use derive_more::Display;
 use std::rc::Rc;
 
@@ -197,7 +185,7 @@ impl StmtToInstrs {
     fn tackify_unary_exp(&mut self, c_unary: c_ast::Unary) -> ReadableValue {
         let op = Self::convert_unary_op(c_unary.op);
         let src = self.tackify_exp(*c_unary.sub_exp);
-        let dst = Rc::new(Variable::new());
+        let dst = Rc::new(Variable::new_anon());
         self.instrs.push(Instruction::Unary(Unary {
             op,
             src,
@@ -225,7 +213,7 @@ impl StmtToInstrs {
     ) -> ReadableValue {
         let src1 = self.tackify_exp(*c_binary.lhs);
         let src2 = self.tackify_exp(*c_binary.rhs);
-        let dst = Rc::new(Variable::new());
+        let dst = Rc::new(Variable::new_anon());
         self.instrs.push(Instruction::Binary(Binary {
             op,
             src1,
@@ -255,7 +243,7 @@ impl StmtToInstrs {
             ShortCircuitBOT::And => (0, 1),
             ShortCircuitBOT::Or => (1, 0),
         };
-        let dst = Rc::new(Variable::new());
+        let dst = Rc::new(Variable::new_anon());
 
         /* Begin instructions */
 
