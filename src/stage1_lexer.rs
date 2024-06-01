@@ -1,3 +1,4 @@
+use self::tokens::*;
 use crate::files::PreprocessedFilepath;
 use anyhow::{anyhow, Context, Result};
 use std::collections::VecDeque;
@@ -5,8 +6,6 @@ use std::fs::File;
 use std::io::{BufRead, BufReader, Seek};
 use std::path::PathBuf;
 use std::str::Chars;
-
-use tokens::*;
 
 pub struct Lexer {
     br: BufReader<File>,

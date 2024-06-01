@@ -1,9 +1,8 @@
 use crate::{
     files::AsmFilepath,
-    stage3_tacky::tacky_ir::LabelIdentifier,
     stage4_asm_gen::asm_code::{
-        BinaryOperator, ConditionCode, Function, Instruction, Operand, Program, Register,
-        UnaryOperator,
+        BinaryOperator, ConditionCode, Function, Instruction, LabelIdentifier, Operand, Program,
+        Register, UnaryOperator,
     },
 };
 use lazy_static::lazy_static;

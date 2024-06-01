@@ -12,12 +12,9 @@
 //! <int> ::= ? A constant token ?
 //! ```
 
-use crate::stage1_lexer::tokens::{self, Demarcator, Identifier, Keyword, Operator, Token};
-use anyhow::{anyhow, Context, Result};
-use std::iter::Peekable;
-
 pub mod c_ast {
-    use crate::stage1_lexer::tokens::{Const, Identifier};
+    pub use self::expression::*;
+    pub use crate::stage1_lexer::tokens::{Const, Identifier};
 
     #[derive(Debug)]
     pub struct Program {
@@ -53,11 +50,11 @@ pub mod c_ast {
     pub enum Expression {
         Const(Const),
         Var(Identifier),
-        Unary(expression::Unary),
-        Binary(expression::Binary),
-        Assignment(expression::Assignment),
+        Unary(Unary),
+        Binary(Binary),
+        Assignment(Assignment),
     }
-    pub mod expression {
+    mod expression {
         use super::*;
 
         #[derive(Debug)]
@@ -109,8 +106,11 @@ pub mod c_ast {
         Gte,
     }
 }
-use c_ast::expression::*;
-use c_ast::*;
+
+use self::c_ast::*;
+use crate::stage1_lexer::tokens::{self, Demarcator, Keyword, Operator, Token};
+use anyhow::{anyhow, Context, Result};
+use std::iter::Peekable;
 
 enum BinaryOperatorInfo {
     Generic(BinaryOperator),

@@ -1,13 +1,5 @@
-use crate::stage3_tacky::tacky_ir;
-use std::collections::HashMap;
-use std::mem::{self, MaybeUninit};
-use std::rc::Rc;
-
 pub mod asm_code {
-    use crate::{
-        stage1_lexer::tokens::Identifier,
-        stage3_tacky::tacky_ir::{LabelIdentifier, Variable},
-    };
+    pub use crate::stage3_tacky::tacky_ir::{Identifier, LabelIdentifier, Variable};
     use derive_more::{Deref, From};
     use std::rc::Rc;
 
@@ -97,7 +89,12 @@ pub mod asm_code {
         Ge,
     }
 }
-use asm_code::*;
+
+use self::asm_code::*;
+use crate::stage3_tacky::tacky_ir;
+use std::collections::HashMap;
+use std::mem::{self, MaybeUninit};
+use std::rc::Rc;
 
 pub struct AsmCodeGenerator {}
 impl AsmCodeGenerator {
@@ -157,9 +154,7 @@ impl AsmCodeGenerator {
 
     /* Tacky Unary */
 
-    fn gen_unary_instrs(
-        t_unary: tacky_ir::instruction::Unary,
-    ) -> Vec<Instruction<PreFinalOperand>> {
+    fn gen_unary_instrs(t_unary: tacky_ir::Unary) -> Vec<Instruction<PreFinalOperand>> {
         use tacky_ir::UnaryOperator as TUO;
 
         match t_unary.op {
@@ -172,7 +167,7 @@ impl AsmCodeGenerator {
     }
     fn gen_unary_inplace_instrs(
         asm_op: asm_code::UnaryOperator,
-        t_unary: tacky_ir::instruction::Unary,
+        t_unary: tacky_ir::Unary,
     ) -> Vec<Instruction<PreFinalOperand>> {
         let asm_src = Self::convert_val_operand(t_unary.src);
         let asm_dst = Self::convert_var_operand(t_unary.dst);
@@ -184,9 +179,7 @@ impl AsmCodeGenerator {
         let asm_instr_2 = Instruction::Unary(asm_op, asm_dst);
         vec![asm_instr_1, asm_instr_2]
     }
-    fn gen_unary_comparison_instrs(
-        t_unary: tacky_ir::instruction::Unary,
-    ) -> Vec<Instruction<PreFinalOperand>> {
+    fn gen_unary_comparison_instrs(t_unary: tacky_ir::Unary) -> Vec<Instruction<PreFinalOperand>> {
         let asm_src = Self::convert_val_operand(t_unary.src);
         let asm_dst = Self::convert_var_operand(t_unary.dst);
 
@@ -200,9 +193,7 @@ impl AsmCodeGenerator {
 
     /* Tacky Binary */
 
-    fn gen_binary_instrs(
-        t_binary: tacky_ir::instruction::Binary,
-    ) -> Vec<Instruction<PreFinalOperand>> {
+    fn gen_binary_instrs(t_binary: tacky_ir::Binary) -> Vec<Instruction<PreFinalOperand>> {
         use tacky_ir::BinaryOperator as TBO;
 
         match t_binary.op {
@@ -223,7 +214,7 @@ impl AsmCodeGenerator {
     }
     fn gen_arithmetic_instrs(
         asm_op: asm_code::BinaryOperator,
-        t_binary: tacky_ir::instruction::Binary,
+        t_binary: tacky_ir::Binary,
     ) -> Vec<Instruction<PreFinalOperand>> {
         let asm_src1 = Self::convert_val_operand(t_binary.src1);
         let asm_src2 = Self::convert_val_operand(t_binary.src2);
@@ -242,7 +233,7 @@ impl AsmCodeGenerator {
     }
     fn gen_divrem_instrs(
         ans_reg: asm_code::Register,
-        t_binary: tacky_ir::instruction::Binary,
+        t_binary: tacky_ir::Binary,
     ) -> Vec<Instruction<PreFinalOperand>> {
         let asm_src1 = Self::convert_val_operand(t_binary.src1);
         let asm_src2 = Self::convert_val_operand(t_binary.src2);
@@ -262,7 +253,7 @@ impl AsmCodeGenerator {
     }
     fn gen_comparison_instrs(
         cmp_0_cc: ConditionCode,
-        t_binary: tacky_ir::instruction::Binary,
+        t_binary: tacky_ir::Binary,
     ) -> Vec<Instruction<PreFinalOperand>> {
         let asm_src1 = Self::convert_val_operand(t_binary.src1);
         let asm_src2 = Self::convert_val_operand(t_binary.src2);
@@ -290,7 +281,7 @@ impl AsmCodeGenerator {
 
     /* Tacky Copy */
 
-    fn gen_copy_instrs(t_copy: tacky_ir::instruction::Copy) -> Vec<Instruction<PreFinalOperand>> {
+    fn gen_copy_instrs(t_copy: tacky_ir::Copy) -> Vec<Instruction<PreFinalOperand>> {
         let src = Self::convert_val_operand(t_copy.src);
         let dst = Self::convert_var_operand(t_copy.dst);
         vec![Instruction::Mov { src, dst }]
@@ -300,7 +291,7 @@ impl AsmCodeGenerator {
 
     fn gen_jumpif_instrs(
         cmp_0_cc: ConditionCode,
-        t_jumpif: tacky_ir::instruction::JumpIf,
+        t_jumpif: tacky_ir::JumpIf,
     ) -> Vec<Instruction<PreFinalOperand>> {
         let condition = Self::convert_val_operand(t_jumpif.condition);
         let asm_instr_1 = Instruction::Cmp {
@@ -313,7 +304,7 @@ impl AsmCodeGenerator {
 
     /* Operand */
 
-    fn convert_var_operand(t_var: Rc<tacky_ir::Variable>) -> PreFinalOperand {
+    fn convert_var_operand(t_var: Rc<Variable>) -> PreFinalOperand {
         Self::convert_val_operand(tacky_ir::ReadableValue::Variable(t_var))
     }
     fn convert_val_operand(t_val: tacky_ir::ReadableValue) -> PreFinalOperand {
@@ -326,7 +317,7 @@ impl AsmCodeGenerator {
 
 struct InstrsFinalizer {
     last_used_stack_pos: StackPosition,
-    var_to_stack_pos: HashMap<Rc<tacky_ir::Variable>, StackPosition>,
+    var_to_stack_pos: HashMap<Rc<Variable>, StackPosition>,
 }
 impl InstrsFinalizer {
     fn new() -> Self {
@@ -404,7 +395,7 @@ impl InstrsFinalizer {
             PFO::Register(r) => Operand::Register(r),
         }
     }
-    fn var_to_stack_pos(&mut self, var: Rc<tacky_ir::Variable>) -> StackPosition {
+    fn var_to_stack_pos(&mut self, var: Rc<Variable>) -> StackPosition {
         /* For now, all Tacky Values represent 32-bit values. */
         const VAL_BYTELEN: usize = mem::size_of::<i32>();
         let pos = self.var_to_stack_pos.entry(var).or_insert_with(|| {
@@ -416,7 +407,7 @@ impl InstrsFinalizer {
 }
 
 mod correct_invalid_operands {
-    use super::*;
+    use super::asm_code::*;
 
     pub fn correct_invalid_operands<'a>(
         in_instrs: impl 'a + Iterator<Item = Instruction<Operand>>,

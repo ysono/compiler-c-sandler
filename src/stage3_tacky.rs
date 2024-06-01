@@ -1,9 +1,6 @@
-use crate::{stage1_lexer::tokens, stage2_parser::c_ast};
-use derive_more::Display;
-use std::rc::Rc;
-
 pub mod tacky_ir {
-    use crate::stage1_lexer::tokens::Identifier;
+    pub use self::instruction::*;
+    pub use crate::stage2_parser::c_ast::Identifier;
     use std::rc::Rc;
     use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -21,15 +18,15 @@ pub mod tacky_ir {
     #[derive(Debug)]
     pub enum Instruction {
         Return(ReadableValue),
-        Unary(instruction::Unary),
-        Binary(instruction::Binary),
-        Copy(instruction::Copy),
+        Unary(Unary),
+        Binary(Binary),
+        Copy(Copy),
         Jump(Rc<LabelIdentifier>),
-        JumpIfZero(instruction::JumpIf),
-        JumpIfNotZero(instruction::JumpIf),
+        JumpIfZero(JumpIf),
+        JumpIfNotZero(JumpIf),
         Label(Rc<LabelIdentifier>),
     }
-    pub mod instruction {
+    mod instruction {
         use super::*;
 
         #[derive(Debug)]
@@ -123,8 +120,11 @@ pub mod tacky_ir {
         }
     }
 }
-use tacky_ir::instruction::*;
-use tacky_ir::*;
+
+use self::tacky_ir::*;
+use crate::stage2_parser::c_ast;
+use derive_more::Display;
+use std::rc::Rc;
 
 enum BinaryOperatorType {
     EvaluateBothHands(tacky_ir::BinaryOperator),
@@ -184,7 +184,7 @@ impl StmtToInstrs {
     }
     fn tackify_exp(&mut self, c_exp: c_ast::Expression) -> ReadableValue {
         match c_exp {
-            c_ast::Expression::Const(tokens::Const::Int(intval)) => ReadableValue::Constant(intval),
+            c_ast::Expression::Const(c_ast::Const::Int(i)) => ReadableValue::Constant(i),
             c_ast::Expression::Var(_) => todo!(),
             c_ast::Expression::Unary(unary) => self.tackify_unary_exp(unary),
             c_ast::Expression::Binary(binary) => self.tackify_binary_exp(binary),
@@ -194,7 +194,7 @@ impl StmtToInstrs {
 
     /* C Unary */
 
-    fn tackify_unary_exp(&mut self, c_unary: c_ast::expression::Unary) -> ReadableValue {
+    fn tackify_unary_exp(&mut self, c_unary: c_ast::Unary) -> ReadableValue {
         let op = Self::convert_unary_op(c_unary.op);
         let src = self.tackify_exp(*c_unary.sub_exp);
         let dst = Rc::new(Variable::new());
@@ -208,7 +208,7 @@ impl StmtToInstrs {
 
     /* C Binary */
 
-    fn tackify_binary_exp(&mut self, c_binary: c_ast::expression::Binary) -> ReadableValue {
+    fn tackify_binary_exp(&mut self, c_binary: c_ast::Binary) -> ReadableValue {
         match Self::convert_binary_op(&c_binary.op) {
             BinaryOperatorType::EvaluateBothHands(t_op) => {
                 self.tackify_binary_evalboth_exp(t_op, c_binary)
@@ -221,7 +221,7 @@ impl StmtToInstrs {
     fn tackify_binary_evalboth_exp(
         &mut self,
         op: tacky_ir::BinaryOperator,
-        c_binary: c_ast::expression::Binary,
+        c_binary: c_ast::Binary,
     ) -> ReadableValue {
         let src1 = self.tackify_exp(*c_binary.lhs);
         let src2 = self.tackify_exp(*c_binary.rhs);
@@ -237,7 +237,7 @@ impl StmtToInstrs {
     fn tackify_binary_shortcirc_exp(
         &mut self,
         op_type: ShortCircuitBOT,
-        c_binary: c_ast::expression::Binary,
+        c_binary: c_ast::Binary,
     ) -> ReadableValue {
         let label_shortcirc = Rc::new(LabelIdentifier::new(Some(format!(
             "{op_type}_shortcircuit"
