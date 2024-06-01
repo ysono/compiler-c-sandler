@@ -134,49 +134,64 @@ impl Tackifier {
     fn tackify_func(c_func: c_ast::Function) -> Function {
         let c_ast::Function { ident, body } = c_func;
 
-        let mut instructions = vec![];
-        for item in body {
-            match item {
-                c_ast::BlockItem::Declaration(_) => todo!(),
-                c_ast::BlockItem::Statement(stmt) => {
-                    let stmt_converter = StmtToInstrs::default();
-                    let instrs = stmt_converter.tackify_stmt(stmt);
-                    instructions.extend(instrs);
-                }
-            }
-        }
+        let mut gen_instrs = FuncBodyToInstrs::default();
+        gen_instrs.tackify_func_body(body);
 
         Function {
             ident,
-            instructions,
+            instructions: gen_instrs.instrs,
         }
     }
 }
 
 #[derive(Default)]
-struct StmtToInstrs {
+struct FuncBodyToInstrs {
     instrs: Vec<Instruction>,
 }
-impl StmtToInstrs {
-    fn tackify_stmt(mut self, c_stmt: c_ast::Statement) -> Vec<Instruction> {
+impl FuncBodyToInstrs {
+    fn tackify_func_body(&mut self, c_body: Vec<c_ast::BlockItem>) {
+        for item in c_body {
+            match item {
+                c_ast::BlockItem::Declaration(c_decl) => self.tackify_decl(c_decl),
+                c_ast::BlockItem::Statement(c_stmt) => self.tackify_stmt(c_stmt),
+            }
+        }
+
+        let ret_kon = c_ast::Const::Int(0);
+        let ret_exp = c_ast::Expression::Const(ret_kon);
+        let ret_stmt = c_ast::Statement::Return(ret_exp);
+        self.tackify_stmt(ret_stmt);
+    }
+    fn tackify_decl(&mut self, c_decl: c_ast::Declaration) {
+        let c_ast::Declaration { var, init } = c_decl;
+        match init {
+            None => { /* No-op. */ }
+            Some(init_exp) => {
+                self.tackify_assignment_exp(var, init_exp);
+            }
+        }
+    }
+    fn tackify_stmt(&mut self, c_stmt: c_ast::Statement) {
         match c_stmt {
             c_ast::Statement::Return(c_root_exp) => {
                 let t_root_val = self.tackify_exp(c_root_exp);
                 self.instrs.push(Instruction::Return(t_root_val));
             }
-            c_ast::Statement::Expression(_) => todo!(),
-            c_ast::Statement::Null => todo!(),
+            c_ast::Statement::Expression(c_root_exp) => {
+                self.tackify_exp(c_root_exp);
+            }
+            c_ast::Statement::Null => { /* No-op. */ }
         }
-
-        self.instrs
     }
     fn tackify_exp(&mut self, c_exp: c_ast::Expression) -> ReadableValue {
         match c_exp {
             c_ast::Expression::Const(c_ast::Const::Int(i)) => ReadableValue::Constant(i),
-            c_ast::Expression::Var(_) => todo!(),
+            c_ast::Expression::Var(var) => ReadableValue::Variable(var),
             c_ast::Expression::Unary(unary) => self.tackify_unary_exp(unary),
             c_ast::Expression::Binary(binary) => self.tackify_binary_exp(binary),
-            c_ast::Expression::Assignment(_) => todo!(),
+            c_ast::Expression::Assignment(c_ast::Assignment { var, rhs }) => {
+                self.tackify_assignment_exp(var, *rhs)
+            }
         }
     }
 
@@ -304,5 +319,22 @@ impl StmtToInstrs {
             CBO::Gt => BOT::EvaluateBothHands(TBO::Gt),
             CBO::Gte => BOT::EvaluateBothHands(TBO::Gte),
         }
+    }
+
+    /* C Assignment */
+
+    fn tackify_assignment_exp(
+        &mut self,
+        var: Rc<Variable>,
+        rhs: c_ast::Expression,
+    ) -> ReadableValue {
+        let rhs = self.tackify_exp(rhs);
+
+        self.instrs.push(Instruction::Copy(Copy {
+            src: rhs,
+            dst: Rc::clone(&var),
+        }));
+
+        ReadableValue::Variable(var)
     }
 }
