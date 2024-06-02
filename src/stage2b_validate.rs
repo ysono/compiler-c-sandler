@@ -13,7 +13,12 @@ pub mod c_ast {
     #[derive(Debug)]
     pub struct Function {
         pub ident: Identifier,
-        pub body: Vec<BlockItem>,
+        pub body: Block,
+    }
+
+    #[derive(Debug)]
+    pub struct Block {
+        pub items: Vec<BlockItem>,
     }
 
     #[derive(Debug)]
@@ -33,6 +38,7 @@ pub mod c_ast {
         Return(Expression),
         Expression(Expression),
         If(If),
+        Compound(Block),
         Null,
     }
 
@@ -123,14 +129,18 @@ use self::c_ast::*;
 use crate::stage2a_parser::c_ast as prev_c_ast;
 use anyhow::{anyhow, Context, Result};
 use log;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
-#[derive(Default)]
 pub struct CAstValidator {
     ident_to_var: IdentToVar,
 }
 impl CAstValidator {
+    pub fn new() -> Self {
+        let ident_to_var = IdentToVar::new();
+        CAstValidator { ident_to_var }
+    }
+
     pub fn resolve_program(&mut self, prog: prev_c_ast::Program) -> Result<Program> {
         let inner = || -> Result<Program> {
             let prev_c_ast::Program { func } = prog;
@@ -142,13 +152,23 @@ impl CAstValidator {
     fn resolve_func(&mut self, func: prev_c_ast::Function) -> Result<Function> {
         let inner = || -> Result<Function> {
             let prev_c_ast::Function { ident, body } = func;
-            let body = body
-                .into_iter()
-                .map(|item| self.resolve_block_item(item))
-                .collect::<Result<Vec<_>>>()?;
+            let body = self.resolve_block(body)?;
             Ok(Function { ident, body })
         };
         inner().context("<function>")
+    }
+    fn resolve_block(&mut self, block: prev_c_ast::Block) -> Result<Block> {
+        self.ident_to_var.push_new_scope();
+
+        let items = block
+            .items
+            .into_iter()
+            .map(|item| self.resolve_block_item(item))
+            .collect::<Result<Vec<_>>>()?;
+
+        self.ident_to_var.pop_scope();
+
+        Ok(Block { items })
     }
     fn resolve_block_item(&mut self, item: prev_c_ast::BlockItem) -> Result<BlockItem> {
         let inner = || -> Result<BlockItem> {
@@ -203,6 +223,10 @@ impl CAstValidator {
                         then: Box::new(then),
                         elze: elze.map(Box::new),
                     }));
+                }
+                prev_c_ast::Statement::Compound(block) => {
+                    let block = self.resolve_block(block)?;
+                    Ok(Statement::Compound(block))
                 }
                 prev_c_ast::Statement::Null => Ok(Statement::Null),
             }
@@ -269,56 +293,98 @@ impl CAstValidator {
         inner().context("<exp>")
     }
     fn resolve_var(&self, ident: Identifier, check_initialized: bool) -> Result<Rc<Variable>> {
-        let VariableState {
-            var,
-            is_initialized,
-        } = self.ident_to_var.get(&ident)?;
+        let var_st = self.ident_to_var.get(&ident)?;
         if check_initialized == true {
-            if is_initialized == &false {
+            if var_st.is_initialized == false {
                 log::warn!("Non-initialized variable {ident:?}");
             }
         }
-        Ok(Rc::clone(var))
+        Ok(Rc::clone(&var_st.var))
     }
 }
 
-#[derive(Default)]
 struct IdentToVar {
-    ident_to_var: HashMap<Rc<Identifier>, VariableState>,
+    /// This abstracts a copy-on-write dict.
+    ident_to_scoped_vars: HashMap<Rc<Identifier>, Vec<VariableState>>,
+
+    /// This tracks each copy-on-write layer's keys.
+    scope_to_idents: Vec<HashSet<Rc<Identifier>>>,
 }
 impl IdentToVar {
-    fn get(&self, ident: &Identifier) -> Result<&VariableState> {
-        self.ident_to_var
-            .get(ident)
-            .ok_or_else(|| anyhow!("Non-declared identity {ident:?}"))
+    fn new() -> Self {
+        let ident_to_scoped_vars = HashMap::new();
+
+        let global_scope = HashSet::new();
+        let scope_to_idents = vec![global_scope];
+
+        Self {
+            ident_to_scoped_vars,
+            scope_to_idents,
+        }
+    }
+
+    fn push_new_scope(&mut self) {
+        let idents = HashSet::new();
+        self.scope_to_idents.push(idents);
     }
     fn declare_new_var(&mut self, ident: Identifier) -> Result<Rc<Variable>> {
-        match self.ident_to_var.get(&ident) {
-            Some(_) => Err(anyhow!("Duplicate declaration of identifier {ident:?}")),
-            None => {
-                let ident = Rc::new(ident);
-                let var = Variable::new(Some(Rc::clone(&ident)));
-                let var = Rc::new(var);
-                let var_st = VariableState {
-                    var: Rc::clone(&var),
-                    is_initialized: false,
-                };
-                self.ident_to_var.insert(ident, var_st);
-                Ok(var)
+        let last_scope = self.scope_to_idents.last_mut().unwrap();
+        if last_scope.contains(&ident) {
+            return Err(anyhow!(
+                "Same-scope duplicate declaration of identifier {ident:?}"
+            ));
+        }
+        let ident = Rc::new(ident);
+        last_scope.insert(Rc::clone(&ident));
+
+        let var = Rc::new(Variable::new(Some(Rc::clone(&ident))));
+        let var_st = VariableState {
+            var: Rc::clone(&var),
+            is_initialized: false,
+        };
+        let scoped_vars = self
+            .ident_to_scoped_vars
+            .entry(ident)
+            .or_insert_with(|| vec![]);
+        scoped_vars.push(var_st);
+
+        Ok(var)
+    }
+    fn pop_scope(&mut self) {
+        let idents = self.scope_to_idents.pop().unwrap();
+        for ident in idents {
+            let scoped_vars = self.ident_to_scoped_vars.get_mut(&ident).unwrap();
+            if scoped_vars.len() > 1 {
+                scoped_vars.pop();
+            } else {
+                self.ident_to_scoped_vars.remove(&ident);
             }
         }
     }
+
+    fn get(&self, ident: &Identifier) -> Result<&VariableState> {
+        let scoped_vars = self
+            .ident_to_scoped_vars
+            .get(ident)
+            .ok_or_else(|| anyhow!("Non-declared identity {ident:?}"))?;
+        let var_st = scoped_vars.last().unwrap();
+        Ok(var_st)
+    }
+    fn get_mut(&mut self, ident: &Identifier) -> Result<&mut VariableState> {
+        let scoped_vars = self
+            .ident_to_scoped_vars
+            .get_mut(ident)
+            .ok_or_else(|| anyhow!("Non-declared identity {ident:?}"))?;
+        let var_st = scoped_vars.last_mut().unwrap();
+        Ok(var_st)
+    }
+
     fn mark_var_as_initialized(&mut self, var: &Variable) -> Result<()> {
-        let ident = var
-            .orig_ident()
-            .as_ref()
-            .ok_or_else(|| anyhow!("Validator impl is wrong. Non-named variable {var:?}"))?;
+        let ident = var.orig_ident().as_ref().unwrap();
         self.mark_ident_as_initialized(ident)
     }
     fn mark_ident_as_initialized(&mut self, ident: &Identifier) -> Result<()> {
-        let var_st = self.ident_to_var.get_mut(ident).ok_or(anyhow!(
-            "Validator impl is wrong. Tried to mark a non-declared variable as initialized."
-        ))?;
+        let var_st = self.get_mut(ident).unwrap();
         var_st.is_initialized = true;
         Ok(())
     }

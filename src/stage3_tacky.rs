@@ -128,39 +128,41 @@ pub struct Tackifier {}
 impl Tackifier {
     pub fn tackify_program(c_prog: c_ast::Program) -> Program {
         let c_ast::Program { func } = c_prog;
-        let func = Self::tackify_func(func);
+
+        let gen_instrs = TackyIrGenerator::default();
+        let func = gen_instrs.tackify_func(func);
+
         Program { func }
-    }
-    fn tackify_func(c_func: c_ast::Function) -> Function {
-        let c_ast::Function { ident, body } = c_func;
-
-        let mut gen_instrs = FuncBodyToInstrs::default();
-        gen_instrs.tackify_func_body(body);
-
-        Function {
-            ident,
-            instructions: gen_instrs.instrs,
-        }
     }
 }
 
 #[derive(Default)]
-struct FuncBodyToInstrs {
+struct TackyIrGenerator {
     instrs: Vec<Instruction>,
 }
-impl FuncBodyToInstrs {
-    fn tackify_func_body(&mut self, c_body: Vec<c_ast::BlockItem>) {
-        for item in c_body {
-            match item {
-                c_ast::BlockItem::Declaration(c_decl) => self.tackify_decl(c_decl),
-                c_ast::BlockItem::Statement(c_stmt) => self.tackify_stmt(c_stmt),
-            }
-        }
+impl TackyIrGenerator {
+    fn tackify_func(mut self, c_func: c_ast::Function) -> Function {
+        let c_ast::Function { ident, body } = c_func;
+
+        self.tackify_block(body);
 
         let ret_kon = c_ast::Const::Int(0);
         let ret_exp = c_ast::Expression::Const(ret_kon);
         let ret_stmt = c_ast::Statement::Return(ret_exp);
         self.tackify_stmt(ret_stmt);
+
+        Function {
+            ident,
+            instructions: self.instrs,
+        }
+    }
+    fn tackify_block(&mut self, c_block: c_ast::Block) {
+        for c_item in c_block.items {
+            match c_item {
+                c_ast::BlockItem::Declaration(c_decl) => self.tackify_decl(c_decl),
+                c_ast::BlockItem::Statement(c_stmt) => self.tackify_stmt(c_stmt),
+            }
+        }
     }
     fn tackify_decl(&mut self, c_decl: c_ast::Declaration) {
         let c_ast::Declaration { var, init } = c_decl;
@@ -181,6 +183,7 @@ impl FuncBodyToInstrs {
                 self.tackify_exp(c_root_exp);
             }
             c_ast::Statement::If(c_if) => self.tackify_conditional_stmt(c_if),
+            c_ast::Statement::Compound(c_block) => self.tackify_block(c_block),
             c_ast::Statement::Null => { /* No-op. */ }
         }
     }

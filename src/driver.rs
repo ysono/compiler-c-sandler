@@ -78,7 +78,7 @@ fn compile(pp_filepath: PreprocessedFilepath, args: &CliArgs) -> Result<Option<A
         return Ok(None);
     }
 
-    let mut vadlidator = CAstValidator::default();
+    let mut vadlidator = CAstValidator::new();
     let c_prog = vadlidator.resolve_program(c_prog)?;
     if args.until_parser_validate {
         println!("validated c_prog: {c_prog:?}");

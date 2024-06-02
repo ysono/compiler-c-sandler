@@ -1,11 +1,13 @@
 //! ```ebnf
 //! <program> ::= <function>
-//! <function> ::= "int" <identifier> "(" "void" ")" "{" { <block-item> } "}"
+//! <function> ::= "int" <identifier> "(" "void" ")" <block>
+//! <block> ::= "{" { <block-item> } "}"
 //! <block-item> ::= <statement> | <declaration>
 //! <declaration> ::= "int" <identifier> [ "=" <exp> ] ";"
 //! <statement> ::= "return" <exp> ";"
 //!               | <exp> ";"
 //!               | "if" "(" <exp> ")" <statement> [ "else" <statement> ]
+//!               | <block>
 //!               | ";"
 //! <exp> ::= <factor> | <exp> <binop> <exp> | <exp> "?" <exp> ":" <exp>
 //! <factor> ::= <int> | <identifier> | <unop> <factor> | "(" <exp> ")"
@@ -27,7 +29,12 @@ pub mod c_ast {
     #[derive(Debug)]
     pub struct Function {
         pub ident: Identifier,
-        pub body: Vec<BlockItem>,
+        pub body: Block,
+    }
+
+    #[derive(Debug)]
+    pub struct Block {
+        pub items: Vec<BlockItem>,
     }
 
     #[derive(Debug)]
@@ -47,6 +54,7 @@ pub mod c_ast {
         Return(Expression),
         Expression(Expression),
         If(If),
+        Compound(Block),
         Null,
     }
 
@@ -222,22 +230,9 @@ impl<T: Iterator<Item = Result<Token>>> Parser<T> {
                 Demarcator::ParenOpen.into(),
                 Keyword::Void.into(),
                 Demarcator::ParenClose.into(),
-                Demarcator::BraceOpen.into(),
             ])?;
 
-            let mut body = vec![];
-            loop {
-                match self.tokens.peek() {
-                    Some(Ok(Token::Demarcator(Demarcator::BraceClose))) => {
-                        self.tokens.next();
-                        break;
-                    }
-                    _ => {
-                        let block_item = self.parse_block_item()?;
-                        body.push(block_item);
-                    }
-                }
-            }
+            let body = self.parse_block()?;
 
             Ok(Function { ident, body })
         };
@@ -251,6 +246,25 @@ impl<T: Iterator<Item = Result<Token>>> Parser<T> {
             }
         };
         inner().context("<identifier>")
+    }
+    fn parse_block(&mut self) -> Result<Block> {
+        self.expect_exact([Demarcator::BraceOpen.into()])?;
+
+        let mut items = vec![];
+        loop {
+            match self.tokens.peek() {
+                Some(Ok(Token::Demarcator(Demarcator::BraceClose))) => {
+                    self.tokens.next();
+                    break;
+                }
+                _ => {
+                    let item = self.parse_block_item()?;
+                    items.push(item);
+                }
+            }
+        }
+
+        Ok(Block { items })
     }
     fn parse_block_item(&mut self) -> Result<BlockItem> {
         let mut inner = || -> Result<BlockItem> {
@@ -328,6 +342,10 @@ impl<T: Iterator<Item = Result<Token>>> Parser<T> {
                         then: Box::new(then),
                         elze: elze.map(Box::new),
                     }))
+                }
+                Some(Ok(Token::Demarcator(Demarcator::BraceOpen))) => {
+                    let block = self.parse_block()?;
+                    Ok(Statement::Compound(block))
                 }
                 _ => {
                     let exp = self.parse_exp(BinaryOperatorPrecedence::min())?;
