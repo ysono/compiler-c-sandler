@@ -144,67 +144,67 @@ impl TackyIrGenerator {
     fn tackify_func(mut self, c_func: c_ast::Function) -> Function {
         let c_ast::Function { ident, body } = c_func;
 
-        self.tackify_block(body);
+        self.gen_block(body);
 
         let ret_kon = c_ast::Const::Int(0);
         let ret_exp = c_ast::Expression::Const(ret_kon);
         let ret_stmt = c_ast::Statement::Return(ret_exp);
-        self.tackify_stmt(ret_stmt);
+        self.gen_stmt(ret_stmt);
 
         Function {
             ident,
             instructions: self.instrs,
         }
     }
-    fn tackify_block(&mut self, c_block: c_ast::Block) {
+    fn gen_block(&mut self, c_block: c_ast::Block) {
         for c_item in c_block.items {
             match c_item {
-                c_ast::BlockItem::Declaration(c_decl) => self.tackify_decl(c_decl),
-                c_ast::BlockItem::Statement(c_stmt) => self.tackify_stmt(c_stmt),
+                c_ast::BlockItem::Declaration(c_decl) => self.gen_decl(c_decl),
+                c_ast::BlockItem::Statement(c_stmt) => self.gen_stmt(c_stmt),
             }
         }
     }
-    fn tackify_decl(&mut self, c_decl: c_ast::Declaration) {
+    fn gen_decl(&mut self, c_decl: c_ast::Declaration) {
         let c_ast::Declaration { var, init } = c_decl;
         match init {
             None => { /* No-op. */ }
             Some(init_exp) => {
-                self.tackify_assignment_exp(var, init_exp);
+                self.gen_exp_assignment(var, init_exp);
             }
         }
     }
-    fn tackify_stmt(&mut self, c_stmt: c_ast::Statement) {
+    fn gen_stmt(&mut self, c_stmt: c_ast::Statement) {
         match c_stmt {
             c_ast::Statement::Return(c_root_exp) => {
-                let t_root_val = self.tackify_exp(c_root_exp);
+                let t_root_val = self.gen_exp(c_root_exp);
                 self.instrs.push(Instruction::Return(t_root_val));
             }
             c_ast::Statement::Expression(c_root_exp) => {
-                self.tackify_exp(c_root_exp);
+                self.gen_exp(c_root_exp);
             }
-            c_ast::Statement::If(c_if) => self.tackify_conditional_stmt(c_if),
-            c_ast::Statement::Compound(c_block) => self.tackify_block(c_block),
+            c_ast::Statement::If(c_if) => self.gen_stmt_conditional(c_if),
+            c_ast::Statement::Compound(c_block) => self.gen_block(c_block),
             c_ast::Statement::Null => { /* No-op. */ }
         }
     }
-    fn tackify_exp(&mut self, c_exp: c_ast::Expression) -> ReadableValue {
+    fn gen_exp(&mut self, c_exp: c_ast::Expression) -> ReadableValue {
         match c_exp {
             c_ast::Expression::Const(c_ast::Const::Int(i)) => ReadableValue::Constant(i),
             c_ast::Expression::Var(var) => ReadableValue::Variable(var),
-            c_ast::Expression::Unary(unary) => self.tackify_unary_exp(unary),
-            c_ast::Expression::Binary(binary) => self.tackify_binary_exp(binary),
+            c_ast::Expression::Unary(unary) => self.gen_exp_unary(unary),
+            c_ast::Expression::Binary(binary) => self.gen_exp_binary(binary),
             c_ast::Expression::Assignment(c_ast::Assignment { var, rhs }) => {
-                self.tackify_assignment_exp(var, *rhs)
+                self.gen_exp_assignment(var, *rhs)
             }
-            c_ast::Expression::Conditional(c_cond) => self.tackify_conditional_exp(c_cond),
+            c_ast::Expression::Conditional(c_cond) => self.gen_exp_conditional(c_cond),
         }
     }
 
     /* C Unary */
 
-    fn tackify_unary_exp(&mut self, c_unary: c_ast::Unary) -> ReadableValue {
-        let op = Self::convert_unary_op(c_unary.op);
-        let src = self.tackify_exp(*c_unary.sub_exp);
+    fn gen_exp_unary(&mut self, c_unary: c_ast::Unary) -> ReadableValue {
+        let op = Self::convert_op_unary(c_unary.op);
+        let src = self.gen_exp(*c_unary.sub_exp);
         let dst = Rc::new(Variable::new_anon());
         self.instrs.push(Instruction::Unary(Unary {
             op,
@@ -216,23 +216,21 @@ impl TackyIrGenerator {
 
     /* C Binary */
 
-    fn tackify_binary_exp(&mut self, c_binary: c_ast::Binary) -> ReadableValue {
-        match Self::convert_binary_op(&c_binary.op) {
+    fn gen_exp_binary(&mut self, c_binary: c_ast::Binary) -> ReadableValue {
+        match Self::convert_op_binary(&c_binary.op) {
             BinaryOperatorType::EvaluateBothHands(t_op) => {
-                self.tackify_binary_evalboth_exp(t_op, c_binary)
+                self.gen_exp_binary_evalboth(t_op, c_binary)
             }
-            BinaryOperatorType::ShortCircuit(t_op) => {
-                self.tackify_binary_shortcirc_exp(t_op, c_binary)
-            }
+            BinaryOperatorType::ShortCircuit(t_op) => self.gen_exp_binary_shortcirc(t_op, c_binary),
         }
     }
-    fn tackify_binary_evalboth_exp(
+    fn gen_exp_binary_evalboth(
         &mut self,
         op: tacky_ir::BinaryOperator,
         c_binary: c_ast::Binary,
     ) -> ReadableValue {
-        let src1 = self.tackify_exp(*c_binary.lhs);
-        let src2 = self.tackify_exp(*c_binary.rhs);
+        let src1 = self.gen_exp(*c_binary.lhs);
+        let src2 = self.gen_exp(*c_binary.rhs);
         let dst = Rc::new(Variable::new_anon());
         self.instrs.push(Instruction::Binary(Binary {
             op,
@@ -242,7 +240,7 @@ impl TackyIrGenerator {
         }));
         ReadableValue::Variable(dst)
     }
-    fn tackify_binary_shortcirc_exp(
+    fn gen_exp_binary_shortcirc(
         &mut self,
         op_type: ShortCircuitBOT,
         c_binary: c_ast::Binary,
@@ -273,11 +271,11 @@ impl TackyIrGenerator {
 
         /* Begin instructions */
 
-        let lhs_val = self.tackify_exp(*c_binary.lhs);
+        let lhs_val = self.gen_exp(*c_binary.lhs);
 
         self.instrs.push(new_shortcirc_jump_instr(lhs_val));
 
-        let rhs_val = self.tackify_exp(*c_binary.rhs);
+        let rhs_val = self.gen_exp(*c_binary.rhs);
 
         self.instrs.push(new_shortcirc_jump_instr(rhs_val));
 
@@ -302,7 +300,7 @@ impl TackyIrGenerator {
 
     /* C Operator */
 
-    fn convert_unary_op(c_unary_op: c_ast::UnaryOperator) -> UnaryOperator {
+    fn convert_op_unary(c_unary_op: c_ast::UnaryOperator) -> UnaryOperator {
         use c_ast::UnaryOperator as CUO;
         match c_unary_op {
             CUO::Complement => UnaryOperator::Complement,
@@ -310,7 +308,7 @@ impl TackyIrGenerator {
             CUO::Not => UnaryOperator::Not,
         }
     }
-    fn convert_binary_op(c_binary_op: &c_ast::BinaryOperator) -> BinaryOperatorType {
+    fn convert_op_binary(c_binary_op: &c_ast::BinaryOperator) -> BinaryOperatorType {
         use c_ast::BinaryOperator as CBO;
         use tacky_ir::BinaryOperator as TBO;
         use BinaryOperatorType as BOT;
@@ -334,12 +332,8 @@ impl TackyIrGenerator {
 
     /* C Assignment */
 
-    fn tackify_assignment_exp(
-        &mut self,
-        var: Rc<Variable>,
-        rhs: c_ast::Expression,
-    ) -> ReadableValue {
-        let rhs = self.tackify_exp(rhs);
+    fn gen_exp_assignment(&mut self, var: Rc<Variable>, rhs: c_ast::Expression) -> ReadableValue {
+        let rhs = self.gen_exp(rhs);
 
         self.instrs.push(Instruction::Copy(Copy {
             src: rhs,
@@ -351,7 +345,7 @@ impl TackyIrGenerator {
 
     /* Conditional */
 
-    fn tackify_conditional_stmt(&mut self, c_if: c_ast::If) {
+    fn gen_stmt_conditional(&mut self, c_if: c_ast::If) {
         let c_ast::If {
             condition,
             then,
@@ -364,14 +358,14 @@ impl TackyIrGenerator {
 
                 /* Begin instructions */
 
-                let condition = self.tackify_exp(condition);
+                let condition = self.gen_exp(condition);
 
                 self.instrs.push(Instruction::JumpIfZero(JumpIf {
                     condition,
                     tgt: Rc::clone(&label_end),
                 }));
 
-                self.tackify_stmt(*then);
+                self.gen_stmt(*then);
 
                 self.instrs.push(Instruction::Label(label_end));
             }
@@ -386,26 +380,26 @@ impl TackyIrGenerator {
 
                 /* Begin instructions */
 
-                let condition = self.tackify_exp(condition);
+                let condition = self.gen_exp(condition);
 
                 self.instrs.push(Instruction::JumpIfZero(JumpIf {
                     condition,
                     tgt: Rc::clone(&label_else),
                 }));
 
-                self.tackify_stmt(*then);
+                self.gen_stmt(*then);
 
                 self.instrs.push(Instruction::Jump(Rc::clone(&label_end)));
 
                 self.instrs.push(Instruction::Label(label_else));
 
-                self.tackify_stmt(*elze);
+                self.gen_stmt(*elze);
 
                 self.instrs.push(Instruction::Label(label_end));
             }
         }
     }
-    fn tackify_conditional_exp(&mut self, c_cond: c_ast::Conditional) -> ReadableValue {
+    fn gen_exp_conditional(&mut self, c_cond: c_ast::Conditional) -> ReadableValue {
         let c_ast::Conditional {
             condition,
             then,
@@ -424,14 +418,14 @@ impl TackyIrGenerator {
 
         /* Begin instructions */
 
-        let condition = self.tackify_exp(*condition);
+        let condition = self.gen_exp(*condition);
 
         self.instrs.push(Instruction::JumpIfZero(JumpIf {
             condition,
             tgt: Rc::clone(&label_else),
         }));
 
-        let then = self.tackify_exp(*then);
+        let then = self.gen_exp(*then);
 
         self.instrs.push(Instruction::Copy(Copy {
             src: then,
@@ -442,7 +436,7 @@ impl TackyIrGenerator {
 
         self.instrs.push(Instruction::Label(label_else));
 
-        let elze = self.tackify_exp(*elze);
+        let elze = self.gen_exp(*elze);
 
         self.instrs.push(Instruction::Copy(Copy {
             src: elze,
