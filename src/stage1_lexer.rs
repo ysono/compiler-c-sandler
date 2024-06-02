@@ -88,6 +88,8 @@ impl Lexer {
             STAR => (match_len, token) = (1, Operator::Star.into()),
             SLASH => (match_len, token) = (1, Operator::Slash.into()),
             PERCENT => (match_len, token) = (1, Operator::Percent.into()),
+            QUESTION => (match_len, token) = (1, Operator::Question.into()),
+            COLON => (match_len, token) = (1, Operator::Colon.into()),
             _ => {
                 if sfx.starts_with(AND) {
                     (match_len, token) = (AND.len(), Operator::And.into());
@@ -139,6 +141,10 @@ impl Lexer {
                     (match_len, token) = (mach.len(), Keyword::Void.into());
                 } else if let Some(mach) = KW_RET.find(sfx) {
                     (match_len, token) = (mach.len(), Keyword::Return.into());
+                } else if let Some(mach) = KW_IF.find(sfx) {
+                    (match_len, token) = (mach.len(), Control::If.into());
+                } else if let Some(mach) = KW_ELSE.find(sfx) {
+                    (match_len, token) = (mach.len(), Control::Else.into());
                 } else if let Some(mach) = DECIMALS.find(sfx) {
                     match_len = mach.len();
                     let literal = &sfx[..match_len];
@@ -170,7 +176,7 @@ mod token_matchers {
     use lazy_static::lazy_static;
     use regex::Regex;
 
-    /* Tokens whose existence doesn't depend on the subsequent char (eg `\b`) */
+    /* Tokens whose existence _doesn't_ depend on the subsequent char (eg `\b`) */
     /* Demarcators */
     pub const PAREN_OPEN: u8 = '(' as u8;
     pub const PAREN_CLOSE: u8 = ')' as u8;
@@ -184,8 +190,12 @@ mod token_matchers {
     pub const PERCENT: u8 = '%' as u8;
     pub const AND: &str = "&&";
     pub const OR: &str = "||";
+    /* Control */
+    pub const QUESTION: u8 = '?' as u8;
+    pub const COLON: u8 = ':' as u8;
 
     lazy_static! {
+        /* Tokens whose existence _does_ depend on the subsequent char (eg `\b`) */
         /* Operations */
         pub static ref MINUSES: Regex = Regex::new(r"^--?").unwrap();
         pub static ref PLUSES: Regex = Regex::new(r"^\+\+?").unwrap();
@@ -193,12 +203,13 @@ mod token_matchers {
         pub static ref LT_EQ: Regex = Regex::new(r"^<=?").unwrap();
         pub static ref GT_EQ: Regex = Regex::new(r"^>=?").unwrap();
         pub static ref EQ_EQ: Regex = Regex::new(r"^==?").unwrap();
-
         /* Keywords */
         pub static ref KW_INT: Regex = Regex::new(r"^int\b").unwrap();
         pub static ref KW_VOID: Regex = Regex::new(r"^void\b").unwrap();
         pub static ref KW_RET: Regex = Regex::new(r"^return\b").unwrap();
-
+        /* Control */
+        pub static ref KW_IF: Regex = Regex::new(r"^if\b").unwrap();
+        pub static ref KW_ELSE: Regex = Regex::new(r"^else\b").unwrap();
         /* Misc variable-length tokens */
         pub static ref DECIMALS: Regex = Regex::new(r"^[0-9]+\b").unwrap();
         pub static ref IDENT: Regex = Regex::new(r"^[a-zA-Z_]\w*\b").unwrap();
@@ -213,6 +224,7 @@ pub mod tokens {
         Demarcator(Demarcator),
         Keyword(Keyword),
         Operator(Operator),
+        Control(Control),
         Const(Const),
         Identifier(Identifier),
     }
@@ -255,6 +267,14 @@ pub mod tokens {
         Gte,
         /* assign */
         Assign,
+        /* control */
+        Question,
+        Colon,
+    }
+    #[derive(PartialEq, Eq, Debug)]
+    pub enum Control {
+        If,
+        Else,
     }
     #[derive(PartialEq, Eq, Debug)]
     pub enum Const {

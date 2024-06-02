@@ -3,8 +3,11 @@
 //! <function> ::= "int" <identifier> "(" "void" ")" "{" { <block-item> } "}"
 //! <block-item> ::= <statement> | <declaration>
 //! <declaration> ::= "int" <identifier> [ "=" <exp> ] ";"
-//! <statement> ::= "return" <exp> ";" | <exp> ";" | ";"
-//! <exp> ::= <factor> | <exp> <binop> <exp>
+//! <statement> ::= "return" <exp> ";"
+//!               | <exp> ";"
+//!               | "if" "(" <exp> ")" <statement> [ "else" <statement> ]
+//!               | ";"
+//! <exp> ::= <factor> | <exp> <binop> <exp> | <exp> "?" <exp> ":" <exp>
 //! <factor> ::= <int> | <identifier> | <unop> <factor> | "(" <exp> ")"
 //! <unop> ::= "-" | "~" | "!"
 //! <binop> ::= "-" | "+" | "*" | "/" | "%" | "&&" | "||" | "==" | "!=" | "<" | "<=" | ">" | ">=" | "="
@@ -43,6 +46,7 @@ pub mod c_ast {
     pub enum Statement {
         Return(Expression),
         Expression(Expression),
+        If(If),
         Null,
     }
 
@@ -53,6 +57,7 @@ pub mod c_ast {
         Unary(Unary),
         Binary(Binary),
         Assignment(Assignment),
+        Conditional(Conditional),
     }
     mod expression {
         use super::*;
@@ -74,6 +79,13 @@ pub mod c_ast {
         pub struct Assignment {
             pub lhs: Box<Expression>,
             pub rhs: Box<Expression>,
+        }
+
+        #[derive(Debug)]
+        pub struct Conditional {
+            pub condition: Box<Expression>,
+            pub then: Box<Expression>,
+            pub elze: Box<Expression>,
         }
     }
 
@@ -105,15 +117,23 @@ pub mod c_ast {
         Gt,
         Gte,
     }
+
+    #[derive(Debug)]
+    pub struct If {
+        pub condition: Expression,
+        pub then: Box<Statement>,
+        pub elze: Option<Box<Statement>>,
+    }
 }
 
 use self::c_ast::*;
-use crate::stage1_lexer::tokens::{self, Demarcator, Keyword, Operator, Token};
+use crate::stage1_lexer::tokens::{self, Control, Demarcator, Keyword, Operator, Token};
 use anyhow::{anyhow, Context, Result};
 use std::iter::Peekable;
 
 enum BinaryOperatorInfo {
     Generic(BinaryOperator),
+    ControlQuestion,
     Assign,
 }
 impl BinaryOperatorInfo {
@@ -134,6 +154,7 @@ impl BinaryOperatorInfo {
             TO::Lte => Some(Self::Generic(CBO::Lte)),
             TO::Gt => Some(Self::Generic(CBO::Gt)),
             TO::Gte => Some(Self::Generic(CBO::Gte)),
+            TO::Question => Some(Self::ControlQuestion),
             TO::Assign => Some(Self::Assign),
             _ => None,
         }
@@ -154,6 +175,7 @@ impl<'a> From<&'a BinaryOperatorInfo> for BinaryOperatorPrecedence {
                 BO::And => Self(10),
                 BO::Or => Self(5),
             },
+            BinaryOperatorInfo::ControlQuestion => Self(3),
             BinaryOperatorInfo::Assign => Self(1),
         }
     }
@@ -164,19 +186,6 @@ impl BinaryOperatorPrecedence {
     }
     fn inc1(&self) -> Self {
         Self(self.0 + 1)
-    }
-}
-
-enum BinaryOperatorAssociativity {
-    Left,
-    Right,
-}
-impl<'a> From<&'a BinaryOperatorInfo> for BinaryOperatorAssociativity {
-    fn from(boi: &'a BinaryOperatorInfo) -> Self {
-        match boi {
-            BinaryOperatorInfo::Generic(_) => Self::Left,
-            BinaryOperatorInfo::Assign => Self::Right,
-        }
     }
 }
 
@@ -293,6 +302,33 @@ impl<T: Iterator<Item = Result<Token>>> Parser<T> {
 
                     Ok(Statement::Return(exp))
                 }
+                Some(Ok(Token::Control(Control::If))) => {
+                    self.tokens.next();
+
+                    self.expect_exact([Demarcator::ParenOpen.into()])?;
+
+                    let condition = self.parse_exp(BinaryOperatorPrecedence::min())?;
+
+                    self.expect_exact([Demarcator::ParenClose.into()])?;
+
+                    let then = self.parse_stmt()?;
+
+                    let elze = match self.tokens.peek() {
+                        Some(Ok(Token::Control(Control::Else))) => {
+                            self.tokens.next();
+
+                            let stmt = self.parse_stmt()?;
+                            Some(stmt)
+                        }
+                        _ => None,
+                    };
+
+                    Ok(Statement::If(If {
+                        condition,
+                        then: Box::new(then),
+                        elze: elze.map(Box::new),
+                    }))
+                }
                 _ => {
                     let exp = self.parse_exp(BinaryOperatorPrecedence::min())?;
 
@@ -314,23 +350,35 @@ impl<T: Iterator<Item = Result<Token>>> Parser<T> {
                     if nxt_prec >= min_prec {
                         self.tokens.next();
 
-                        let nxt_assoc = BinaryOperatorAssociativity::from(&boi);
-                        let beyond_prec = match nxt_assoc {
-                            BinaryOperatorAssociativity::Left => nxt_prec.inc1(),
-                            BinaryOperatorAssociativity::Right => nxt_prec,
-                        };
-
-                        let rhs = self.parse_exp(beyond_prec)?;
-
                         match boi {
                             BinaryOperatorInfo::Generic(c_op) => {
+                                let beyond_prec = nxt_prec.inc1(); // Left associative
+                                let rhs = self.parse_exp(beyond_prec)?;
+
                                 lhs = Expression::Binary(Binary {
                                     op: c_op,
                                     lhs: Box::new(lhs),
                                     rhs: Box::new(rhs),
                                 });
                             }
+                            BinaryOperatorInfo::ControlQuestion => {
+                                let then = self.parse_exp(BinaryOperatorPrecedence::min())?;
+
+                                self.expect_exact([Operator::Colon.into()])?;
+
+                                let beyond_prec = nxt_prec; // Right associative
+                                let elze = self.parse_exp(beyond_prec)?;
+
+                                lhs = Expression::Conditional(Conditional {
+                                    condition: Box::new(lhs),
+                                    then: Box::new(then),
+                                    elze: Box::new(elze),
+                                });
+                            }
                             BinaryOperatorInfo::Assign => {
+                                let beyond_prec = nxt_prec; // Right associative
+                                let rhs = self.parse_exp(beyond_prec)?;
+
                                 lhs = Expression::Assignment(Assignment {
                                     lhs: Box::new(lhs),
                                     rhs: Box::new(rhs),

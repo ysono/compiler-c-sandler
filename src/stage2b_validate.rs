@@ -32,6 +32,7 @@ pub mod c_ast {
     pub enum Statement {
         Return(Expression),
         Expression(Expression),
+        If(If),
         Null,
     }
 
@@ -42,6 +43,7 @@ pub mod c_ast {
         Unary(Unary),
         Binary(Binary),
         Assignment(Assignment),
+        Conditional(Conditional),
     }
     mod expression {
         use super::*;
@@ -63,6 +65,13 @@ pub mod c_ast {
         pub struct Assignment {
             pub var: Rc<Variable>,
             pub rhs: Box<Expression>,
+        }
+
+        #[derive(Debug)]
+        pub struct Conditional {
+            pub condition: Box<Expression>,
+            pub then: Box<Expression>,
+            pub elze: Box<Expression>,
         }
     }
 
@@ -98,6 +107,13 @@ pub mod c_ast {
         }
     }
     impl Eq for Variable {}
+
+    #[derive(Debug)]
+    pub struct If {
+        pub condition: Expression,
+        pub then: Box<Statement>,
+        pub elze: Option<Box<Statement>>,
+    }
 }
 
 use self::c_ast::*;
@@ -175,6 +191,16 @@ impl CAstValidator {
                     let exp = self.resolve_exp(exp)?;
                     Ok(Statement::Expression(exp))
                 }
+                prev_c_ast::Statement::If(yf) => {
+                    let condition = self.resolve_exp(yf.condition)?;
+                    let then = self.resolve_stmt(*yf.then)?;
+                    let elze = yf.elze.map(|elze| self.resolve_stmt(*elze)).transpose()?;
+                    return Ok(Statement::If(If {
+                        condition,
+                        then: Box::new(then),
+                        elze: elze.map(Box::new),
+                    }));
+                }
                 prev_c_ast::Statement::Null => Ok(Statement::Null),
             }
         };
@@ -224,6 +250,16 @@ impl CAstValidator {
                             ))
                         }
                     }
+                }
+                prev_c_ast::Expression::Conditional(cond) => {
+                    let condition = self.resolve_exp(*cond.condition)?;
+                    let then = self.resolve_exp(*cond.then)?;
+                    let elze = self.resolve_exp(*cond.elze)?;
+                    return Ok(Expression::Conditional(Conditional {
+                        condition: Box::new(condition),
+                        then: Box::new(then),
+                        elze: Box::new(elze),
+                    }));
                 }
             }
         };

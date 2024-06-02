@@ -180,6 +180,7 @@ impl FuncBodyToInstrs {
             c_ast::Statement::Expression(c_root_exp) => {
                 self.tackify_exp(c_root_exp);
             }
+            c_ast::Statement::If(_) => todo!(),
             c_ast::Statement::Null => { /* No-op. */ }
         }
     }
@@ -192,6 +193,7 @@ impl FuncBodyToInstrs {
             c_ast::Expression::Assignment(c_ast::Assignment { var, rhs }) => {
                 self.tackify_assignment_exp(var, *rhs)
             }
+            c_ast::Expression::Conditional(_) => todo!(),
         }
     }
 
