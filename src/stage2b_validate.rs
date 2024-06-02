@@ -92,6 +92,9 @@ pub mod c_ast {
                 orig_ident,
             }
         }
+        pub fn id(&self) -> u64 {
+            self.id
+        }
         pub fn orig_ident(&self) -> &Option<Rc<Identifier>> {
             &self.orig_ident
         }

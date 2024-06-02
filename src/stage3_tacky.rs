@@ -180,7 +180,7 @@ impl FuncBodyToInstrs {
             c_ast::Statement::Expression(c_root_exp) => {
                 self.tackify_exp(c_root_exp);
             }
-            c_ast::Statement::If(_) => todo!(),
+            c_ast::Statement::If(c_if) => self.tackify_conditional_stmt(c_if),
             c_ast::Statement::Null => { /* No-op. */ }
         }
     }
@@ -193,7 +193,7 @@ impl FuncBodyToInstrs {
             c_ast::Expression::Assignment(c_ast::Assignment { var, rhs }) => {
                 self.tackify_assignment_exp(var, *rhs)
             }
-            c_ast::Expression::Conditional(_) => todo!(),
+            c_ast::Expression::Conditional(c_cond) => self.tackify_conditional_exp(c_cond),
         }
     }
 
@@ -244,10 +244,16 @@ impl FuncBodyToInstrs {
         op_type: ShortCircuitBOT,
         c_binary: c_ast::Binary,
     ) -> ReadableValue {
+        let result = Rc::new(Variable::new_anon());
+
+        let name = result.id();
         let label_shortcirc = Rc::new(LabelIdentifier::new(Some(format!(
-            "{op_type}_shortcircuit"
+            "{op_type}.{name:x}.shortcircuit",
         ))));
-        let label_end = Rc::new(LabelIdentifier::new(Some(format!("{op_type}_end"))));
+        let label_end = Rc::new(LabelIdentifier::new(Some(format!(
+            "{op_type}.{name:x}.end",
+        ))));
+
         let new_shortcirc_jump_instr = |condition: ReadableValue| {
             let tgt = Rc::clone(&label_shortcirc);
             let jumpif = JumpIf { condition, tgt };
@@ -256,11 +262,11 @@ impl FuncBodyToInstrs {
                 ShortCircuitBOT::Or => Instruction::JumpIfNotZero(jumpif),
             }
         };
+
         let (shortcirc_val, fully_evald_val) = match op_type {
             ShortCircuitBOT::And => (0, 1),
             ShortCircuitBOT::Or => (1, 0),
         };
-        let dst = Rc::new(Variable::new_anon());
 
         /* Begin instructions */
 
@@ -274,7 +280,7 @@ impl FuncBodyToInstrs {
 
         self.instrs.push(Instruction::Copy(Copy {
             src: ReadableValue::Constant(fully_evald_val),
-            dst: Rc::clone(&dst),
+            dst: Rc::clone(&result),
         }));
 
         self.instrs.push(Instruction::Jump(Rc::clone(&label_end)));
@@ -283,12 +289,12 @@ impl FuncBodyToInstrs {
 
         self.instrs.push(Instruction::Copy(Copy {
             src: ReadableValue::Constant(shortcirc_val),
-            dst: Rc::clone(&dst),
+            dst: Rc::clone(&result),
         }));
 
         self.instrs.push(Instruction::Label(label_end));
 
-        ReadableValue::Variable(dst)
+        ReadableValue::Variable(result)
     }
 
     /* C Operator */
@@ -338,5 +344,110 @@ impl FuncBodyToInstrs {
         }));
 
         ReadableValue::Variable(var)
+    }
+
+    /* Conditional */
+
+    fn tackify_conditional_stmt(&mut self, c_if: c_ast::If) {
+        let c_ast::If {
+            condition,
+            then,
+            elze,
+        } = c_if;
+
+        match elze {
+            None => {
+                let label_end = Rc::new(LabelIdentifier::new(Some(format!("stmt_cond_end"))));
+
+                /* Begin instructions */
+
+                let condition = self.tackify_exp(condition);
+
+                self.instrs.push(Instruction::JumpIfZero(JumpIf {
+                    condition,
+                    tgt: Rc::clone(&label_end),
+                }));
+
+                self.tackify_stmt(*then);
+
+                self.instrs.push(Instruction::Label(label_end));
+            }
+            Some(elze) => {
+                let name = &*then as *const c_ast::Statement as usize;
+                let label_else = Rc::new(LabelIdentifier::new(Some(format!(
+                    "stmt_cond.{name:x}.else"
+                ))));
+                let label_end = Rc::new(LabelIdentifier::new(Some(format!(
+                    "stmt_cond.{name:x}.end"
+                ))));
+
+                /* Begin instructions */
+
+                let condition = self.tackify_exp(condition);
+
+                self.instrs.push(Instruction::JumpIfZero(JumpIf {
+                    condition,
+                    tgt: Rc::clone(&label_else),
+                }));
+
+                self.tackify_stmt(*then);
+
+                self.instrs.push(Instruction::Jump(Rc::clone(&label_end)));
+
+                self.instrs.push(Instruction::Label(label_else));
+
+                self.tackify_stmt(*elze);
+
+                self.instrs.push(Instruction::Label(label_end));
+            }
+        }
+    }
+    fn tackify_conditional_exp(&mut self, c_cond: c_ast::Conditional) -> ReadableValue {
+        let c_ast::Conditional {
+            condition,
+            then,
+            elze,
+        } = c_cond;
+
+        let result = Rc::new(Variable::new_anon());
+
+        let name = result.id();
+        let label_else = Rc::new(LabelIdentifier::new(Some(format!(
+            "exp_cond.{name:x}.else"
+        ))));
+        let label_end = Rc::new(LabelIdentifier::new(Some(
+            format!("exp_cond.{name:x}.end",),
+        )));
+
+        /* Begin instructions */
+
+        let condition = self.tackify_exp(*condition);
+
+        self.instrs.push(Instruction::JumpIfZero(JumpIf {
+            condition,
+            tgt: Rc::clone(&label_else),
+        }));
+
+        let then = self.tackify_exp(*then);
+
+        self.instrs.push(Instruction::Copy(Copy {
+            src: then,
+            dst: Rc::clone(&result),
+        }));
+
+        self.instrs.push(Instruction::Jump(Rc::clone(&label_end)));
+
+        self.instrs.push(Instruction::Label(label_else));
+
+        let elze = self.tackify_exp(*elze);
+
+        self.instrs.push(Instruction::Copy(Copy {
+            src: elze,
+            dst: Rc::clone(&result),
+        }));
+
+        self.instrs.push(Instruction::Label(label_end));
+
+        ReadableValue::Variable(result)
     }
 }
