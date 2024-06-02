@@ -5,7 +5,6 @@ use std::collections::VecDeque;
 use std::fs::File;
 use std::io::{BufRead, BufReader, Seek};
 use std::path::PathBuf;
-use std::str::Chars;
 
 pub struct Lexer {
     br: BufReader<File>,
@@ -56,10 +55,10 @@ impl Lexer {
     }
 
     fn buf_to_tokens(&mut self) -> Result<()> {
-        let mut chars = self.chars_buf.chars();
+        let mut sfx: &str = &self.chars_buf;
 
         loop {
-            match Self::char_iter_to_token(&mut chars)? {
+            match Self::sfx_to_token(&mut sfx)? {
                 Some(token) => self.next_tokens.push_back(token),
                 None => break,
             }
@@ -68,21 +67,11 @@ impl Lexer {
         Ok(())
     }
 
-    fn char_iter_to_token(chars: &mut Chars) -> Result<Option<Token>> {
+    fn sfx_to_token(sfx: &mut &str) -> Result<Option<Token>> {
         use token_matchers::*;
 
-        loop {
-            /* A syntactically kludgy way to peek. We don't want to `move` `Chars` into a new `Peekable` iterator, so that we can call `Chars::as_str()` later. */
-            if let Some(ch) = chars.as_str().chars().next() {
-                if ch.is_whitespace() {
-                    chars.next();
-                    continue;
-                }
-            }
-            break;
-        }
+        *sfx = sfx.trim_start();
 
-        let sfx = chars.as_str();
         if sfx.len() == 0 {
             return Ok(None);
         }
@@ -145,14 +134,11 @@ impl Lexer {
                         token = Operator::Assign.into();
                     }
                 } else if let Some(mach) = KW_INT.find(sfx) {
-                    match_len = mach.len();
-                    token = Keyword::Int.into();
+                    (match_len, token) = (mach.len(), Keyword::Int.into());
                 } else if let Some(mach) = KW_VOID.find(sfx) {
-                    match_len = mach.len();
-                    token = Keyword::Void.into();
+                    (match_len, token) = (mach.len(), Keyword::Void.into());
                 } else if let Some(mach) = KW_RET.find(sfx) {
-                    match_len = mach.len();
-                    token = Keyword::Return.into();
+                    (match_len, token) = (mach.len(), Keyword::Return.into());
                 } else if let Some(mach) = DECIMALS.find(sfx) {
                     match_len = mach.len();
                     let literal = &sfx[..match_len];
@@ -169,9 +155,7 @@ impl Lexer {
             }
         };
 
-        for _ in 0..match_len {
-            chars.next();
-        }
+        *sfx = &sfx[match_len..];
         return Ok(Some(token));
     }
 }
@@ -222,7 +206,7 @@ mod token_matchers {
 }
 
 pub mod tokens {
-    use derive_more::{From, Into};
+    use derive_more::{Deref, From};
 
     #[derive(From, PartialEq, Eq, Debug)]
     pub enum Token {
@@ -276,6 +260,6 @@ pub mod tokens {
     pub enum Const {
         Int(i32),
     }
-    #[derive(Into, PartialEq, Eq, Hash, Debug)]
+    #[derive(Deref, PartialEq, Eq, Hash, Debug)]
     pub struct Identifier(pub(super) String);
 }

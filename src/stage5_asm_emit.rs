@@ -52,7 +52,7 @@ impl AsmCodeEmitter {
     }
     fn write_func(&mut self, func: Function<Operand>) -> Result<(), io::Error> {
         const IDENT_PFX: &str = if cfg!(target_os = "macos") { "_" } else { "" };
-        let ident: String = func.ident.into();
+        let ident = &func.ident as &String;
 
         writeln!(&mut self.bw, "{TAB}.globl{TAB}{IDENT_PFX}{ident}")?;
         writeln!(&mut self.bw, "{IDENT_PFX}{ident}:")?;
