@@ -110,7 +110,7 @@ pub mod tacky_ir {
 }
 
 use self::tacky_ir::*;
-use crate::stage2b_validate::c_ast;
+use crate::stage2b_validate::c_ast as c;
 use derive_more::Display;
 use std::rc::Rc;
 
@@ -126,8 +126,8 @@ enum ShortCircuitBOT {
 
 pub struct Tackifier {}
 impl Tackifier {
-    pub fn tackify_program(c_prog: c_ast::Program) -> Program {
-        let c_ast::Program { func } = c_prog;
+    pub fn tackify_program(c_prog: c::Program) -> Program {
+        let c::Program { func } = c_prog;
 
         let gen_instrs = TackyIrGenerator::default();
         let func = gen_instrs.tackify_func(func);
@@ -141,14 +141,14 @@ struct TackyIrGenerator {
     instrs: Vec<Instruction>,
 }
 impl TackyIrGenerator {
-    fn tackify_func(mut self, c_func: c_ast::Function) -> Function {
-        let c_ast::Function { ident, body } = c_func;
+    fn tackify_func(mut self, c_func: c::Function) -> Function {
+        let c::Function { ident, body } = c_func;
 
         self.gen_block(body);
 
-        let ret_kon = c_ast::Const::Int(0);
-        let ret_exp = c_ast::Expression::Const(ret_kon);
-        let ret_stmt = c_ast::Statement::Return(ret_exp);
+        let ret_kon = c::Const::Int(0);
+        let ret_exp = c::Expression::Const(ret_kon);
+        let ret_stmt = c::Statement::Return(ret_exp);
         self.gen_stmt(ret_stmt);
 
         Function {
@@ -156,16 +156,16 @@ impl TackyIrGenerator {
             instructions: self.instrs,
         }
     }
-    fn gen_block(&mut self, c_block: c_ast::Block) {
+    fn gen_block(&mut self, c_block: c::Block) {
         for c_item in c_block.items {
             match c_item {
-                c_ast::BlockItem::Declaration(c_decl) => self.gen_decl(c_decl),
-                c_ast::BlockItem::Statement(c_stmt) => self.gen_stmt(c_stmt),
+                c::BlockItem::Declaration(c_decl) => self.gen_decl(c_decl),
+                c::BlockItem::Statement(c_stmt) => self.gen_stmt(c_stmt),
             }
         }
     }
-    fn gen_decl(&mut self, c_decl: c_ast::Declaration) {
-        let c_ast::Declaration { var, init } = c_decl;
+    fn gen_decl(&mut self, c_decl: c::Declaration) {
+        let c::Declaration { var, init } = c_decl;
         match init {
             None => { /* No-op. */ }
             Some(init_exp) => {
@@ -173,36 +173,36 @@ impl TackyIrGenerator {
             }
         }
     }
-    fn gen_stmt(&mut self, c_stmt: c_ast::Statement) {
+    fn gen_stmt(&mut self, c_stmt: c::Statement) {
         match c_stmt {
-            c_ast::Statement::Return(c_root_exp) => {
+            c::Statement::Return(c_root_exp) => {
                 let t_root_val = self.gen_exp(c_root_exp);
                 self.instrs.push(Instruction::Return(t_root_val));
             }
-            c_ast::Statement::Expression(c_root_exp) => {
+            c::Statement::Expression(c_root_exp) => {
                 self.gen_exp(c_root_exp);
             }
-            c_ast::Statement::If(c_if) => self.gen_stmt_conditional(c_if),
-            c_ast::Statement::Compound(c_block) => self.gen_block(c_block),
-            c_ast::Statement::Null => { /* No-op. */ }
+            c::Statement::If(c_if) => self.gen_stmt_conditional(c_if),
+            c::Statement::Compound(c_block) => self.gen_block(c_block),
+            c::Statement::Null => { /* No-op. */ }
         }
     }
-    fn gen_exp(&mut self, c_exp: c_ast::Expression) -> ReadableValue {
+    fn gen_exp(&mut self, c_exp: c::Expression) -> ReadableValue {
         match c_exp {
-            c_ast::Expression::Const(c_ast::Const::Int(i)) => ReadableValue::Constant(i),
-            c_ast::Expression::Var(var) => ReadableValue::Variable(var),
-            c_ast::Expression::Unary(unary) => self.gen_exp_unary(unary),
-            c_ast::Expression::Binary(binary) => self.gen_exp_binary(binary),
-            c_ast::Expression::Assignment(c_ast::Assignment { var, rhs }) => {
+            c::Expression::Const(c::Const::Int(i)) => ReadableValue::Constant(i),
+            c::Expression::Var(var) => ReadableValue::Variable(var),
+            c::Expression::Unary(unary) => self.gen_exp_unary(unary),
+            c::Expression::Binary(binary) => self.gen_exp_binary(binary),
+            c::Expression::Assignment(c::Assignment { var, rhs }) => {
                 self.gen_exp_assignment(var, *rhs)
             }
-            c_ast::Expression::Conditional(c_cond) => self.gen_exp_conditional(c_cond),
+            c::Expression::Conditional(c_cond) => self.gen_exp_conditional(c_cond),
         }
     }
 
     /* C Unary */
 
-    fn gen_exp_unary(&mut self, c_unary: c_ast::Unary) -> ReadableValue {
+    fn gen_exp_unary(&mut self, c_unary: c::Unary) -> ReadableValue {
         let op = Self::convert_op_unary(c_unary.op);
         let src = self.gen_exp(*c_unary.sub_exp);
         let dst = Rc::new(Variable::new_anon());
@@ -216,7 +216,7 @@ impl TackyIrGenerator {
 
     /* C Binary */
 
-    fn gen_exp_binary(&mut self, c_binary: c_ast::Binary) -> ReadableValue {
+    fn gen_exp_binary(&mut self, c_binary: c::Binary) -> ReadableValue {
         match Self::convert_op_binary(&c_binary.op) {
             BinaryOperatorType::EvaluateBothHands(t_op) => {
                 self.gen_exp_binary_evalboth(t_op, c_binary)
@@ -227,7 +227,7 @@ impl TackyIrGenerator {
     fn gen_exp_binary_evalboth(
         &mut self,
         op: tacky_ir::BinaryOperator,
-        c_binary: c_ast::Binary,
+        c_binary: c::Binary,
     ) -> ReadableValue {
         let src1 = self.gen_exp(*c_binary.lhs);
         let src2 = self.gen_exp(*c_binary.rhs);
@@ -243,7 +243,7 @@ impl TackyIrGenerator {
     fn gen_exp_binary_shortcirc(
         &mut self,
         op_type: ShortCircuitBOT,
-        c_binary: c_ast::Binary,
+        c_binary: c::Binary,
     ) -> ReadableValue {
         let result = Rc::new(Variable::new_anon());
 
@@ -300,16 +300,16 @@ impl TackyIrGenerator {
 
     /* C Operator */
 
-    fn convert_op_unary(c_unary_op: c_ast::UnaryOperator) -> UnaryOperator {
-        use c_ast::UnaryOperator as CUO;
+    fn convert_op_unary(c_unary_op: c::UnaryOperator) -> UnaryOperator {
+        use c::UnaryOperator as CUO;
         match c_unary_op {
             CUO::Complement => UnaryOperator::Complement,
             CUO::Negate => UnaryOperator::Negate,
             CUO::Not => UnaryOperator::Not,
         }
     }
-    fn convert_op_binary(c_binary_op: &c_ast::BinaryOperator) -> BinaryOperatorType {
-        use c_ast::BinaryOperator as CBO;
+    fn convert_op_binary(c_binary_op: &c::BinaryOperator) -> BinaryOperatorType {
+        use c::BinaryOperator as CBO;
         use tacky_ir::BinaryOperator as TBO;
         use BinaryOperatorType as BOT;
         use ShortCircuitBOT as SBOT;
@@ -332,7 +332,7 @@ impl TackyIrGenerator {
 
     /* C Assignment */
 
-    fn gen_exp_assignment(&mut self, var: Rc<Variable>, rhs: c_ast::Expression) -> ReadableValue {
+    fn gen_exp_assignment(&mut self, var: Rc<Variable>, rhs: c::Expression) -> ReadableValue {
         let rhs = self.gen_exp(rhs);
 
         self.instrs.push(Instruction::Copy(Copy {
@@ -345,8 +345,8 @@ impl TackyIrGenerator {
 
     /* Conditional */
 
-    fn gen_stmt_conditional(&mut self, c_if: c_ast::If) {
-        let c_ast::If {
+    fn gen_stmt_conditional(&mut self, c_if: c::If) {
+        let c::If {
             condition,
             then,
             elze,
@@ -370,7 +370,7 @@ impl TackyIrGenerator {
                 self.instrs.push(Instruction::Label(label_end));
             }
             Some(elze) => {
-                let name = &*then as *const c_ast::Statement as usize;
+                let name = &*then as *const c::Statement as usize;
                 let label_else = Rc::new(LabelIdentifier::new(Some(format!(
                     "stmt_cond.{name:x}.else"
                 ))));
@@ -399,8 +399,8 @@ impl TackyIrGenerator {
             }
         }
     }
-    fn gen_exp_conditional(&mut self, c_cond: c_ast::Conditional) -> ReadableValue {
-        let c_ast::Conditional {
+    fn gen_exp_conditional(&mut self, c_cond: c::Conditional) -> ReadableValue {
+        let c::Conditional {
             condition,
             then,
             elze,

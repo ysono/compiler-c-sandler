@@ -126,7 +126,7 @@ pub mod c_ast {
 }
 
 use self::c_ast::*;
-use crate::stage2a_parser::c_ast as prev_c_ast;
+use crate::stage2a_parser::c_ast as p; // "p" for "previous c_ast".
 use anyhow::{anyhow, Context, Result};
 use log;
 use std::collections::{HashMap, HashSet};
@@ -141,23 +141,23 @@ impl CAstValidator {
         CAstValidator { ident_to_var }
     }
 
-    pub fn resolve_program(&mut self, prog: prev_c_ast::Program) -> Result<Program> {
+    pub fn resolve_program(&mut self, prog: p::Program) -> Result<Program> {
         let inner = || -> Result<Program> {
-            let prev_c_ast::Program { func } = prog;
+            let p::Program { func } = prog;
             let func = self.resolve_func(func)?;
             Ok(Program { func })
         };
         inner().context("c_ast validator on <program>")
     }
-    fn resolve_func(&mut self, func: prev_c_ast::Function) -> Result<Function> {
+    fn resolve_func(&mut self, func: p::Function) -> Result<Function> {
         let inner = || -> Result<Function> {
-            let prev_c_ast::Function { ident, body } = func;
+            let p::Function { ident, body } = func;
             let body = self.resolve_block(body)?;
             Ok(Function { ident, body })
         };
         inner().context("<function>")
     }
-    fn resolve_block(&mut self, block: prev_c_ast::Block) -> Result<Block> {
+    fn resolve_block(&mut self, block: p::Block) -> Result<Block> {
         self.ident_to_var.push_new_scope();
 
         let items = block
@@ -170,14 +170,14 @@ impl CAstValidator {
 
         Ok(Block { items })
     }
-    fn resolve_block_item(&mut self, item: prev_c_ast::BlockItem) -> Result<BlockItem> {
+    fn resolve_block_item(&mut self, item: p::BlockItem) -> Result<BlockItem> {
         let inner = || -> Result<BlockItem> {
             match item {
-                prev_c_ast::BlockItem::Declaration(decl) => {
+                p::BlockItem::Declaration(decl) => {
                     let decl = self.resolve_decl(decl)?;
                     Ok(BlockItem::Declaration(decl))
                 }
-                prev_c_ast::BlockItem::Statement(stmt) => {
+                p::BlockItem::Statement(stmt) => {
                     let stmt = self.resolve_stmt(stmt)?;
                     Ok(BlockItem::Statement(stmt))
                 }
@@ -185,9 +185,9 @@ impl CAstValidator {
         };
         inner().context("<block-item>")
     }
-    fn resolve_decl(&mut self, decl: prev_c_ast::Declaration) -> Result<Declaration> {
+    fn resolve_decl(&mut self, decl: p::Declaration) -> Result<Declaration> {
         let inner = || -> Result<Declaration> {
-            let prev_c_ast::Declaration { ident, init } = decl;
+            let p::Declaration { ident, init } = decl;
 
             let var = self.ident_to_var.declare_new_var(ident)?;
 
@@ -203,18 +203,18 @@ impl CAstValidator {
         };
         inner().context("<declaration>")
     }
-    fn resolve_stmt(&mut self, stmt: prev_c_ast::Statement) -> Result<Statement> {
+    fn resolve_stmt(&mut self, stmt: p::Statement) -> Result<Statement> {
         let inner = || -> Result<Statement> {
             match stmt {
-                prev_c_ast::Statement::Return(exp) => {
+                p::Statement::Return(exp) => {
                     let exp = self.resolve_exp(exp)?;
                     Ok(Statement::Return(exp))
                 }
-                prev_c_ast::Statement::Expression(exp) => {
+                p::Statement::Expression(exp) => {
                     let exp = self.resolve_exp(exp)?;
                     Ok(Statement::Expression(exp))
                 }
-                prev_c_ast::Statement::If(yf) => {
+                p::Statement::If(yf) => {
                     let condition = self.resolve_exp(yf.condition)?;
                     let then = self.resolve_stmt(*yf.then)?;
                     let elze = yf.elze.map(|elze| self.resolve_stmt(*elze)).transpose()?;
@@ -224,36 +224,36 @@ impl CAstValidator {
                         elze: elze.map(Box::new),
                     }));
                 }
-                prev_c_ast::Statement::Compound(block) => {
+                p::Statement::Compound(block) => {
                     let block = self.resolve_block(block)?;
                     Ok(Statement::Compound(block))
                 }
-                prev_c_ast::Statement::Break => todo!(),
-                prev_c_ast::Statement::Continue => todo!(),
-                prev_c_ast::Statement::While(_) => todo!(),
-                prev_c_ast::Statement::DoWhile(_) => todo!(),
-                prev_c_ast::Statement::For(_) => todo!(),
-                prev_c_ast::Statement::Null => Ok(Statement::Null),
+                p::Statement::Break => todo!(),
+                p::Statement::Continue => todo!(),
+                p::Statement::While(_) => todo!(),
+                p::Statement::DoWhile(_) => todo!(),
+                p::Statement::For(_) => todo!(),
+                p::Statement::Null => Ok(Statement::Null),
             }
         };
         inner().context("<statement>")
     }
-    fn resolve_exp(&mut self, exp: prev_c_ast::Expression) -> Result<Expression> {
+    fn resolve_exp(&mut self, exp: p::Expression) -> Result<Expression> {
         let inner = || -> Result<Expression> {
             match exp {
-                prev_c_ast::Expression::Const(konst) => return Ok(Expression::Const(konst)),
-                prev_c_ast::Expression::Var(ident) => {
+                p::Expression::Const(konst) => return Ok(Expression::Const(konst)),
+                p::Expression::Var(ident) => {
                     let var = self.resolve_var(ident, true)?;
                     return Ok(Expression::Var(var));
                 }
-                prev_c_ast::Expression::Unary(prev_c_ast::Unary { op, sub_exp }) => {
+                p::Expression::Unary(p::Unary { op, sub_exp }) => {
                     let sub_exp = self.resolve_exp(*sub_exp)?;
                     return Ok(Expression::Unary(Unary {
                         op,
                         sub_exp: Box::new(sub_exp),
                     }));
                 }
-                prev_c_ast::Expression::Binary(prev_c_ast::Binary { op, lhs, rhs }) => {
+                p::Expression::Binary(p::Binary { op, lhs, rhs }) => {
                     let lhs = self.resolve_exp(*lhs)?;
                     let rhs = self.resolve_exp(*rhs)?;
                     return Ok(Expression::Binary(Binary {
@@ -262,28 +262,26 @@ impl CAstValidator {
                         rhs: Box::new(rhs),
                     }));
                 }
-                prev_c_ast::Expression::Assignment(prev_c_ast::Assignment { lhs, rhs }) => {
-                    match *lhs {
-                        prev_c_ast::Expression::Var(ident) => {
-                            let lhs_var = self.resolve_var(ident, false)?;
+                p::Expression::Assignment(p::Assignment { lhs, rhs }) => match *lhs {
+                    p::Expression::Var(ident) => {
+                        let lhs_var = self.resolve_var(ident, false)?;
 
-                            let rhs = self.resolve_exp(*rhs)?;
+                        let rhs = self.resolve_exp(*rhs)?;
 
-                            self.ident_to_var.mark_var_as_initialized(&lhs_var)?;
+                        self.ident_to_var.mark_var_as_initialized(&lhs_var)?;
 
-                            return Ok(Expression::Assignment(Assignment {
-                                var: lhs_var,
-                                rhs: Box::new(rhs),
-                            }));
-                        }
-                        _ => {
-                            return Err(anyhow!(
-                                "Assignment LHS must be an lvalue, but found {lhs:?}"
-                            ))
-                        }
+                        return Ok(Expression::Assignment(Assignment {
+                            var: lhs_var,
+                            rhs: Box::new(rhs),
+                        }));
                     }
-                }
-                prev_c_ast::Expression::Conditional(cond) => {
+                    _ => {
+                        return Err(anyhow!(
+                            "Assignment LHS must be an lvalue, but found {lhs:?}"
+                        ))
+                    }
+                },
+                p::Expression::Conditional(cond) => {
                     let condition = self.resolve_exp(*cond.condition)?;
                     let then = self.resolve_exp(*cond.then)?;
                     let elze = self.resolve_exp(*cond.elze)?;
