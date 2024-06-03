@@ -112,6 +112,7 @@ pub mod tacky_ir {
 use self::tacky_ir::*;
 use crate::stage2b_validate::c_ast as c;
 use derive_more::Display;
+use std::collections::HashMap;
 use std::rc::Rc;
 
 enum BinaryOperatorType {
@@ -138,6 +139,8 @@ impl Tackifier {
 
 #[derive(Default)]
 struct TackyIrGenerator {
+    loop_id_to_labels: LoopIdToLabels,
+
     instrs: Vec<Instruction>,
 }
 impl TackyIrGenerator {
@@ -184,11 +187,11 @@ impl TackyIrGenerator {
             }
             c::Statement::If(c_if) => self.gen_stmt_conditional(c_if),
             c::Statement::Compound(c_block) => self.gen_block(c_block),
-            c::Statement::Break(_lbl) => todo!(),
-            c::Statement::Continue(_lbl) => todo!(),
-            c::Statement::While(_lbl, _condbody) => todo!(),
-            c::Statement::DoWhile(_lbl, _condbody) => todo!(),
-            c::Statement::For(_lbl, _foor) => todo!(),
+            c::Statement::Break(loop_id) => self.gen_stmt_break(loop_id),
+            c::Statement::Continue(loop_id) => self.gen_stmt_continue(loop_id),
+            c::Statement::While(loop_id, condbody) => self.gen_stmt_while(loop_id, condbody),
+            c::Statement::DoWhile(loop_id, condbody) => self.gen_stmt_dowhile(loop_id, condbody),
+            c::Statement::For(loop_id, foor) => self.gen_stmt_for(loop_id, foor),
             c::Statement::Null => { /* No-op. */ }
         }
     }
@@ -442,4 +445,148 @@ impl TackyIrGenerator {
 
         ReadableValue::Variable(result)
     }
+
+    /* C Loop */
+
+    fn gen_stmt_break(&mut self, loop_id: Rc<c::LoopId>) {
+        let lbls = self.loop_id_to_labels.get_or_insert(loop_id);
+        let lbl_break = Rc::clone(&lbls.lbl_break);
+        self.instrs.push(Instruction::Jump(lbl_break))
+    }
+    fn gen_stmt_continue(&mut self, loop_id: Rc<c::LoopId>) {
+        let lbls = self.loop_id_to_labels.get_or_insert(loop_id);
+        let lbl_cont = Rc::clone(&lbls.lbl_cont);
+        self.instrs.push(Instruction::Jump(lbl_cont))
+    }
+    fn gen_stmt_while(
+        &mut self,
+        loop_id: Rc<c::LoopId>,
+        c::CondBody { condition, body }: c::CondBody,
+    ) {
+        let lbls = self.loop_id_to_labels.get_or_insert(loop_id);
+        let lbl_cont = Rc::clone(&lbls.lbl_cont);
+        let lbl_break = Rc::clone(&lbls.lbl_break);
+
+        /* Begin instructions */
+
+        self.instrs.push(Instruction::Label(Rc::clone(&lbl_cont)));
+
+        let condition = self.gen_exp(condition);
+
+        self.instrs.push(Instruction::JumpIfZero(JumpIf {
+            condition,
+            tgt: Rc::clone(&lbl_break),
+        }));
+
+        self.gen_stmt(*body);
+
+        self.instrs.push(Instruction::Jump(lbl_cont));
+
+        self.instrs.push(Instruction::Label(lbl_break));
+    }
+    fn gen_stmt_dowhile(
+        &mut self,
+        loop_id: Rc<c::LoopId>,
+        c::CondBody { body, condition }: c::CondBody,
+    ) {
+        let lbl_start = Rc::new(LoopIdToLabels::get_lbl_start(&loop_id));
+        let lbls = self.loop_id_to_labels.get_or_insert(loop_id);
+        let lbl_cont = Rc::clone(&lbls.lbl_cont);
+        let lbl_break = Rc::clone(&lbls.lbl_break);
+
+        /* Begin instructions */
+
+        self.instrs.push(Instruction::Label(Rc::clone(&lbl_start)));
+
+        self.gen_stmt(*body);
+
+        self.instrs.push(Instruction::Label(lbl_cont));
+
+        let condition = self.gen_exp(condition);
+
+        self.instrs.push(Instruction::JumpIfNotZero(JumpIf {
+            condition,
+            tgt: lbl_start,
+        }));
+
+        self.instrs.push(Instruction::Label(lbl_break));
+    }
+    fn gen_stmt_for(
+        &mut self,
+        loop_id: Rc<c::LoopId>,
+        c::For {
+            init,
+            condition,
+            post,
+            body,
+        }: c::For,
+    ) {
+        let lbl_start = Rc::new(LoopIdToLabels::get_lbl_start(&loop_id));
+        let lbls = self.loop_id_to_labels.get_or_insert(loop_id);
+        let lbl_cont = Rc::clone(&lbls.lbl_cont);
+        let lbl_break = Rc::clone(&lbls.lbl_break);
+
+        /* Begin instructions */
+
+        match init {
+            c::ForInit::Decl(c_decl) => self.gen_decl(c_decl),
+            c::ForInit::Exp(c_exp) => {
+                self.gen_exp(c_exp);
+            }
+            c::ForInit::None => {}
+        }
+
+        self.instrs.push(Instruction::Label(Rc::clone(&lbl_start)));
+
+        if let Some(c_cond) = condition {
+            let condition = self.gen_exp(c_cond);
+
+            self.instrs.push(Instruction::JumpIfZero(JumpIf {
+                condition,
+                tgt: Rc::clone(&lbl_break),
+            }));
+        }
+
+        self.gen_stmt(*body);
+
+        self.instrs.push(Instruction::Label(lbl_cont));
+
+        if let Some(c_post) = post {
+            self.gen_exp(c_post);
+        }
+
+        self.instrs.push(Instruction::Jump(lbl_start));
+
+        self.instrs.push(Instruction::Label(lbl_break));
+    }
+}
+
+#[derive(Default)]
+struct LoopIdToLabels {
+    loop_id_to_labels: HashMap<Rc<c::LoopId>, Labels>,
+}
+impl LoopIdToLabels {
+    fn get_lbl_start(loop_id: &c::LoopId) -> LabelIdentifier {
+        let name_start = format!("{}.{}.start", loop_id.descr(), loop_id.id());
+        LabelIdentifier::new(name_start)
+    }
+    fn get_or_insert(&mut self, loop_id: Rc<c::LoopId>) -> &Labels {
+        self.loop_id_to_labels
+            .entry(loop_id)
+            .or_insert_with_key(|loop_id| {
+                let name_break = format!("{}.{}.break", loop_id.descr(), loop_id.id());
+                let name_cont = format!("{}.{}.cont", loop_id.descr(), loop_id.id());
+                let lbl_break = Rc::new(LabelIdentifier::new(name_break));
+                let lbl_cont = Rc::new(LabelIdentifier::new(name_cont));
+                Labels {
+                    lbl_break,
+                    lbl_cont,
+                }
+            })
+    }
+}
+
+struct Labels {
+    lbl_break: Rc<LabelIdentifier>,
+    lbl_cont: Rc<LabelIdentifier>,
 }

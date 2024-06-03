@@ -148,7 +148,7 @@ pub mod c_ast {
         }
     }
     impl PartialEq for Variable {
-        fn eq(&self, other: &Variable) -> bool {
+        fn eq(&self, other: &Self) -> bool {
             self.id == other.id
         }
     }
@@ -156,16 +156,33 @@ pub mod c_ast {
 
     #[derive(Debug)]
     pub struct LoopId {
-        #[allow(dead_code)]
         id: u64,
+        descr: &'static str,
     }
     impl LoopId {
-        pub fn new() -> Self {
+        pub fn new(descr: &'static str) -> Self {
             static NEXT_ID: AtomicU64 = AtomicU64::new(0);
             let curr_id = NEXT_ID.fetch_add(1, Ordering::SeqCst);
-            Self { id: curr_id }
+            Self { id: curr_id, descr }
+        }
+        pub fn id(&self) -> u64 {
+            self.id
+        }
+        pub fn descr(&self) -> &'static str {
+            &self.descr
         }
     }
+    impl Hash for LoopId {
+        fn hash<H: Hasher>(&self, state: &mut H) {
+            self.id.hash(state);
+        }
+    }
+    impl PartialEq for LoopId {
+        fn eq(&self, other: &Self) -> bool {
+            self.id == other.id
+        }
+    }
+    impl Eq for LoopId {}
 }
 
 use self::c_ast::*;
@@ -303,26 +320,27 @@ impl CAstValidator {
     }
     fn resolve_stmt_while(&mut self, p_condbody: p::CondBody) -> Result<Statement> {
         let inner = || -> Result<Statement> {
-            let (loop_id, condbody) = self.resolve_stmt_condbody(p_condbody)?;
+            let (loop_id, condbody) = self.resolve_stmt_condbody("while", p_condbody)?;
             Ok(Statement::While(loop_id, condbody))
         };
         inner().context("<statement> while")
     }
     fn resolve_stmt_dowhile(&mut self, p_condbody: p::CondBody) -> Result<Statement> {
         let inner = || -> Result<Statement> {
-            let (loop_id, condbody) = self.resolve_stmt_condbody(p_condbody)?;
+            let (loop_id, condbody) = self.resolve_stmt_condbody("dowhile", p_condbody)?;
             Ok(Statement::DoWhile(loop_id, condbody))
         };
         inner().context("<statement> dowhile")
     }
     fn resolve_stmt_condbody(
         &mut self,
+        descr: &'static str,
         p::CondBody { condition, body }: p::CondBody,
     ) -> Result<(Rc<LoopId>, CondBody)> {
         let inner = || -> Result<_, anyhow::Error> {
             let condition = self.resolve_exp(condition)?;
 
-            let loop_id = Rc::new(LoopId::new());
+            let loop_id = Rc::new(LoopId::new(descr));
             self.loop_ids_stack.push(loop_id);
 
             let body = Box::new(self.resolve_stmt(*body)?);
@@ -356,7 +374,7 @@ impl CAstValidator {
 
         self.ident_to_var.push_new_scope(); // New inner scope.
 
-        let loop_id = Rc::new(LoopId::new());
+        let loop_id = Rc::new(LoopId::new("for"));
         self.loop_ids_stack.push(loop_id); // New loop id.
 
         let body = Box::new(self.resolve_stmt(*body)?);
