@@ -92,10 +92,10 @@ pub mod tacky_ir {
     #[derive(Debug)]
     pub struct LabelIdentifier {
         id: u64,
-        name: Option<String>,
+        name: String,
     }
     impl LabelIdentifier {
-        pub(super) fn new(name: Option<String>) -> Self {
+        pub(super) fn new(name: String) -> Self {
             static NEXT_ID: AtomicU64 = AtomicU64::new(0);
             let curr_id = NEXT_ID.fetch_add(1, Ordering::SeqCst);
             Self { id: curr_id, name }
@@ -103,7 +103,7 @@ pub mod tacky_ir {
         pub fn id(&self) -> u64 {
             self.id
         }
-        pub fn name(&self) -> &Option<String> {
+        pub fn name(&self) -> &String {
             &self.name
         }
     }
@@ -253,12 +253,10 @@ impl TackyIrGenerator {
         let result = Rc::new(Variable::new_anon());
 
         let name = result.id();
-        let label_shortcirc = Rc::new(LabelIdentifier::new(Some(format!(
+        let label_shortcirc = Rc::new(LabelIdentifier::new(format!(
             "{op_type}.{name:x}.shortcircuit",
-        ))));
-        let label_end = Rc::new(LabelIdentifier::new(Some(format!(
-            "{op_type}.{name:x}.end",
-        ))));
+        )));
+        let label_end = Rc::new(LabelIdentifier::new(format!("{op_type}.{name:x}.end",)));
 
         let new_shortcirc_jump_instr = |condition: ReadableValue| {
             let tgt = Rc::clone(&label_shortcirc);
@@ -359,7 +357,7 @@ impl TackyIrGenerator {
 
         match elze {
             None => {
-                let label_end = Rc::new(LabelIdentifier::new(Some(format!("stmt_cond_end"))));
+                let label_end = Rc::new(LabelIdentifier::new(format!("stmt_cond_end")));
 
                 /* Begin instructions */
 
@@ -376,12 +374,8 @@ impl TackyIrGenerator {
             }
             Some(elze) => {
                 let name = &*then as *const c::Statement as usize;
-                let label_else = Rc::new(LabelIdentifier::new(Some(format!(
-                    "stmt_cond.{name:x}.else"
-                ))));
-                let label_end = Rc::new(LabelIdentifier::new(Some(format!(
-                    "stmt_cond.{name:x}.end"
-                ))));
+                let label_else = Rc::new(LabelIdentifier::new(format!("stmt_cond.{name:x}.else")));
+                let label_end = Rc::new(LabelIdentifier::new(format!("stmt_cond.{name:x}.end")));
 
                 /* Begin instructions */
 
@@ -414,12 +408,8 @@ impl TackyIrGenerator {
         let result = Rc::new(Variable::new_anon());
 
         let name = result.id();
-        let label_else = Rc::new(LabelIdentifier::new(Some(format!(
-            "exp_cond.{name:x}.else"
-        ))));
-        let label_end = Rc::new(LabelIdentifier::new(Some(
-            format!("exp_cond.{name:x}.end",),
-        )));
+        let label_else = Rc::new(LabelIdentifier::new(format!("exp_cond.{name:x}.else")));
+        let label_end = Rc::new(LabelIdentifier::new(format!("exp_cond.{name:x}.end",)));
 
         /* Begin instructions */
 

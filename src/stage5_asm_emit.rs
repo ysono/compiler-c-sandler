@@ -172,8 +172,7 @@ impl AsmCodeEmitter {
             ".L."
         };
 
-        let name = lbl.name().as_ref().map(|s| s.as_str()).unwrap_or("");
-        let name = LABEL_BAD_CHAR.replace_all(&name, "_");
+        let name = LABEL_BAD_CHAR.replace_all(lbl.name(), "_");
 
         let id = lbl.id();
 
