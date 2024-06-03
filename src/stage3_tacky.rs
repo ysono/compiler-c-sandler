@@ -184,6 +184,11 @@ impl TackyIrGenerator {
             }
             c::Statement::If(c_if) => self.gen_stmt_conditional(c_if),
             c::Statement::Compound(c_block) => self.gen_block(c_block),
+            c::Statement::Break(_lbl) => todo!(),
+            c::Statement::Continue(_lbl) => todo!(),
+            c::Statement::While(_lbl, _condbody) => todo!(),
+            c::Statement::DoWhile(_lbl, _condbody) => todo!(),
+            c::Statement::For(_lbl, _foor) => todo!(),
             c::Statement::Null => { /* No-op. */ }
         }
     }
