@@ -228,6 +228,11 @@ impl CAstValidator {
                     let block = self.resolve_block(block)?;
                     Ok(Statement::Compound(block))
                 }
+                prev_c_ast::Statement::Break => todo!(),
+                prev_c_ast::Statement::Continue => todo!(),
+                prev_c_ast::Statement::While(_) => todo!(),
+                prev_c_ast::Statement::DoWhile(_) => todo!(),
+                prev_c_ast::Statement::For(_) => todo!(),
                 prev_c_ast::Statement::Null => Ok(Statement::Null),
             }
         };

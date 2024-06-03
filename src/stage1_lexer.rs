@@ -145,6 +145,16 @@ impl Lexer {
                     (match_len, token) = (mach.len(), Control::If.into());
                 } else if let Some(mach) = KW_ELSE.find(sfx) {
                     (match_len, token) = (mach.len(), Control::Else.into());
+                } else if let Some(mach) = KW_DO.find(sfx) {
+                    (match_len, token) = (mach.len(), Loop::Do.into());
+                } else if let Some(mach) = KW_WHILE.find(sfx) {
+                    (match_len, token) = (mach.len(), Loop::While.into());
+                } else if let Some(mach) = KW_FOR.find(sfx) {
+                    (match_len, token) = (mach.len(), Loop::For.into());
+                } else if let Some(mach) = KW_BREAK.find(sfx) {
+                    (match_len, token) = (mach.len(), Loop::Break.into());
+                } else if let Some(mach) = KW_CONTINUE.find(sfx) {
+                    (match_len, token) = (mach.len(), Loop::Continue.into());
                 } else if let Some(mach) = DECIMALS.find(sfx) {
                     match_len = mach.len();
                     let literal = &sfx[..match_len];
@@ -210,6 +220,12 @@ mod token_matchers {
         /* Control */
         pub static ref KW_IF: Regex = Regex::new(r"^if\b").unwrap();
         pub static ref KW_ELSE: Regex = Regex::new(r"^else\b").unwrap();
+        /* Loop */
+        pub static ref KW_DO: Regex = Regex::new(r"^do\b").unwrap();
+        pub static ref KW_WHILE: Regex = Regex::new(r"^while\b").unwrap();
+        pub static ref KW_FOR: Regex = Regex::new(r"^for\b").unwrap();
+        pub static ref KW_BREAK: Regex = Regex::new(r"^break\b").unwrap();
+        pub static ref KW_CONTINUE: Regex = Regex::new(r"^continue\b").unwrap();
         /* Misc variable-length tokens */
         pub static ref DECIMALS: Regex = Regex::new(r"^[0-9]+\b").unwrap();
         pub static ref IDENT: Regex = Regex::new(r"^[a-zA-Z_]\w*\b").unwrap();
@@ -225,6 +241,7 @@ pub mod tokens {
         Keyword(Keyword),
         Operator(Operator),
         Control(Control),
+        Loop(Loop),
         Const(Const),
         Identifier(Identifier),
     }
@@ -275,6 +292,14 @@ pub mod tokens {
     pub enum Control {
         If,
         Else,
+    }
+    #[derive(PartialEq, Eq, Debug)]
+    pub enum Loop {
+        Do,
+        While,
+        For,
+        Break,
+        Continue,
     }
     #[derive(PartialEq, Eq, Debug)]
     pub enum Const {

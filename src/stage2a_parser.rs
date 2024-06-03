@@ -8,7 +8,13 @@
 //!               | <exp> ";"
 //!               | "if" "(" <exp> ")" <statement> [ "else" <statement> ]
 //!               | <block>
+//!               | "break" ";"
+//!               | "continue" ";"
+//!               | "while" "(" <exp> ")" <statement>
+//!               | "do" <statement> "while" "(" <exp> ")" ";"
+//!               | "for" "(" <for-init> [ <exp> ] ";" [ <exp> ] ")" <statement>
 //!               | ";"
+//! <for-init> ::= <variable-declaration> | [ <exp> ] ";"
 //! <exp> ::= <factor> | <exp> <binop> <exp> | <exp> "?" <exp> ":" <exp>
 //! <factor> ::= <int> | <identifier> | <unop> <factor> | "(" <exp> ")"
 //! <unop> ::= "-" | "~" | "!"
@@ -19,6 +25,7 @@
 
 pub mod c_ast {
     pub use self::expression::*;
+    pub use self::statement::*;
     pub use crate::stage1_lexer::tokens::{Const, Identifier};
 
     #[derive(Debug)]
@@ -55,7 +62,43 @@ pub mod c_ast {
         Expression(Expression),
         If(If),
         Compound(Block),
+        Break,
+        Continue,
+        While(CondBody),
+        DoWhile(CondBody),
+        For(For),
         Null,
+    }
+    mod statement {
+        use super::*;
+
+        #[derive(Debug)]
+        pub struct If {
+            pub condition: Expression,
+            pub then: Box<Statement>,
+            pub elze: Option<Box<Statement>>,
+        }
+
+        #[derive(Debug)]
+        pub struct CondBody {
+            pub condition: Expression,
+            pub body: Box<Statement>,
+        }
+
+        #[derive(Debug)]
+        pub struct For {
+            pub init: ForInit,
+            pub condition: Option<Expression>,
+            pub post: Option<Expression>,
+            pub body: Box<Statement>,
+        }
+
+        #[derive(Debug)]
+        pub enum ForInit {
+            Decl(Declaration),
+            Exp(Expression),
+            None,
+        }
     }
 
     #[derive(Debug)]
@@ -125,17 +168,10 @@ pub mod c_ast {
         Gt,
         Gte,
     }
-
-    #[derive(Debug)]
-    pub struct If {
-        pub condition: Expression,
-        pub then: Box<Statement>,
-        pub elze: Option<Box<Statement>>,
-    }
 }
 
 use self::c_ast::*;
-use crate::stage1_lexer::tokens::{self, Control, Demarcator, Keyword, Operator, Token};
+use crate::stage1_lexer::tokens::{self, Control, Demarcator, Keyword, Loop, Operator, Token};
 use anyhow::{anyhow, Context, Result};
 use std::iter::Peekable;
 
@@ -299,6 +335,9 @@ impl<T: Iterator<Item = Result<Token>>> Parser<T> {
         };
         inner().context("<declaration>")
     }
+
+    /* Statement */
+
     fn parse_stmt(&mut self) -> Result<Statement> {
         let mut inner = || -> Result<Statement> {
             match self.tokens.peek() {
@@ -316,37 +355,28 @@ impl<T: Iterator<Item = Result<Token>>> Parser<T> {
 
                     Ok(Statement::Return(exp))
                 }
-                Some(Ok(Token::Control(Control::If))) => {
-                    self.tokens.next();
-
-                    self.expect_exact([Demarcator::ParenOpen.into()])?;
-
-                    let condition = self.parse_exp(BinaryOperatorPrecedence::min())?;
-
-                    self.expect_exact([Demarcator::ParenClose.into()])?;
-
-                    let then = self.parse_stmt()?;
-
-                    let elze = match self.tokens.peek() {
-                        Some(Ok(Token::Control(Control::Else))) => {
-                            self.tokens.next();
-
-                            let stmt = self.parse_stmt()?;
-                            Some(stmt)
-                        }
-                        _ => None,
-                    };
-
-                    Ok(Statement::If(If {
-                        condition,
-                        then: Box::new(then),
-                        elze: elze.map(Box::new),
-                    }))
-                }
+                Some(Ok(Token::Control(Control::If))) => self.parse_stmt_if(),
                 Some(Ok(Token::Demarcator(Demarcator::BraceOpen))) => {
                     let block = self.parse_block()?;
                     Ok(Statement::Compound(block))
                 }
+                Some(Ok(Token::Loop(Loop::Break))) => {
+                    self.tokens.next();
+
+                    self.expect_exact([Demarcator::Semicolon.into()])?;
+
+                    Ok(Statement::Break)
+                }
+                Some(Ok(Token::Loop(Loop::Continue))) => {
+                    self.tokens.next();
+
+                    self.expect_exact([Demarcator::Semicolon.into()])?;
+
+                    Ok(Statement::Continue)
+                }
+                Some(Ok(Token::Loop(Loop::While))) => self.parse_stmt_while(),
+                Some(Ok(Token::Loop(Loop::Do))) => self.parse_stmt_dowhile(),
+                Some(Ok(Token::Loop(Loop::For))) => self.parse_stmt_for(),
                 _ => {
                     let exp = self.parse_exp(BinaryOperatorPrecedence::min())?;
 
@@ -358,6 +388,127 @@ impl<T: Iterator<Item = Result<Token>>> Parser<T> {
         };
         inner().context("<statement>")
     }
+    fn parse_stmt_if(&mut self) -> Result<Statement> {
+        let mut inner = || -> Result<Statement> {
+            self.expect_exact([Control::If.into(), Demarcator::ParenOpen.into()])?;
+
+            let condition = self.parse_exp(BinaryOperatorPrecedence::min())?;
+
+            self.expect_exact([Demarcator::ParenClose.into()])?;
+
+            let then = self.parse_stmt()?;
+
+            let elze = match self.tokens.peek() {
+                Some(Ok(Token::Control(Control::Else))) => {
+                    self.tokens.next();
+
+                    let stmt = self.parse_stmt()?;
+                    Some(stmt)
+                }
+                _ => None,
+            };
+
+            Ok(Statement::If(If {
+                condition,
+                then: Box::new(then),
+                elze: elze.map(Box::new),
+            }))
+        };
+        inner().context("<statement> if")
+    }
+    fn parse_stmt_while(&mut self) -> Result<Statement> {
+        let mut inner = || -> Result<Statement> {
+            self.expect_exact([Loop::While.into(), Demarcator::ParenOpen.into()])?;
+
+            let condition = self.parse_exp(BinaryOperatorPrecedence::min())?;
+
+            self.expect_exact([Demarcator::ParenClose.into()])?;
+
+            let body = self.parse_stmt()?;
+
+            Ok(Statement::While(CondBody {
+                condition,
+                body: Box::new(body),
+            }))
+        };
+        inner().context("<statement> while")
+    }
+    fn parse_stmt_dowhile(&mut self) -> Result<Statement> {
+        let mut inner = || -> Result<Statement> {
+            self.expect_exact([Loop::Do.into()])?;
+
+            let body = self.parse_stmt()?;
+
+            self.expect_exact([Loop::While.into(), Demarcator::ParenOpen.into()])?;
+
+            let condition = self.parse_exp(BinaryOperatorPrecedence::min())?;
+
+            self.expect_exact([Demarcator::ParenClose.into(), Demarcator::Semicolon.into()])?;
+
+            Ok(Statement::DoWhile(CondBody {
+                body: Box::new(body),
+                condition,
+            }))
+        };
+        inner().context("<statement> dowhile")
+    }
+    fn parse_stmt_for(&mut self) -> Result<Statement> {
+        let mut inner = || -> Result<Statement> {
+            self.expect_exact([Loop::For.into(), Demarcator::ParenOpen.into()])?;
+
+            let init = match self.tokens.peek() {
+                Some(Ok(Token::Keyword(Keyword::Int))) => {
+                    let decl = self.parse_declaration()?;
+                    ForInit::Decl(decl)
+                }
+                Some(Ok(Token::Demarcator(Demarcator::Semicolon))) => {
+                    self.tokens.next();
+
+                    ForInit::None
+                }
+                _ => {
+                    let exp = self.parse_exp(BinaryOperatorPrecedence::min())?;
+
+                    self.expect_exact([Demarcator::Semicolon.into()])?;
+
+                    ForInit::Exp(exp)
+                }
+            };
+
+            let condition = match self.tokens.peek() {
+                Some(Ok(Token::Demarcator(Demarcator::Semicolon))) => None,
+                _ => {
+                    let exp = self.parse_exp(BinaryOperatorPrecedence::min())?;
+                    Some(exp)
+                }
+            };
+
+            self.expect_exact([Demarcator::Semicolon.into()])?;
+
+            let post = match self.tokens.peek() {
+                Some(Ok(Token::Demarcator(Demarcator::ParenClose))) => None,
+                _ => {
+                    let exp = self.parse_exp(BinaryOperatorPrecedence::min())?;
+                    Some(exp)
+                }
+            };
+
+            self.expect_exact([Demarcator::ParenClose.into()])?;
+
+            let body = self.parse_stmt()?;
+
+            Ok(Statement::For(For {
+                init,
+                condition,
+                post,
+                body: Box::new(body),
+            }))
+        };
+        inner().context("<statement> for")
+    }
+
+    /* Expression */
+
     fn parse_exp(&mut self, min_prec: BinaryOperatorPrecedence) -> Result<Expression> {
         let mut inner = || -> Result<Expression> {
             let mut lhs = self.parse_factor()?;
@@ -442,6 +593,9 @@ impl<T: Iterator<Item = Result<Token>>> Parser<T> {
         };
         inner().context("<factor>")
     }
+
+    /* Operator */
+
     fn peek_binary_op(&mut self) -> Option<BinaryOperatorInfo> {
         match self.tokens.peek() {
             Some(Ok(Token::Operator(t_op))) => BinaryOperatorInfo::from(t_op),
