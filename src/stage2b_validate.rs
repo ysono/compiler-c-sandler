@@ -2,9 +2,10 @@ pub mod c_ast {
     pub use self::expression::*;
     pub use self::statement::*;
     pub use crate::stage2a_parser::c_ast::{BinaryOperator, Const, Identifier, UnaryOperator};
-    use std::hash::{Hash, Hasher};
+    use derivative::Derivative;
+    use getset::Getters;
     use std::rc::Rc;
-    use std::sync::atomic::{AtomicU64, Ordering};
+    use std::sync::atomic::{AtomicUsize, Ordering};
 
     #[derive(Debug)]
     pub struct Program {
@@ -118,9 +119,13 @@ pub mod c_ast {
         }
     }
 
-    #[derive(Debug)]
+    #[derive(Derivative, Getters, Debug)]
+    #[derivative(PartialEq, Eq, Hash)]
+    #[getset(get = "pub")]
     pub struct Variable {
-        id: u64,
+        id: usize,
+
+        #[derivative(PartialEq = "ignore", Hash = "ignore")]
         orig_ident: Option<Rc<Identifier>>,
     }
     impl Variable {
@@ -128,61 +133,31 @@ pub mod c_ast {
             Self::new(None)
         }
         pub(super) fn new(orig_ident: Option<Rc<Identifier>>) -> Self {
-            static NEXT_ID: AtomicU64 = AtomicU64::new(0);
+            static NEXT_ID: AtomicUsize = AtomicUsize::new(0);
             let curr_id = NEXT_ID.fetch_add(1, Ordering::SeqCst);
             Self {
                 id: curr_id,
                 orig_ident,
             }
         }
-        pub fn id(&self) -> u64 {
-            self.id
-        }
-        pub fn orig_ident(&self) -> &Option<Rc<Identifier>> {
-            &self.orig_ident
-        }
     }
-    impl Hash for Variable {
-        fn hash<H: Hasher>(&self, state: &mut H) {
-            self.id.hash(state);
-        }
-    }
-    impl PartialEq for Variable {
-        fn eq(&self, other: &Self) -> bool {
-            self.id == other.id
-        }
-    }
-    impl Eq for Variable {}
 
-    #[derive(Debug)]
+    #[derive(Derivative, Getters, Debug)]
+    #[derivative(PartialEq, Eq, Hash)]
+    #[getset(get = "pub")]
     pub struct LoopId {
-        id: u64,
+        id: usize,
+
+        #[derivative(PartialEq = "ignore", Hash = "ignore")]
         descr: &'static str,
     }
     impl LoopId {
         pub fn new(descr: &'static str) -> Self {
-            static NEXT_ID: AtomicU64 = AtomicU64::new(0);
+            static NEXT_ID: AtomicUsize = AtomicUsize::new(0);
             let curr_id = NEXT_ID.fetch_add(1, Ordering::SeqCst);
             Self { id: curr_id, descr }
         }
-        pub fn id(&self) -> u64 {
-            self.id
-        }
-        pub fn descr(&self) -> &'static str {
-            self.descr
-        }
     }
-    impl Hash for LoopId {
-        fn hash<H: Hasher>(&self, state: &mut H) {
-            self.id.hash(state);
-        }
-    }
-    impl PartialEq for LoopId {
-        fn eq(&self, other: &Self) -> bool {
-            self.id == other.id
-        }
-    }
-    impl Eq for LoopId {}
 }
 
 use self::c_ast::*;

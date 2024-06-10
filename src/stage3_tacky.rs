@@ -1,8 +1,9 @@
 pub mod tacky_ir {
     pub use self::instruction::*;
     pub use crate::stage2b_validate::c_ast::{Identifier, Variable};
+    use getset::Getters;
     use std::rc::Rc;
-    use std::sync::atomic::{AtomicU64, Ordering};
+    use std::sync::atomic::{AtomicUsize, Ordering};
 
     #[derive(Debug)]
     pub struct Program {
@@ -89,22 +90,17 @@ pub mod tacky_ir {
         Variable(Rc<Variable>),
     }
 
-    #[derive(Debug)]
+    #[derive(Getters, Debug)]
+    #[getset(get = "pub")]
     pub struct LabelIdentifier {
-        id: u64,
+        id: usize,
         name: String,
     }
     impl LabelIdentifier {
         pub(super) fn new(name: String) -> Self {
-            static NEXT_ID: AtomicU64 = AtomicU64::new(0);
+            static NEXT_ID: AtomicUsize = AtomicUsize::new(0);
             let curr_id = NEXT_ID.fetch_add(1, Ordering::SeqCst);
             Self { id: curr_id, name }
-        }
-        pub fn id(&self) -> u64 {
-            self.id
-        }
-        pub fn name(&self) -> &String {
-            &self.name
         }
     }
 }
