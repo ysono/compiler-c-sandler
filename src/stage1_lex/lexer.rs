@@ -1,5 +1,4 @@
-use self::tokens::*;
-use crate::files::PreprocessedFilepath;
+use crate::{files::PreprocessedFilepath, stage1_lex::tokens::*};
 use anyhow::{anyhow, Context, Result};
 use std::collections::VecDeque;
 use std::fs::File;
@@ -227,81 +226,4 @@ mod token_matchers {
         pub static ref DECIMALS: Regex = Regex::new(r"^[0-9]+\b").unwrap();
         pub static ref IDENT: Regex = Regex::new(r"^[a-zA-Z_]\w*\b").unwrap();
     }
-}
-
-pub mod tokens {
-    use derive_more::{Deref, From};
-
-    #[derive(From, PartialEq, Eq, Debug)]
-    pub enum Token {
-        Demarcator(Demarcator),
-        Keyword(Keyword),
-        Operator(Operator),
-        Control(Control),
-        Loop(Loop),
-        Const(Const),
-        Identifier(Identifier),
-    }
-    #[derive(PartialEq, Eq, Debug)]
-    pub enum Demarcator {
-        ParenOpen,
-        ParenClose,
-        BraceOpen,
-        BraceClose,
-        Semicolon,
-    }
-    #[derive(PartialEq, Eq, Debug)]
-    pub enum Keyword {
-        Int,
-        Void,
-        Return,
-    }
-    #[derive(PartialEq, Eq, Debug)]
-    pub enum Operator {
-        /* unary -> int */
-        Tilde,
-        /* unary -> bool */
-        Not,
-        /* unary or binary -> int */
-        Minus,
-        /* binary -> int */
-        Plus,
-        Star,
-        Slash,
-        Percent,
-        /* binary -(logic)-> boolean */
-        And,
-        Or,
-        /* binary -(compare)-> boolean */
-        Eq,
-        Neq,
-        Lt,
-        Gt,
-        Lte,
-        Gte,
-        /* assign */
-        Assign,
-        /* control */
-        Question,
-        Colon,
-    }
-    #[derive(PartialEq, Eq, Debug)]
-    pub enum Control {
-        If,
-        Else,
-    }
-    #[derive(PartialEq, Eq, Debug)]
-    pub enum Loop {
-        Do,
-        While,
-        For,
-        Break,
-        Continue,
-    }
-    #[derive(PartialEq, Eq, Debug)]
-    pub enum Const {
-        Int(i32),
-    }
-    #[derive(Deref, PartialEq, Eq, Hash, Debug)]
-    pub struct Identifier(pub(super) String);
 }
