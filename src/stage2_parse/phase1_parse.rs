@@ -110,11 +110,11 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
     }
     fn parse_func(&mut self) -> Result<Function> {
         let mut inner = || -> Result<Function> {
-            self.expect_exact([t::Keyword::Int.into()])?;
+            self.expect_exact(&[t::Keyword::Int.into()])?;
 
             let ident = self.parse_ident()?;
 
-            self.expect_exact([
+            self.expect_exact(&[
                 t::Demarcator::ParenOpen.into(),
                 t::Keyword::Void.into(),
                 t::Demarcator::ParenClose.into(),
@@ -136,7 +136,7 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
         inner().context("<identifier>")
     }
     fn parse_block(&mut self) -> Result<Block> {
-        self.expect_exact([t::Demarcator::BraceOpen.into()])?;
+        self.expect_exact(&[t::Demarcator::BraceOpen.into()])?;
 
         let mut items = vec![];
         loop {
@@ -167,7 +167,7 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
     }
     fn parse_declaration(&mut self) -> Result<Declaration> {
         let mut inner = || -> Result<Declaration> {
-            self.expect_exact([t::Keyword::Int.into()])?;
+            self.expect_exact(&[t::Keyword::Int.into()])?;
 
             let ident = self.parse_ident()?;
 
@@ -181,7 +181,7 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
                 _ => None,
             };
 
-            self.expect_exact([t::Demarcator::Semicolon.into()])?;
+            self.expect_exact(&[t::Demarcator::Semicolon.into()])?;
 
             Ok(Declaration { ident, init })
         };
@@ -203,7 +203,7 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
 
                     let exp = self.parse_exp(BinaryOperatorPrecedence::min())?;
 
-                    self.expect_exact([t::Demarcator::Semicolon.into()])?;
+                    self.expect_exact(&[t::Demarcator::Semicolon.into()])?;
 
                     Ok(Statement::Return(exp))
                 }
@@ -215,14 +215,14 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
                 Some(Ok(t::Token::Loop(t::Loop::Break))) => {
                     self.tokens.next();
 
-                    self.expect_exact([t::Demarcator::Semicolon.into()])?;
+                    self.expect_exact(&[t::Demarcator::Semicolon.into()])?;
 
                     Ok(Statement::Break)
                 }
                 Some(Ok(t::Token::Loop(t::Loop::Continue))) => {
                     self.tokens.next();
 
-                    self.expect_exact([t::Demarcator::Semicolon.into()])?;
+                    self.expect_exact(&[t::Demarcator::Semicolon.into()])?;
 
                     Ok(Statement::Continue)
                 }
@@ -232,7 +232,7 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
                 _ => {
                     let exp = self.parse_exp(BinaryOperatorPrecedence::min())?;
 
-                    self.expect_exact([t::Demarcator::Semicolon.into()])?;
+                    self.expect_exact(&[t::Demarcator::Semicolon.into()])?;
 
                     Ok(Statement::Expression(exp))
                 }
@@ -242,11 +242,11 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
     }
     fn parse_stmt_if(&mut self) -> Result<Statement> {
         let mut inner = || -> Result<Statement> {
-            self.expect_exact([t::Control::If.into(), t::Demarcator::ParenOpen.into()])?;
+            self.expect_exact(&[t::Control::If.into(), t::Demarcator::ParenOpen.into()])?;
 
             let condition = self.parse_exp(BinaryOperatorPrecedence::min())?;
 
-            self.expect_exact([t::Demarcator::ParenClose.into()])?;
+            self.expect_exact(&[t::Demarcator::ParenClose.into()])?;
 
             let then = self.parse_stmt()?;
 
@@ -270,11 +270,11 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
     }
     fn parse_stmt_while(&mut self) -> Result<Statement> {
         let mut inner = || -> Result<Statement> {
-            self.expect_exact([t::Loop::While.into(), t::Demarcator::ParenOpen.into()])?;
+            self.expect_exact(&[t::Loop::While.into(), t::Demarcator::ParenOpen.into()])?;
 
             let condition = self.parse_exp(BinaryOperatorPrecedence::min())?;
 
-            self.expect_exact([t::Demarcator::ParenClose.into()])?;
+            self.expect_exact(&[t::Demarcator::ParenClose.into()])?;
 
             let body = self.parse_stmt()?;
 
@@ -287,15 +287,15 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
     }
     fn parse_stmt_dowhile(&mut self) -> Result<Statement> {
         let mut inner = || -> Result<Statement> {
-            self.expect_exact([t::Loop::Do.into()])?;
+            self.expect_exact(&[t::Loop::Do.into()])?;
 
             let body = self.parse_stmt()?;
 
-            self.expect_exact([t::Loop::While.into(), t::Demarcator::ParenOpen.into()])?;
+            self.expect_exact(&[t::Loop::While.into(), t::Demarcator::ParenOpen.into()])?;
 
             let condition = self.parse_exp(BinaryOperatorPrecedence::min())?;
 
-            self.expect_exact([
+            self.expect_exact(&[
                 t::Demarcator::ParenClose.into(),
                 t::Demarcator::Semicolon.into(),
             ])?;
@@ -309,7 +309,7 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
     }
     fn parse_stmt_for(&mut self) -> Result<Statement> {
         let mut inner = || -> Result<Statement> {
-            self.expect_exact([t::Loop::For.into(), t::Demarcator::ParenOpen.into()])?;
+            self.expect_exact(&[t::Loop::For.into(), t::Demarcator::ParenOpen.into()])?;
 
             let init = match self.tokens.peek() {
                 Some(Ok(t::Token::Keyword(t::Keyword::Int))) => {
@@ -324,7 +324,7 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
                 _ => {
                     let exp = self.parse_exp(BinaryOperatorPrecedence::min())?;
 
-                    self.expect_exact([t::Demarcator::Semicolon.into()])?;
+                    self.expect_exact(&[t::Demarcator::Semicolon.into()])?;
 
                     ForInit::Exp(exp)
                 }
@@ -338,7 +338,7 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
                 }
             };
 
-            self.expect_exact([t::Demarcator::Semicolon.into()])?;
+            self.expect_exact(&[t::Demarcator::Semicolon.into()])?;
 
             let post = match self.tokens.peek() {
                 Some(Ok(t::Token::Demarcator(t::Demarcator::ParenClose))) => None,
@@ -348,7 +348,7 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
                 }
             };
 
-            self.expect_exact([t::Demarcator::ParenClose.into()])?;
+            self.expect_exact(&[t::Demarcator::ParenClose.into()])?;
 
             let body = self.parse_stmt()?;
 
@@ -369,7 +369,11 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
             let mut lhs = self.parse_factor()?;
 
             loop {
-                if let Some(boi) = self.peek_binary_op() {
+                let boi = match self.tokens.peek() {
+                    Some(Ok(t::Token::Operator(t_op))) => BinaryOperatorInfo::from(t_op),
+                    _ => None,
+                };
+                if let Some(boi) = boi {
                     let nxt_prec = BinaryOperatorPrecedence::from(&boi);
                     if nxt_prec >= min_prec {
                         self.tokens.next();
@@ -388,7 +392,7 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
                             BinaryOperatorInfo::ControlQuestion => {
                                 let then = self.parse_exp(BinaryOperatorPrecedence::min())?;
 
-                                self.expect_exact([t::Operator::Colon.into()])?;
+                                self.expect_exact(&[t::Operator::Colon.into()])?;
 
                                 let beyond_prec = nxt_prec; // Right associative
                                 let elze = self.parse_exp(beyond_prec)?;
@@ -425,22 +429,31 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
             match self.tokens.next() {
                 Some(Ok(t::Token::Const(konst))) => return Ok(Expression::Const(konst)),
                 Some(Ok(t::Token::Identifier(ident))) => return Ok(Expression::Var(ident)),
-                Some(Ok(t::Token::Operator(t_op))) => match Self::convert_unary_op(&t_op) {
-                    Some(c_op) => {
-                        let exp = self.parse_factor()?;
-                        return Ok(Expression::Unary(Unary {
-                            op: c_op,
-                            sub_exp: Box::new(exp),
-                        }));
+                Some(Ok(t::Token::Operator(t_op))) => {
+                    let c_op_unary = match t_op {
+                        t::Operator::Tilde => Some(UnaryOperator::Complement),
+                        t::Operator::Minus => Some(UnaryOperator::Negate),
+                        t::Operator::Not => Some(UnaryOperator::Not),
+                        _ => None,
+                    };
+                    match c_op_unary {
+                        Some(c_op_unary) => {
+                            let exp = self.parse_factor()?;
+                            return Ok(Expression::Unary(Unary {
+                                op: c_op_unary,
+                                sub_exp: Box::new(exp),
+                            }));
+                        }
+                        None => {
+                            let actual: Option<Result<t::Token>> =
+                                Some(Ok(t::Token::Operator(t_op)));
+                            return Err(anyhow!("{actual:?}"));
+                        }
                     }
-                    None => {
-                        let actual: Option<Result<t::Token>> = Some(Ok(t::Token::Operator(t_op)));
-                        return Err(anyhow!("{actual:?}"));
-                    }
-                },
+                }
                 Some(Ok(t::Token::Demarcator(t::Demarcator::ParenOpen))) => {
                     let exp = self.parse_exp(BinaryOperatorPrecedence::min())?;
-                    self.expect_exact([t::Demarcator::ParenClose.into()])?;
+                    self.expect_exact(&[t::Demarcator::ParenClose.into()])?;
                     return Ok(exp);
                 }
                 actual => return Err(anyhow!("{actual:?}")),
@@ -449,27 +462,12 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
         inner().context("<factor>")
     }
 
-    /* Operator */
+    /* Helpers */
 
-    fn peek_binary_op(&mut self) -> Option<BinaryOperatorInfo> {
-        match self.tokens.peek() {
-            Some(Ok(t::Token::Operator(t_op))) => BinaryOperatorInfo::from(t_op),
-            _ => None,
-        }
-    }
-    fn convert_unary_op(t_op: &t::Operator) -> Option<UnaryOperator> {
-        match t_op {
-            t::Operator::Tilde => Some(UnaryOperator::Complement),
-            t::Operator::Minus => Some(UnaryOperator::Negate),
-            t::Operator::Not => Some(UnaryOperator::Not),
-            _ => None,
-        }
-    }
-
-    fn expect_exact<const LEN: usize>(&mut self, next_tokens: [t::Token; LEN]) -> Result<()> {
+    fn expect_exact(&mut self, next_tokens: &[t::Token]) -> Result<()> {
         for expected in next_tokens {
             match self.tokens.next() {
-                Some(Ok(actual)) if expected == actual => {}
+                Some(Ok(actual)) if expected == &actual => {}
                 actual => return Err(anyhow!("Expected {:?} but found {:?}", expected, actual)),
             }
         }
