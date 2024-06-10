@@ -6,14 +6,16 @@ use std::rc::Rc;
 
 pub struct AsmCodeGenerator {}
 impl AsmCodeGenerator {
-    pub fn gen_program(t::Program { func }: t::Program) -> Program {
-        let func = Self::gen_func(func);
+    pub fn gen_program(t::Program { funs: mut t_funs }: t::Program) -> Program {
+        let t_fun = t_funs.pop().unwrap(); // TODO
+        let func = Self::gen_func(t_fun);
         Program { func }
     }
     fn gen_func(
         t::Function {
             ident,
-            instructions: t_intrs,
+            params: _, // TODO
+            instrs: t_intrs,
         }: t::Function,
     ) -> Function {
         let asm_instrs = Self::gen_instructions(t_intrs);
@@ -40,6 +42,7 @@ impl AsmCodeGenerator {
                 Self::gen_jumpif_instrs(ConditionCode::Ne, jumpif)
             }
             t::Instruction::Label(lbl) => vec![Instruction::Label(lbl)],
+            t::Instruction::FunCall(_fun_call) => todo!(),
         })
     }
 

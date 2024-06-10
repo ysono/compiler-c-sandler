@@ -6,13 +6,14 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 #[derive(Debug)]
 pub struct Program {
-    pub func: Function,
+    pub funs: Vec<Function>,
 }
 
 #[derive(Debug)]
 pub struct Function {
     pub ident: Rc<ResolvedIdentifier>,
-    pub instructions: Vec<Instruction>,
+    pub params: Vec<Rc<ResolvedIdentifier>>,
+    pub instrs: Vec<Instruction>,
 }
 
 #[derive(Debug)]
@@ -25,6 +26,7 @@ pub enum Instruction {
     JumpIfZero(JumpIf),
     JumpIfNotZero(JumpIf),
     Label(Rc<LabelIdentifier>),
+    FunCall(FunCall),
 }
 mod instruction {
     use super::*;
@@ -54,6 +56,13 @@ mod instruction {
     pub struct JumpIf {
         pub condition: ReadableValue,
         pub tgt: Rc<LabelIdentifier>,
+    }
+
+    #[derive(Debug)]
+    pub struct FunCall {
+        pub ident: Rc<ResolvedIdentifier>,
+        pub args: Vec<ReadableValue>,
+        pub dst: Rc<ResolvedIdentifier>,
     }
 }
 

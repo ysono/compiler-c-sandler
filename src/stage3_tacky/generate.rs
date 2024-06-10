@@ -15,32 +15,35 @@ enum ShortCircuitBOT {
 
 pub struct Tackifier {}
 impl Tackifier {
-    pub fn tackify_program(c::Program { mut funs }: c::Program) -> Program {
-        // TODO
-        let fun = funs.pop().unwrap();
-        let fun_defn = match fun {
-            c::FunctionDeclOrDefn::FunDecl(_fun_decl) => todo!(),
-            c::FunctionDeclOrDefn::FunDefn(fun_defn) => fun_defn,
-        };
-
-        let gen_instrs = TackyAstGenerator::default();
-        let func = gen_instrs.tackify_func(fun_defn);
-
-        Program { func }
+    pub fn tackify_program(c::Program { funs: c_funs }: c::Program) -> Program {
+        let mut funs = vec![];
+        for c_fun in c_funs {
+            match c_fun {
+                c::FunctionDeclOrDefn::FunDecl(_) => { /* No-op. */ }
+                c::FunctionDeclOrDefn::FunDefn(fd) => {
+                    let gen = FunInstrsGenerator::default();
+                    let fun = gen.tackify_fun_defn(fd);
+                    funs.push(fun);
+                }
+            }
+        }
+        Program { funs }
     }
 }
 
 #[derive(Default)]
-struct TackyAstGenerator {
+struct FunInstrsGenerator {
     loop_id_to_labels: LoopIdToLabels,
 
     instrs: Vec<Instruction>,
 }
-impl TackyAstGenerator {
-    fn tackify_func(
+impl FunInstrsGenerator {
+    /* Declaration, Definition */
+
+    fn tackify_fun_defn(
         mut self,
         c::FunctionDefinition {
-            decl: c::FunctionDeclaration { ident, params: _ },
+            decl: c::FunctionDeclaration { ident, params },
             body,
         }: c::FunctionDefinition,
     ) -> Function {
@@ -53,18 +56,14 @@ impl TackyAstGenerator {
 
         Function {
             ident,
-            instructions: self.instrs,
+            params,
+            instrs: self.instrs,
         }
     }
-    fn gen_block(&mut self, c::Block { items }: c::Block) {
-        for c_item in items {
-            match c_item {
-                c::BlockItem::Declaration(c_decl) => match c_decl {
-                    c::NonGlobalDeclaration::VarDecl(c_var_decl) => self.gen_decl_var(c_var_decl),
-                    c::NonGlobalDeclaration::FunDecl(_c_fun_decl) => todo!(),
-                },
-                c::BlockItem::Statement(c_stmt) => self.gen_stmt(c_stmt),
-            }
+    fn gen_decl_non_global(&mut self, c_decl: c::NonGlobalDeclaration) {
+        match c_decl {
+            c::NonGlobalDeclaration::VarDecl(c_var_decl) => self.gen_decl_var(c_var_decl),
+            c::NonGlobalDeclaration::FunDecl(_c_fun_decl) => { /* No-op. */ }
         }
     }
     fn gen_decl_var(&mut self, c::VariableDeclaration { ident, init }: c::VariableDeclaration) {
@@ -72,6 +71,17 @@ impl TackyAstGenerator {
             None => { /* No-op. */ }
             Some(init_exp) => {
                 self.gen_exp_assignment(ident, init_exp);
+            }
+        }
+    }
+
+    /* Block, Statement, Expression */
+
+    fn gen_block(&mut self, c_block: c::Block) {
+        for c_item in c_block.items {
+            match c_item {
+                c::BlockItem::Declaration(c_decl) => self.gen_decl_non_global(c_decl),
+                c::BlockItem::Statement(c_stmt) => self.gen_stmt(c_stmt),
             }
         }
     }
@@ -104,7 +114,7 @@ impl TackyAstGenerator {
                 self.gen_exp_assignment(ident, *rhs)
             }
             c::Expression::Conditional(c_cond) => self.gen_exp_conditional(c_cond),
-            c::Expression::FunctionCall(_c_fun_call) => todo!(),
+            c::Expression::FunctionCall(c_fun_call) => self.gen_exp_fun_call(c_fun_call),
         }
     }
 
@@ -464,6 +474,30 @@ impl TackyAstGenerator {
         self.instrs.push(Instruction::Jump(lbl_start));
 
         self.instrs.push(Instruction::Label(lbl_break));
+    }
+
+    /* Function call */
+
+    fn gen_exp_fun_call(
+        &mut self,
+        c::FunctionCall { ident, args }: c::FunctionCall,
+    ) -> ReadableValue {
+        let result = Rc::new(ResolvedIdentifier::new_no_linkage(None));
+
+        /* Begin instructions */
+
+        let args = args
+            .into_iter()
+            .map(|arg| self.gen_exp(arg))
+            .collect::<Vec<_>>();
+
+        self.instrs.push(Instruction::FunCall(FunCall {
+            ident,
+            args,
+            dst: Rc::clone(&result),
+        }));
+
+        ReadableValue::Variable(result)
     }
 }
 
