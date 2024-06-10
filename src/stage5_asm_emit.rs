@@ -32,7 +32,7 @@ impl<'a> TryFrom<&'a AsmFilepath> for AsmCodeEmitter {
             .create(true)
             .truncate(true)
             .write(true)
-            .open(&asm_filepath as &PathBuf)?;
+            .open(asm_filepath as &PathBuf)?;
         let bw = BufWriter::new(f);
         Ok(Self { bw })
     }
@@ -70,7 +70,7 @@ impl AsmCodeEmitter {
                 self.write_operand(src, OperandByteLen::B4)?;
                 write!(&mut self.bw, ", ")?;
                 self.write_operand(dst, OperandByteLen::B4)?;
-                writeln!(&mut self.bw, "")?;
+                writeln!(&mut self.bw)?;
             }
             Instruction::Unary(op, operand) => {
                 let op = match op {
@@ -79,7 +79,7 @@ impl AsmCodeEmitter {
                 };
                 write!(&mut self.bw, "{TAB}{op}{TAB}")?;
                 self.write_operand(operand, OperandByteLen::B4)?;
-                writeln!(&mut self.bw, "")?;
+                writeln!(&mut self.bw)?;
             }
             Instruction::Binary { op, arg, tgt } => {
                 let op = match op {
@@ -91,19 +91,19 @@ impl AsmCodeEmitter {
                 self.write_operand(arg, OperandByteLen::B4)?;
                 write!(&mut self.bw, ", ")?;
                 self.write_operand(tgt, OperandByteLen::B4)?;
-                writeln!(&mut self.bw, "")?;
+                writeln!(&mut self.bw)?;
             }
             Instruction::Cmp { arg, tgt } => {
                 write!(&mut self.bw, "{TAB}cmpl{TAB}")?;
                 self.write_operand(arg, OperandByteLen::B4)?;
                 write!(&mut self.bw, ", ")?;
                 self.write_operand(tgt, OperandByteLen::B4)?;
-                writeln!(&mut self.bw, "")?;
+                writeln!(&mut self.bw)?;
             }
             Instruction::Idiv(operand) => {
                 write!(&mut self.bw, "{TAB}idivl{TAB}")?;
                 self.write_operand(operand, OperandByteLen::B4)?;
-                writeln!(&mut self.bw, "")?;
+                writeln!(&mut self.bw)?;
             }
             Instruction::Cdq => {
                 writeln!(&mut self.bw, "cdq")?;
@@ -111,19 +111,19 @@ impl AsmCodeEmitter {
             Instruction::Jmp(lbl) => {
                 write!(&mut self.bw, "{TAB}jmp{TAB}")?;
                 self.write_label(&lbl)?;
-                writeln!(&mut self.bw, "")?;
+                writeln!(&mut self.bw)?;
             }
             Instruction::JmpCC(cc, lbl) => {
                 let cmd_sfx = Self::get_condition_sfx(cc);
                 write!(&mut self.bw, "{TAB}j{cmd_sfx}{TAB}")?;
                 self.write_label(&lbl)?;
-                writeln!(&mut self.bw, "")?;
+                writeln!(&mut self.bw)?;
             }
             Instruction::SetCC(cc, operand) => {
                 let cmd_sfx = Self::get_condition_sfx(cc);
                 write!(&mut self.bw, "{TAB}set{cmd_sfx}{TAB}")?;
                 self.write_operand(operand, OperandByteLen::B1)?;
-                writeln!(&mut self.bw, "")?;
+                writeln!(&mut self.bw)?;
             }
             Instruction::Label(lbl) => {
                 self.write_label(&lbl)?;

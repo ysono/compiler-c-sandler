@@ -360,7 +360,7 @@ impl TackyIrGenerator {
 
         match elze {
             None => {
-                let label_end = Rc::new(LabelIdentifier::new(format!("stmt_cond_end")));
+                let label_end = Rc::new(LabelIdentifier::new("stmt_cond_end".to_string()));
 
                 /* Begin instructions */
 

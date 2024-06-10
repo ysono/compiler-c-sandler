@@ -78,7 +78,7 @@ fn compile(pp_filepath: PreprocessedFilepath, args: &CliArgs) -> Result<Option<A
         return Ok(None);
     }
 
-    let mut vadlidator = CAstValidator::new();
+    let mut vadlidator = CAstValidator::default();
     let c_prog = vadlidator.resolve_program(c_prog)?;
     if args.until_parser_validate {
         println!("validated c_prog: {c_prog:?}");
@@ -146,12 +146,9 @@ pub fn driver_main() -> Result<()> {
     let asm_filepath = compile(pp_filepath, &args)?;
     log::info!("Assembly generator done -> {asm_filepath:?}");
 
-    match asm_filepath {
-        Some(asm_filepath) => {
-            let prog_filepath = assemble_and_link(asm_filepath)?;
-            log::info!("Linker done -> {prog_filepath:?}");
-        }
-        _ => {}
+    if let Some(asm_filepath) = asm_filepath {
+        let prog_filepath = assemble_and_link(asm_filepath)?;
+        log::info!("Linker done -> {prog_filepath:?}");
     }
 
     Ok(())

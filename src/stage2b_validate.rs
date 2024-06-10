@@ -169,7 +169,7 @@ pub mod c_ast {
             self.id
         }
         pub fn descr(&self) -> &'static str {
-            &self.descr
+            self.descr
         }
     }
     impl Hash for LoopId {
@@ -193,19 +193,13 @@ use log;
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
+#[derive(Default)]
 pub struct CAstValidator {
     ident_to_var: IdentToVar,
 
     loop_ids_stack: LoopIdsStack,
 }
 impl CAstValidator {
-    pub fn new() -> Self {
-        CAstValidator {
-            ident_to_var: IdentToVar::new(),
-            loop_ids_stack: LoopIdsStack::default(),
-        }
-    }
-
     pub fn resolve_program(&mut self, prog: p::Program) -> Result<Program> {
         let inner = || -> Result<Program> {
             let p::Program { func } = prog;
@@ -458,10 +452,8 @@ impl CAstValidator {
 
     fn resolve_var(&self, ident: Identifier, check_initialized: bool) -> Result<Rc<Variable>> {
         let var_st = self.ident_to_var.get(&ident)?;
-        if check_initialized == true {
-            if var_st.is_initialized == false {
-                log::warn!("Non-initialized variable {ident:?}");
-            }
+        if (check_initialized == true) && (var_st.is_initialized == false) {
+            log::warn!("Non-initialized variable {ident:?}");
         }
         Ok(Rc::clone(&var_st.var))
     }
@@ -474,8 +466,8 @@ struct IdentToVar {
     /// This tracks each copy-on-write layer's keys.
     scope_to_idents: Vec<HashSet<Rc<Identifier>>>,
 }
-impl IdentToVar {
-    fn new() -> Self {
+impl Default for IdentToVar {
+    fn default() -> Self {
         let ident_to_scoped_vars = HashMap::new();
 
         let global_scope = HashSet::new();
@@ -486,7 +478,8 @@ impl IdentToVar {
             scope_to_idents,
         }
     }
-
+}
+impl IdentToVar {
     fn push_new_scope(&mut self) {
         let idents = HashSet::new();
         self.scope_to_idents.push(idents);
@@ -506,10 +499,7 @@ impl IdentToVar {
             var: Rc::clone(&var),
             is_initialized: false,
         };
-        let scoped_vars = self
-            .ident_to_scoped_vars
-            .entry(ident)
-            .or_insert_with(|| vec![]);
+        let scoped_vars = self.ident_to_scoped_vars.entry(ident).or_default();
         scoped_vars.push(var_st);
 
         Ok(var)

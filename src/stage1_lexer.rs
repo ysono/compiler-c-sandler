@@ -57,11 +57,8 @@ impl Lexer {
     fn buf_to_tokens(&mut self) -> Result<()> {
         let mut sfx: &str = &self.chars_buf;
 
-        loop {
-            match Self::sfx_to_token(&mut sfx)? {
-                Some(token) => self.next_tokens.push_back(token),
-                None => break,
-            }
+        while let Some(token) = Self::sfx_to_token(&mut sfx)? {
+            self.next_tokens.push_back(token);
         }
 
         Ok(())
@@ -188,21 +185,21 @@ mod token_matchers {
 
     /* Tokens whose existence _doesn't_ depend on the subsequent char (eg `\b`) */
     /* Demarcators */
-    pub const PAREN_OPEN: u8 = '(' as u8;
-    pub const PAREN_CLOSE: u8 = ')' as u8;
-    pub const BRACE_OPEN: u8 = '{' as u8;
-    pub const BRACE_CLOSE: u8 = '}' as u8;
-    pub const SEMICOLON: u8 = ';' as u8;
+    pub const PAREN_OPEN: u8 = b'(';
+    pub const PAREN_CLOSE: u8 = b')';
+    pub const BRACE_OPEN: u8 = b'{';
+    pub const BRACE_CLOSE: u8 = b'}';
+    pub const SEMICOLON: u8 = b';';
     /* Operations */
-    pub const TILDE: u8 = '~' as u8;
-    pub const STAR: u8 = '*' as u8;
-    pub const SLASH: u8 = '/' as u8;
-    pub const PERCENT: u8 = '%' as u8;
+    pub const TILDE: u8 = b'~';
+    pub const STAR: u8 = b'*';
+    pub const SLASH: u8 = b'/';
+    pub const PERCENT: u8 = b'%';
     pub const AND: &str = "&&";
     pub const OR: &str = "||";
     /* Control */
-    pub const QUESTION: u8 = '?' as u8;
-    pub const COLON: u8 = ':' as u8;
+    pub const QUESTION: u8 = b'?';
+    pub const COLON: u8 = b':';
 
     lazy_static! {
         /* Tokens whose existence _does_ depend on the subsequent char (eg `\b`) */
