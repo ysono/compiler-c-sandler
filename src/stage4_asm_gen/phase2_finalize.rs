@@ -5,7 +5,7 @@ use std::rc::Rc;
 
 pub struct InstrsFinalizer {
     last_used_stack_pos: StackPosition,
-    var_to_stack_pos: HashMap<Rc<Variable>, StackPosition>,
+    var_to_stack_pos: HashMap<Rc<ResolvedIdentifier>, StackPosition>,
 }
 impl Default for InstrsFinalizer {
     fn default() -> Self {
@@ -79,15 +79,15 @@ impl InstrsFinalizer {
     fn convert_operand(&mut self, pfo: PreFinalOperand) -> Operand {
         use PreFinalOperand as PFO;
         match pfo {
-            PFO::PseudoRegister(var) => self.var_to_stack_pos(var).into(),
+            PFO::PseudoRegister(ident) => self.var_to_stack_pos(ident).into(),
             PFO::ImmediateValue(i) => Operand::ImmediateValue(i),
             PFO::Register(r) => Operand::Register(r),
         }
     }
-    fn var_to_stack_pos(&mut self, var: Rc<Variable>) -> StackPosition {
+    fn var_to_stack_pos(&mut self, ident: Rc<ResolvedIdentifier>) -> StackPosition {
         /* For now, all Tacky Values represent 32-bit values. */
         const VAL_BYTELEN: usize = mem::size_of::<i32>();
-        let pos = self.var_to_stack_pos.entry(var).or_insert_with(|| {
+        let pos = self.var_to_stack_pos.entry(ident).or_insert_with(|| {
             self.last_used_stack_pos.0 += VAL_BYTELEN;
             self.last_used_stack_pos
         });

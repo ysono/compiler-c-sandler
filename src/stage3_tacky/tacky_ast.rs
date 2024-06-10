@@ -1,5 +1,5 @@
 pub use self::instruction::*;
-pub use crate::stage2_parse::c_ast_resolved::{Identifier, Variable};
+pub use crate::stage2_parse::c_ast_resolved::ResolvedIdentifier;
 use getset::Getters;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -11,7 +11,7 @@ pub struct Program {
 
 #[derive(Debug)]
 pub struct Function {
-    pub ident: Identifier,
+    pub ident: Rc<ResolvedIdentifier>,
     pub instructions: Vec<Instruction>,
 }
 
@@ -33,7 +33,7 @@ mod instruction {
     pub struct Unary {
         pub op: UnaryOperator,
         pub src: ReadableValue,
-        pub dst: Rc<Variable>,
+        pub dst: Rc<ResolvedIdentifier>,
     }
 
     #[derive(Debug)]
@@ -41,13 +41,13 @@ mod instruction {
         pub op: BinaryOperator,
         pub src1: ReadableValue,
         pub src2: ReadableValue,
-        pub dst: Rc<Variable>,
+        pub dst: Rc<ResolvedIdentifier>,
     }
 
     #[derive(Debug)]
     pub struct Copy {
         pub src: ReadableValue,
-        pub dst: Rc<Variable>,
+        pub dst: Rc<ResolvedIdentifier>,
     }
 
     #[derive(Debug)]
@@ -86,7 +86,7 @@ pub enum BinaryOperator {
 #[derive(Debug)]
 pub enum ReadableValue {
     Constant(i32),
-    Variable(Rc<Variable>),
+    Variable(Rc<ResolvedIdentifier>),
 }
 
 #[derive(Getters, Debug)]

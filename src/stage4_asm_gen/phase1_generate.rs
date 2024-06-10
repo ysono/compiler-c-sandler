@@ -226,7 +226,7 @@ impl AsmCodeGenerator {
 
     /* Operand */
 
-    fn convert_var_operand(t_var: Rc<Variable>) -> PreFinalOperand {
+    fn convert_var_operand(t_var: Rc<ResolvedIdentifier>) -> PreFinalOperand {
         Self::convert_val_operand(t::ReadableValue::Variable(t_var))
     }
     fn convert_val_operand(t_val: t::ReadableValue) -> PreFinalOperand {

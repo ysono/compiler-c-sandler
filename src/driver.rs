@@ -1,7 +1,9 @@
 use crate::{
     files::{AsmFilepath, ObjectFilepath, PreprocessedFilepath, ProgramFilepath, SrcFilepath},
     stage1_lex::lexer::Lexer,
-    stage2_parse::{phase1_parse::Parser, phase2_resolve::CAstValidator},
+    stage2_parse::{
+        phase1_parse::Parser, phase2_resolve::CAstValidator, phase3_typecheck::TypeChecker,
+    },
     stage3_tacky::generate::Tackifier,
     stage4_asm_gen::phase1_generate::AsmCodeGenerator,
     stage5_asm_emit::emit::AsmCodeEmitter,
@@ -115,8 +117,13 @@ fn compile(pp_filepath: PreprocessedFilepath, args: &CliArgs) -> Result<Option<A
 
     let mut vadlidator = CAstValidator::default();
     let c_prog = vadlidator.resolve_program(c_prog)?;
+
+    let type_checker = TypeChecker::default();
+    let symbol_table = type_checker.typecheck_prog(&c_prog)?;
+
     if args.until_parser_validate {
         println!("validated c_prog: {c_prog:#?}");
+        println!("symbol table: {symbol_table:#?}");
         return Ok(None);
     }
 

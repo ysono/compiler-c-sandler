@@ -1,6 +1,10 @@
+pub use self::declaration::*;
 pub use self::expression::*;
 pub use self::statement::*;
-pub use crate::stage2_parse::c_ast::{BinaryOperator, Const, Identifier, UnaryOperator};
+pub use crate::{
+    stage2_parse::c_ast::{BinaryOperator, Const, UnaryOperator},
+    symbol_table::ResolvedIdentifier,
+};
 use derivative::Derivative;
 use getset::Getters;
 use std::rc::Rc;
@@ -8,18 +12,44 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 #[derive(Debug)]
 pub struct Program {
-    pub func: FunctionDeclaration,
+    pub funs: Vec<FunctionDeclOrDefn>,
 }
 
-#[derive(Debug)]
-pub struct VariableDeclaration {
-    pub var: Rc<Variable>,
-    pub init: Option<Expression>,
+pub(super) enum Declaration {
+    VarDecl(VariableDeclaration),
+    FunDecl(FunctionDeclaration),
+    FunDefn,
 }
 #[derive(Debug)]
-pub struct FunctionDeclaration {
-    pub ident: Identifier,
-    pub body: Block,
+pub enum FunctionDeclOrDefn {
+    FunDecl(FunctionDeclaration),
+    FunDefn(FunctionDefinition),
+}
+#[derive(Debug)]
+pub enum NonGlobalDeclaration {
+    VarDecl(VariableDeclaration),
+    FunDecl(FunctionDeclaration),
+}
+mod declaration {
+    use super::*;
+
+    #[derive(Debug)]
+    pub struct VariableDeclaration {
+        pub ident: Rc<ResolvedIdentifier>,
+        pub init: Option<Expression>,
+    }
+
+    #[derive(Debug)]
+    pub struct FunctionDeclaration {
+        pub ident: Rc<ResolvedIdentifier>,
+        pub params: Vec<Rc<ResolvedIdentifier>>,
+    }
+
+    #[derive(Debug)]
+    pub struct FunctionDefinition {
+        pub decl: FunctionDeclaration,
+        pub body: Block,
+    }
 }
 
 #[derive(Debug)]
@@ -29,7 +59,7 @@ pub struct Block {
 
 #[derive(Debug)]
 pub enum BlockItem {
-    Declaration(VariableDeclaration),
+    Declaration(NonGlobalDeclaration),
     Statement(Statement),
 }
 
@@ -81,11 +111,12 @@ mod statement {
 #[derive(Debug)]
 pub enum Expression {
     Const(Const),
-    Var(Rc<Variable>),
+    Var(Rc<ResolvedIdentifier>),
     Unary(Unary),
     Binary(Binary),
     Assignment(Assignment),
     Conditional(Conditional),
+    FunctionCall(FunctionCall),
 }
 mod expression {
     use super::*;
@@ -105,7 +136,7 @@ mod expression {
 
     #[derive(Debug)]
     pub struct Assignment {
-        pub var: Rc<Variable>,
+        pub ident: Rc<ResolvedIdentifier>,
         pub rhs: Box<Expression>,
     }
 
@@ -115,28 +146,11 @@ mod expression {
         pub then: Box<Expression>,
         pub elze: Box<Expression>,
     }
-}
 
-#[derive(Derivative, Getters, Debug)]
-#[derivative(PartialEq, Eq, Hash)]
-#[getset(get = "pub")]
-pub struct Variable {
-    id: usize,
-
-    #[derivative(PartialEq = "ignore", Hash = "ignore")]
-    orig_ident: Option<Rc<Identifier>>,
-}
-impl Variable {
-    pub fn new_anon() -> Self {
-        Self::new(None)
-    }
-    pub(super) fn new(orig_ident: Option<Rc<Identifier>>) -> Self {
-        static NEXT_ID: AtomicUsize = AtomicUsize::new(0);
-        let curr_id = NEXT_ID.fetch_add(1, Ordering::SeqCst);
-        Self {
-            id: curr_id,
-            orig_ident,
-        }
+    #[derive(Debug)]
+    pub struct FunctionCall {
+        pub ident: Rc<ResolvedIdentifier>,
+        pub args: Vec<Expression>,
     }
 }
 

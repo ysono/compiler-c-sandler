@@ -1,98 +1,146 @@
+//! - Identifier resolution
+//! - Loop labelling
+
 use crate::stage2_parse::{
     c_ast as p, // "p" for "previous c_ast".
     c_ast_resolved::*,
 };
 use anyhow::{anyhow, Context, Result};
 use derive_more::{Deref, DerefMut};
-use log;
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
 #[derive(Default)]
 pub struct CAstValidator {
-    ident_to_var: IdentToVar,
+    ident_resolver: IdentResolver,
 
     loop_ids_stack: LoopIdsStack,
 }
 impl CAstValidator {
-    pub fn resolve_program(&mut self, p::Program { mut fun_decls }: p::Program) -> Result<Program> {
-        let mut inner = || -> Result<_> {
-            // TODO
-            let fun_decl = fun_decls.pop().ok_or_else(|| {
-                anyhow!("For now, Program is expected to contain at least one FunctionDeclaration.")
-            })?;
-            let func = self.resolve_decl_fun(fun_decl)?;
-            Ok(Program { func })
+    pub fn resolve_program(&mut self, p::Program { fun_decls }: p::Program) -> Result<Program> {
+        let inner = || -> Result<_> {
+            let funs = fun_decls
+                .into_iter()
+                .map(|p_fd| self.resolve_decl_fun(p_fd))
+                .collect::<Result<Vec<_>>>()?;
+            Ok(Program { funs })
         };
         inner().context("c_ast validator on <program>")
     }
 
     /* Declaration */
 
+    fn resolve_decl(&mut self, p_decl: p::Declaration) -> Result<Declaration> {
+        let inner = || -> Result<_> {
+            match p_decl {
+                p::Declaration::VarDecl(p_var_decl) => {
+                    let var_decl = self.resolve_decl_var(p_var_decl)?;
+                    Ok(Declaration::VarDecl(var_decl))
+                }
+                p::Declaration::FunDecl(p_fun_decl) => match self.resolve_decl_fun(p_fun_decl)? {
+                    FunctionDeclOrDefn::FunDecl(fd) => Ok(Declaration::FunDecl(fd)),
+                    FunctionDeclOrDefn::FunDefn(_fd) => Ok(Declaration::FunDefn),
+                },
+            }
+        };
+        inner().context("<declaration>")
+    }
+    fn resolve_decl_non_global(&mut self, p_decl: p::Declaration) -> Result<NonGlobalDeclaration> {
+        let inner = || -> Result<_> {
+            let decl = match self.resolve_decl(p_decl)? {
+                Declaration::VarDecl(vd) => NonGlobalDeclaration::VarDecl(vd),
+                Declaration::FunDecl(fd) => NonGlobalDeclaration::FunDecl(fd),
+                Declaration::FunDefn => {
+                    return Err(anyhow!("Cannot define function in any non-global scope."))
+                }
+            };
+            Ok(decl)
+        };
+        inner().context("<declaration> non-global")
+    }
     fn resolve_decl_var(
         &mut self,
         p::VariableDeclaration { ident, init }: p::VariableDeclaration,
     ) -> Result<VariableDeclaration> {
         let inner = || -> Result<_> {
-            let var = self.ident_to_var.declare_new_var(ident)?;
+            let ident = self.ident_resolver.declare_new_no_linkage(ident)?;
 
-            let init = init
-                .map(|init_exp| self.resolve_exp(init_exp))
-                .transpose()?;
+            let init = init.map(|p_exp| self.resolve_exp(p_exp)).transpose()?;
 
-            if init.is_some() {
-                self.ident_to_var.mark_var_as_initialized(&var)?;
-            }
-
-            Ok(VariableDeclaration { var, init })
+            Ok(VariableDeclaration { ident, init })
         };
-        inner().context("<declaration>")
+        inner().context("<variable-declaration>")
     }
     fn resolve_decl_fun(
         &mut self,
         p::FunctionDeclaration {
             ident,
-            params: _, // TODO
+            params,
             body,
         }: p::FunctionDeclaration,
-    ) -> Result<FunctionDeclaration> {
+    ) -> Result<FunctionDeclOrDefn> {
         let inner = || -> Result<_> {
-            let body = body.ok_or_else(|| {
-                anyhow!("Function declaration without definition is not supported yet.")
-            })?;
-            let body = self.resolve_block(body)?;
-            Ok(FunctionDeclaration { ident, body })
+            let ident = self.ident_resolver.declare_new_external_linkage(ident)?;
+
+            self.ident_resolver.push_new_scope();
+
+            let params = params
+                .into_iter()
+                .map(|ident| self.ident_resolver.declare_new_no_linkage(ident))
+                .collect::<Result<Vec<_>>>()?;
+
+            let fun_decl = FunctionDeclaration { ident, params };
+
+            let fun_decl = match body {
+                None => FunctionDeclOrDefn::FunDecl(fun_decl),
+                Some(p_body) => {
+                    let body = self.resolve_block(p_body, false)?;
+                    FunctionDeclOrDefn::FunDefn(FunctionDefinition {
+                        decl: fun_decl,
+                        body,
+                    })
+                }
+            };
+
+            self.ident_resolver.pop_scope();
+
+            Ok(fun_decl)
         };
-        inner().context("<function>")
+        inner().context("<function-declaration>")
     }
 
     /* Block */
 
-    fn resolve_block(&mut self, p::Block { items }: p::Block) -> Result<Block> {
+    fn resolve_block(
+        &mut self,
+        p::Block { items }: p::Block,
+        is_new_ident_scope: bool,
+    ) -> Result<Block> {
         let inner = || -> Result<_> {
-            self.ident_to_var.push_new_scope();
+            if is_new_ident_scope {
+                self.ident_resolver.push_new_scope();
+            }
 
             let items = items
                 .into_iter()
-                .map(|item| self.resolve_block_item(item))
+                .map(|p_item| self.resolve_block_item(p_item))
                 .collect::<Result<Vec<_>>>()?;
 
-            self.ident_to_var.pop_scope();
+            if is_new_ident_scope {
+                self.ident_resolver.pop_scope();
+            }
 
             Ok(Block { items })
         };
         inner().context("<block>")
     }
-    fn resolve_block_item(&mut self, item: p::BlockItem) -> Result<BlockItem> {
+    fn resolve_block_item(&mut self, p_item: p::BlockItem) -> Result<BlockItem> {
         let inner = || -> Result<_> {
-            match item {
-                p::BlockItem::Declaration(p_decl) => match p_decl {
-                    p::Declaration::VarDecl(p_var_decl) => {
-                        let decl = self.resolve_decl_var(p_var_decl)?;
-                        Ok(BlockItem::Declaration(decl))
-                    }
-                    p::Declaration::FunDecl(_p_fun_decl) => todo!(),
-                },
+            match p_item {
+                p::BlockItem::Declaration(p_decl) => {
+                    let decl = self.resolve_decl_non_global(p_decl)?;
+                    Ok(BlockItem::Declaration(decl))
+                }
                 p::BlockItem::Statement(p_stmt) => {
                     let stmt = self.resolve_stmt(p_stmt)?;
                     Ok(BlockItem::Statement(stmt))
@@ -104,9 +152,9 @@ impl CAstValidator {
 
     /* Statement */
 
-    fn resolve_stmt(&mut self, stmt: p::Statement) -> Result<Statement> {
+    fn resolve_stmt(&mut self, p_stmt: p::Statement) -> Result<Statement> {
         let inner = || -> Result<_> {
-            match stmt {
+            match p_stmt {
                 p::Statement::Return(p_exp) => {
                     let exp = self.resolve_exp(p_exp)?;
                     Ok(Statement::Return(exp))
@@ -130,7 +178,7 @@ impl CAstValidator {
                     }));
                 }
                 p::Statement::Compound(p_block) => {
-                    let block = self.resolve_block(p_block)?;
+                    let block = self.resolve_block(p_block, true)?;
                     Ok(Statement::Compound(block))
                 }
                 p::Statement::Break => {
@@ -198,7 +246,7 @@ impl CAstValidator {
         }: p::For,
     ) -> Result<Statement> {
         let inner = || -> Result<_> {
-            self.ident_to_var.push_new_scope();
+            self.ident_resolver.push_new_scope();
 
             let init = match init {
                 p::ForInit::Decl(p_var_decl) => ForInit::Decl(self.resolve_decl_var(p_var_decl)?),
@@ -217,7 +265,7 @@ impl CAstValidator {
 
             let loop_id = self.loop_ids_stack.pop().unwrap();
 
-            self.ident_to_var.pop_scope();
+            self.ident_resolver.pop_scope();
 
             let foor = For {
                 init,
@@ -232,13 +280,13 @@ impl CAstValidator {
 
     /* Expression */
 
-    fn resolve_exp(&mut self, exp: p::Expression) -> Result<Expression> {
+    fn resolve_exp(&mut self, p_exp: p::Expression) -> Result<Expression> {
         let inner = || -> Result<_> {
-            match exp {
+            match p_exp {
                 p::Expression::Const(konst) => return Ok(Expression::Const(konst)),
                 p::Expression::Var(ident) => {
-                    let var = self.resolve_var(ident, true)?;
-                    return Ok(Expression::Var(var));
+                    let ident = self.ident_resolver.get(&ident)?;
+                    return Ok(Expression::Var(ident));
                 }
                 p::Expression::Unary(p::Unary { op, sub_exp }) => {
                     let sub_exp = self.resolve_exp(*sub_exp)?;
@@ -258,14 +306,10 @@ impl CAstValidator {
                 }
                 p::Expression::Assignment(p::Assignment { lhs, rhs }) => match *lhs {
                     p::Expression::Var(ident) => {
-                        let lhs_var = self.resolve_var(ident, false)?;
-
+                        let ident = self.ident_resolver.get(&ident)?;
                         let rhs = self.resolve_exp(*rhs)?;
-
-                        self.ident_to_var.mark_var_as_initialized(&lhs_var)?;
-
                         return Ok(Expression::Assignment(Assignment {
-                            var: lhs_var,
+                            ident,
                             rhs: Box::new(rhs),
                         }));
                     }
@@ -275,121 +319,120 @@ impl CAstValidator {
                         ))
                     }
                 },
-                p::Expression::Conditional(cond) => {
-                    let condition = self.resolve_exp(*cond.condition)?;
-                    let then = self.resolve_exp(*cond.then)?;
-                    let elze = self.resolve_exp(*cond.elze)?;
+                p::Expression::Conditional(p::Conditional {
+                    condition,
+                    then,
+                    elze,
+                }) => {
+                    let condition = self.resolve_exp(*condition)?;
+                    let then = self.resolve_exp(*then)?;
+                    let elze = self.resolve_exp(*elze)?;
                     return Ok(Expression::Conditional(Conditional {
                         condition: Box::new(condition),
                         then: Box::new(then),
                         elze: Box::new(elze),
                     }));
                 }
-                p::Expression::FunctionCall(_fun_call) => todo!(),
+                p::Expression::FunctionCall(p::FunctionCall { ident, args }) => {
+                    let ident = self.ident_resolver.get(&ident)?;
+                    let args = args
+                        .into_iter()
+                        .map(|exp| self.resolve_exp(exp))
+                        .collect::<Result<Vec<_>>>()?;
+                    Ok(Expression::FunctionCall(FunctionCall { ident, args }))
+                }
             }
         };
         inner().context("<exp>")
     }
-
-    /* Variable */
-
-    fn resolve_var(&self, ident: Identifier, check_initialized: bool) -> Result<Rc<Variable>> {
-        let var_st = self.ident_to_var.get(&ident)?;
-        if (check_initialized == true) && (var_st.is_initialized == false) {
-            log::warn!("Non-initialized variable {ident:?}");
-        }
-        Ok(Rc::clone(&var_st.var))
-    }
 }
 
-struct IdentToVar {
+struct IdentResolver {
     /// This abstracts a copy-on-write dict.
-    ident_to_scoped_vars: HashMap<Rc<Identifier>, Vec<VariableState>>,
+    ident_to_resolved_idents: HashMap<Rc<p::Identifier>, Vec<Rc<ResolvedIdentifier>>>,
 
     /// This tracks each copy-on-write layer's keys.
-    scope_to_idents: Vec<HashSet<Rc<Identifier>>>,
+    scope_to_idents: Vec<HashSet<Rc<p::Identifier>>>,
 }
-impl Default for IdentToVar {
+impl Default for IdentResolver {
     fn default() -> Self {
-        let ident_to_scoped_vars = HashMap::new();
-
-        let global_scope = HashSet::new();
-        let scope_to_idents = vec![global_scope];
-
         Self {
-            ident_to_scoped_vars,
-            scope_to_idents,
+            ident_to_resolved_idents: HashMap::new(),
+            scope_to_idents: vec![HashSet::new()], // One global scope.
         }
     }
 }
-impl IdentToVar {
+impl IdentResolver {
     fn push_new_scope(&mut self) {
-        let idents = HashSet::new();
-        self.scope_to_idents.push(idents);
+        self.scope_to_idents.push(HashSet::new());
     }
-    fn declare_new_var(&mut self, ident: Identifier) -> Result<Rc<Variable>> {
-        let last_scope = self.scope_to_idents.last_mut().unwrap();
-        if last_scope.contains(&ident) {
+    fn declare_new_no_linkage(&mut self, ident: p::Identifier) -> Result<Rc<ResolvedIdentifier>> {
+        let local_scope = self.scope_to_idents.last_mut().unwrap();
+        if local_scope.contains(&ident) {
             return Err(anyhow!(
-                "Same-scope duplicate declaration of identifier {ident:?}"
+                "Cannot declare a new no-linkage identifier in a local scope that has already declared the same identifier. {ident:?}"
             ));
         }
         let ident = Rc::new(ident);
-        last_scope.insert(Rc::clone(&ident));
+        local_scope.insert(Rc::clone(&ident));
 
-        let var = Rc::new(Variable::new(Some(Rc::clone(&ident))));
-        let var_st = VariableState {
-            var: Rc::clone(&var),
-            is_initialized: false,
-        };
-        let scoped_vars = self.ident_to_scoped_vars.entry(ident).or_default();
-        scoped_vars.push(var_st);
+        let resolved_ident = Rc::new(ResolvedIdentifier::new_no_linkage(Some(Rc::clone(&ident))));
+        self.ident_to_resolved_idents
+            .entry(ident)
+            .or_default()
+            .push(Rc::clone(&resolved_ident));
 
-        Ok(var)
+        Ok(resolved_ident)
+    }
+    fn declare_new_external_linkage(
+        &mut self,
+        ident: p::Identifier,
+    ) -> Result<Rc<ResolvedIdentifier>> {
+        let local_scope = self.scope_to_idents.last_mut().unwrap();
+        if local_scope.contains(&ident) {
+            let resolved_idents = self.ident_to_resolved_idents.get(&ident).unwrap();
+            let resolved_ident = resolved_idents.last().unwrap();
+            match resolved_ident.as_ref() {
+                ResolvedIdentifier::NoLinkage { .. } => {
+                    return Err(anyhow!(
+                        "Cannot declare a new external-linkage identifier in a local scope that has already declared the same identifier as no-linkage. {ident:?}" 
+                    ));
+                }
+                ResolvedIdentifier::ExternalLinkage { .. } => return Ok(Rc::clone(resolved_ident)),
+            }
+        } else {
+            let ident = Rc::new(ident);
+            local_scope.insert(Rc::clone(&ident));
+
+            let resolved_ident = Rc::new(ResolvedIdentifier::ExternalLinkage(Rc::clone(&ident)));
+            self.ident_to_resolved_idents
+                .entry(Rc::clone(&ident))
+                .or_default()
+                .push(Rc::clone(&resolved_ident));
+
+            return Ok(resolved_ident);
+        }
     }
     fn pop_scope(&mut self) {
         let idents = self.scope_to_idents.pop().unwrap();
         for ident in idents {
-            let scoped_vars = self.ident_to_scoped_vars.get_mut(&ident).unwrap();
-            if scoped_vars.len() > 1 {
-                scoped_vars.pop();
+            let resolved_idents = self.ident_to_resolved_idents.get_mut(&ident).unwrap();
+            if resolved_idents.len() > 1 {
+                resolved_idents.pop();
             } else {
-                self.ident_to_scoped_vars.remove(&ident);
+                self.ident_to_resolved_idents.remove(&ident);
             }
         }
     }
 
-    fn get(&self, ident: &Identifier) -> Result<&VariableState> {
-        let scoped_vars = self
-            .ident_to_scoped_vars
+    fn get(&self, ident: &p::Identifier) -> Result<Rc<ResolvedIdentifier>> {
+        let resolved_idents = self
+            .ident_to_resolved_idents
             .get(ident)
-            .ok_or_else(|| anyhow!("Non-declared identity {ident:?}"))?;
-        let var_st = scoped_vars.last().unwrap();
-        Ok(var_st)
+            .ok_or_else(|| anyhow!("Non-declared identifier {ident:?}"))?;
+        let resolved_ident = resolved_idents.last().unwrap();
+        Ok(Rc::clone(resolved_ident))
     }
-    fn get_mut(&mut self, ident: &Identifier) -> Result<&mut VariableState> {
-        let scoped_vars = self
-            .ident_to_scoped_vars
-            .get_mut(ident)
-            .ok_or_else(|| anyhow!("Non-declared identity {ident:?}"))?;
-        let var_st = scoped_vars.last_mut().unwrap();
-        Ok(var_st)
-    }
-
-    fn mark_var_as_initialized(&mut self, var: &Variable) -> Result<()> {
-        let ident = var.orig_ident().as_ref().unwrap();
-        self.mark_ident_as_initialized(ident)
-    }
-    fn mark_ident_as_initialized(&mut self, ident: &Identifier) -> Result<()> {
-        let var_st = self.get_mut(ident).unwrap();
-        var_st.is_initialized = true;
-        Ok(())
-    }
-}
-
-struct VariableState {
-    var: Rc<Variable>,
-    is_initialized: bool,
 }
 
 #[derive(Default, Deref, DerefMut)]

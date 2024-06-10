@@ -15,9 +15,16 @@ enum ShortCircuitBOT {
 
 pub struct Tackifier {}
 impl Tackifier {
-    pub fn tackify_program(c::Program { func }: c::Program) -> Program {
+    pub fn tackify_program(c::Program { mut funs }: c::Program) -> Program {
+        // TODO
+        let fun = funs.pop().unwrap();
+        let fun_defn = match fun {
+            c::FunctionDeclOrDefn::FunDecl(_fun_decl) => todo!(),
+            c::FunctionDeclOrDefn::FunDefn(fun_defn) => fun_defn,
+        };
+
         let gen_instrs = TackyAstGenerator::default();
-        let func = gen_instrs.tackify_func(func);
+        let func = gen_instrs.tackify_func(fun_defn);
 
         Program { func }
     }
@@ -32,7 +39,10 @@ struct TackyAstGenerator {
 impl TackyAstGenerator {
     fn tackify_func(
         mut self,
-        c::FunctionDeclaration { ident, body }: c::FunctionDeclaration,
+        c::FunctionDefinition {
+            decl: c::FunctionDeclaration { ident, params: _ },
+            body,
+        }: c::FunctionDefinition,
     ) -> Function {
         self.gen_block(body);
 
@@ -49,16 +59,19 @@ impl TackyAstGenerator {
     fn gen_block(&mut self, c::Block { items }: c::Block) {
         for c_item in items {
             match c_item {
-                c::BlockItem::Declaration(c_decl) => self.gen_decl_var(c_decl),
+                c::BlockItem::Declaration(c_decl) => match c_decl {
+                    c::NonGlobalDeclaration::VarDecl(c_var_decl) => self.gen_decl_var(c_var_decl),
+                    c::NonGlobalDeclaration::FunDecl(_c_fun_decl) => todo!(),
+                },
                 c::BlockItem::Statement(c_stmt) => self.gen_stmt(c_stmt),
             }
         }
     }
-    fn gen_decl_var(&mut self, c::VariableDeclaration { var, init }: c::VariableDeclaration) {
+    fn gen_decl_var(&mut self, c::VariableDeclaration { ident, init }: c::VariableDeclaration) {
         match init {
             None => { /* No-op. */ }
             Some(init_exp) => {
-                self.gen_exp_assignment(var, init_exp);
+                self.gen_exp_assignment(ident, init_exp);
             }
         }
     }
@@ -84,13 +97,14 @@ impl TackyAstGenerator {
     fn gen_exp(&mut self, c_exp: c::Expression) -> ReadableValue {
         match c_exp {
             c::Expression::Const(c::Const::Int(i)) => ReadableValue::Constant(i),
-            c::Expression::Var(var) => ReadableValue::Variable(var),
+            c::Expression::Var(ident) => ReadableValue::Variable(ident),
             c::Expression::Unary(unary) => self.gen_exp_unary(unary),
             c::Expression::Binary(binary) => self.gen_exp_binary(binary),
-            c::Expression::Assignment(c::Assignment { var, rhs }) => {
-                self.gen_exp_assignment(var, *rhs)
+            c::Expression::Assignment(c::Assignment { ident, rhs }) => {
+                self.gen_exp_assignment(ident, *rhs)
             }
             c::Expression::Conditional(c_cond) => self.gen_exp_conditional(c_cond),
+            c::Expression::FunctionCall(_c_fun_call) => todo!(),
         }
     }
 
@@ -99,7 +113,7 @@ impl TackyAstGenerator {
     fn gen_exp_unary(&mut self, c::Unary { op, sub_exp }: c::Unary) -> ReadableValue {
         let op = Self::convert_op_unary(op);
         let src = self.gen_exp(*sub_exp);
-        let dst = Rc::new(Variable::new_anon());
+        let dst = Rc::new(ResolvedIdentifier::new_no_linkage(None));
         self.instrs.push(Instruction::Unary(Unary {
             op,
             src,
@@ -125,7 +139,7 @@ impl TackyAstGenerator {
     ) -> ReadableValue {
         let src1 = self.gen_exp(*lhs);
         let src2 = self.gen_exp(*rhs);
-        let dst = Rc::new(Variable::new_anon());
+        let dst = Rc::new(ResolvedIdentifier::new_no_linkage(None));
         self.instrs.push(Instruction::Binary(Binary {
             op,
             src1,
@@ -139,9 +153,9 @@ impl TackyAstGenerator {
         op_type: ShortCircuitBOT,
         c::Binary { op: _, lhs, rhs }: c::Binary,
     ) -> ReadableValue {
-        let result = Rc::new(Variable::new_anon());
+        let result = Rc::new(ResolvedIdentifier::new_no_linkage(None));
 
-        let name = result.id();
+        let name = result.id_int().unwrap();
         let label_shortcirc = Rc::new(LabelIdentifier::new(format!(
             "{op_type}.{name:x}.shortcircuit",
         )));
@@ -224,15 +238,19 @@ impl TackyAstGenerator {
 
     /* C Assignment */
 
-    fn gen_exp_assignment(&mut self, var: Rc<Variable>, rhs: c::Expression) -> ReadableValue {
+    fn gen_exp_assignment(
+        &mut self,
+        ident: Rc<ResolvedIdentifier>,
+        rhs: c::Expression,
+    ) -> ReadableValue {
         let rhs = self.gen_exp(rhs);
 
         self.instrs.push(Instruction::Copy(Copy {
             src: rhs,
-            dst: Rc::clone(&var),
+            dst: Rc::clone(&ident),
         }));
 
-        ReadableValue::Variable(var)
+        ReadableValue::Variable(ident)
     }
 
     /* Conditional */
@@ -296,9 +314,9 @@ impl TackyAstGenerator {
             elze,
         }: c::Conditional,
     ) -> ReadableValue {
-        let result = Rc::new(Variable::new_anon());
+        let result = Rc::new(ResolvedIdentifier::new_no_linkage(None));
 
-        let name = result.id();
+        let name = result.id_int().unwrap();
         let label_else = Rc::new(LabelIdentifier::new(format!("exp_cond.{name:x}.else")));
         let label_end = Rc::new(LabelIdentifier::new(format!("exp_cond.{name:x}.end",)));
 

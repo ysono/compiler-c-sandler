@@ -1,4 +1,4 @@
-pub use crate::stage3_tacky::tacky_ast::{Identifier, LabelIdentifier, Variable};
+pub use crate::stage3_tacky::tacky_ast::{LabelIdentifier, ResolvedIdentifier};
 use derive_more::{Deref, From};
 use std::rc::Rc;
 
@@ -9,7 +9,7 @@ pub struct Program {
 
 #[derive(Debug)]
 pub struct Function {
-    pub ident: Identifier,
+    pub ident: Rc<ResolvedIdentifier>,
     pub instructions: Vec<Instruction<Operand>>,
 }
 
@@ -56,7 +56,7 @@ pub enum BinaryOperator {
 pub enum PreFinalOperand {
     ImmediateValue(i32),
     Register(Register),
-    PseudoRegister(Rc<Variable>),
+    PseudoRegister(Rc<ResolvedIdentifier>),
 }
 
 #[derive(From, Clone, Debug)]

@@ -2,7 +2,7 @@ use crate::{
     files::AsmFilepath,
     stage4_asm_gen::asm_ast::{
         BinaryOperator, ConditionCode, Function, Instruction, LabelIdentifier, Operand, Program,
-        Register, UnaryOperator,
+        Register, ResolvedIdentifier, UnaryOperator,
     },
 };
 use lazy_static::lazy_static;
@@ -50,15 +50,25 @@ impl AsmCodeEmitter {
         self.bw.flush()?;
         Ok(())
     }
-    fn write_func(&mut self, func: Function) -> Result<(), io::Error> {
+    fn write_func(
+        &mut self,
+        Function {
+            ident,
+            instructions,
+        }: Function,
+    ) -> Result<(), io::Error> {
         const IDENT_PFX: &str = if cfg!(target_os = "macos") { "_" } else { "" };
-        let ident = &func.ident as &String;
+
+        let ident: &String = match ident.as_ref() {
+            ResolvedIdentifier::NoLinkage { .. } => todo!(),
+            ResolvedIdentifier::ExternalLinkage(ident) => ident,
+        };
 
         writeln!(&mut self.bw, "{TAB}.globl{TAB}{IDENT_PFX}{ident}")?;
         writeln!(&mut self.bw, "{IDENT_PFX}{ident}:")?;
         writeln!(&mut self.bw, "{TAB}pushq{TAB}%rbp")?;
         writeln!(&mut self.bw, "{TAB}movq{TAB}%rsp, %rbp")?;
-        for instr in func.instructions.into_iter() {
+        for instr in instructions.into_iter() {
             self.write_instr(instr)?;
         }
         Ok(())
