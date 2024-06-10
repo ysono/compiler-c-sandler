@@ -170,7 +170,7 @@ impl AsmCodeEmitter {
                 write!(&mut self.bw, "{reg_str}")?;
             }
             Operand::StackPosition(stkpos) => {
-                write!(&mut self.bw, "-{}(%rbp)", *stkpos)?;
+                write!(&mut self.bw, "{}(%rbp)", *stkpos)?;
             }
         }
         Ok(())

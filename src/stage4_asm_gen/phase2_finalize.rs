@@ -30,7 +30,8 @@ impl InstrsFinalizer {
         out_instrs.extend(instrs);
 
         /* We must evaluate self.last_used_stack_pos only after the iterator of `Instruction`s has been completely traversed. */
-        let alloc_stack_instr = Instruction::AllocateStack(self.last_used_stack_pos);
+        let stack_bytelen = self.last_used_stack_pos * -1;
+        let alloc_stack_instr = Instruction::AllocateStack(stack_bytelen);
         out_instrs[0] = alloc_stack_instr;
 
         out_instrs
@@ -86,9 +87,9 @@ impl InstrsFinalizer {
     }
     fn var_to_stack_pos(&mut self, ident: Rc<ResolvedIdentifier>) -> StackPosition {
         /* For now, all Tacky Values represent 32-bit values. */
-        const VAL_BYTELEN: usize = mem::size_of::<i32>();
+        const VAL_BYTELEN: isize = mem::size_of::<i32>() as isize;
         let pos = self.var_to_stack_pos.entry(ident).or_insert_with(|| {
-            self.last_used_stack_pos.0 += VAL_BYTELEN;
+            self.last_used_stack_pos.0 -= VAL_BYTELEN;
             self.last_used_stack_pos
         });
         *pos

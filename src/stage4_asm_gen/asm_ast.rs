@@ -1,5 +1,5 @@
 pub use crate::stage3_tacky::tacky_ast::{LabelIdentifier, ResolvedIdentifier};
-use derive_more::{Deref, From};
+use derive_more::{Deref, From, Mul};
 use std::rc::Rc;
 
 #[derive(Debug)]
@@ -74,9 +74,9 @@ pub enum Register {
     R11,
 }
 
-/// Abs offset from RBP. I.e. negation of at-runtime offset from RBP.
-#[derive(Clone, Copy, Deref, Debug)]
-pub struct StackPosition(pub(super) usize);
+/// Offset from RBP.
+#[derive(Clone, Copy, Deref, Mul, Debug)]
+pub struct StackPosition(pub(super) isize);
 
 #[derive(Debug)]
 pub enum ConditionCode {
