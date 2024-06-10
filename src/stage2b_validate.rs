@@ -354,7 +354,7 @@ impl CAstValidator {
             body,
         }: p::For,
     ) -> Result<Statement> {
-        self.ident_to_var.push_new_scope(); // New outer scope.
+        self.ident_to_var.push_new_scope();
 
         let init = match init {
             p::ForInit::Decl(p_decl) => ForInit::Decl(self.resolve_decl(p_decl)?),
@@ -366,18 +366,14 @@ impl CAstValidator {
 
         let post = post.map(|p_exp| self.resolve_exp(p_exp)).transpose()?;
 
-        self.ident_to_var.push_new_scope(); // New inner scope.
-
         let loop_id = Rc::new(LoopId::new("for"));
-        self.loop_ids_stack.push(loop_id); // New loop id.
+        self.loop_ids_stack.push(loop_id);
 
         let body = Box::new(self.resolve_stmt(*body)?);
 
-        let loop_id = self.loop_ids_stack.pop().unwrap(); // New loop id.
+        let loop_id = self.loop_ids_stack.pop().unwrap();
 
-        self.ident_to_var.pop_scope(); // New inner scope.
-
-        self.ident_to_var.pop_scope(); // New outer scope.
+        self.ident_to_var.pop_scope();
 
         let foor = For {
             init,
