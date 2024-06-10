@@ -96,7 +96,7 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
     }
 
     pub fn parse_program(&mut self) -> Result<Program> {
-        let mut inner = || -> Result<Program> {
+        let mut inner = || -> Result<_> {
             let func = self.parse_func()?;
 
             match self.tokens.next() {
@@ -109,7 +109,7 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
         inner().context("tokens -> c_ast <program>")
     }
     fn parse_func(&mut self) -> Result<Function> {
-        let mut inner = || -> Result<Function> {
+        let mut inner = || -> Result<_> {
             self.expect_exact(&[t::Keyword::Int.into()])?;
 
             let ident = self.parse_ident()?;
@@ -127,7 +127,7 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
         inner().context("<function>")
     }
     fn parse_ident(&mut self) -> Result<Identifier> {
-        let mut inner = || -> Result<Identifier> {
+        let mut inner = || -> Result<_> {
             match self.tokens.next() {
                 Some(Ok(t::Token::Identifier(ident))) => Ok(ident),
                 actual => Err(anyhow!("{actual:?}")),
@@ -136,26 +136,29 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
         inner().context("<identifier>")
     }
     fn parse_block(&mut self) -> Result<Block> {
-        self.expect_exact(&[t::Demarcator::BraceOpen.into()])?;
+        let mut inner = || -> Result<_> {
+            self.expect_exact(&[t::Demarcator::BraceOpen.into()])?;
 
-        let mut items = vec![];
-        loop {
-            match self.tokens.peek() {
-                Some(Ok(t::Token::Demarcator(t::Demarcator::BraceClose))) => {
-                    self.tokens.next();
-                    break;
-                }
-                _ => {
-                    let item = self.parse_block_item()?;
-                    items.push(item);
+            let mut items = vec![];
+            loop {
+                match self.tokens.peek() {
+                    Some(Ok(t::Token::Demarcator(t::Demarcator::BraceClose))) => {
+                        self.tokens.next();
+                        break;
+                    }
+                    _ => {
+                        let item = self.parse_block_item()?;
+                        items.push(item);
+                    }
                 }
             }
-        }
 
-        Ok(Block { items })
+            Ok(Block { items })
+        };
+        inner().context("<block>")
     }
     fn parse_block_item(&mut self) -> Result<BlockItem> {
-        let mut inner = || -> Result<BlockItem> {
+        let mut inner = || -> Result<_> {
             match self.tokens.peek() {
                 Some(Ok(t::Token::Keyword(t::Keyword::Int))) => {
                     self.parse_declaration().map(BlockItem::Declaration)
@@ -166,7 +169,7 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
         inner().context("<block-item>")
     }
     fn parse_declaration(&mut self) -> Result<Declaration> {
-        let mut inner = || -> Result<Declaration> {
+        let mut inner = || -> Result<_> {
             self.expect_exact(&[t::Keyword::Int.into()])?;
 
             let ident = self.parse_ident()?;
@@ -191,7 +194,7 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
     /* Statement */
 
     fn parse_stmt(&mut self) -> Result<Statement> {
-        let mut inner = || -> Result<Statement> {
+        let mut inner = || -> Result<_> {
             match self.tokens.peek() {
                 Some(Ok(t::Token::Demarcator(t::Demarcator::Semicolon))) => {
                     self.tokens.next();
@@ -241,7 +244,7 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
         inner().context("<statement>")
     }
     fn parse_stmt_if(&mut self) -> Result<Statement> {
-        let mut inner = || -> Result<Statement> {
+        let mut inner = || -> Result<_> {
             self.expect_exact(&[t::Control::If.into(), t::Demarcator::ParenOpen.into()])?;
 
             let condition = self.parse_exp(BinaryOperatorPrecedence::min())?;
@@ -269,7 +272,7 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
         inner().context("<statement> if")
     }
     fn parse_stmt_while(&mut self) -> Result<Statement> {
-        let mut inner = || -> Result<Statement> {
+        let mut inner = || -> Result<_> {
             self.expect_exact(&[t::Loop::While.into(), t::Demarcator::ParenOpen.into()])?;
 
             let condition = self.parse_exp(BinaryOperatorPrecedence::min())?;
@@ -286,7 +289,7 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
         inner().context("<statement> while")
     }
     fn parse_stmt_dowhile(&mut self) -> Result<Statement> {
-        let mut inner = || -> Result<Statement> {
+        let mut inner = || -> Result<_> {
             self.expect_exact(&[t::Loop::Do.into()])?;
 
             let body = self.parse_stmt()?;
@@ -308,7 +311,7 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
         inner().context("<statement> dowhile")
     }
     fn parse_stmt_for(&mut self) -> Result<Statement> {
-        let mut inner = || -> Result<Statement> {
+        let mut inner = || -> Result<_> {
             self.expect_exact(&[t::Loop::For.into(), t::Demarcator::ParenOpen.into()])?;
 
             let init = match self.tokens.peek() {
@@ -365,7 +368,7 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
     /* Expression */
 
     fn parse_exp(&mut self, min_prec: BinaryOperatorPrecedence) -> Result<Expression> {
-        let mut inner = || -> Result<Expression> {
+        let mut inner = || -> Result<_> {
             let mut lhs = self.parse_factor()?;
 
             loop {
@@ -425,7 +428,7 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
         inner().context("<exp>")
     }
     fn parse_factor(&mut self) -> Result<Expression> {
-        let mut inner = || -> Result<Expression> {
+        let mut inner = || -> Result<_> {
             match self.tokens.next() {
                 Some(Ok(t::Token::Const(konst))) => return Ok(Expression::Const(konst)),
                 Some(Ok(t::Token::Identifier(ident))) => return Ok(Expression::Var(ident)),

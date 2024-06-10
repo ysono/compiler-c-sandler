@@ -6,17 +6,16 @@ use std::rc::Rc;
 
 pub struct AsmCodeGenerator {}
 impl AsmCodeGenerator {
-    pub fn gen_program(t_prog: t::Program) -> Program {
-        let t::Program { func } = t_prog;
+    pub fn gen_program(t::Program { func }: t::Program) -> Program {
         let func = Self::gen_func(func);
         Program { func }
     }
-    fn gen_func(t_func: t::Function) -> Function {
-        let t::Function {
+    fn gen_func(
+        t::Function {
             ident,
             instructions: t_intrs,
-        } = t_func;
-
+        }: t::Function,
+    ) -> Function {
         let asm_instrs = Self::gen_instructions(t_intrs);
 
         let mut fin = InstrsFinalizer::default();
@@ -73,10 +72,10 @@ impl AsmCodeGenerator {
     }
     fn gen_unary_inplace_instrs(
         asm_op: UnaryOperator,
-        t_unary: t::Unary,
+        t::Unary { op: _, src, dst }: t::Unary,
     ) -> Vec<Instruction<PreFinalOperand>> {
-        let asm_src = Self::convert_val_operand(t_unary.src);
-        let asm_dst = Self::convert_var_operand(t_unary.dst);
+        let asm_src = Self::convert_val_operand(src);
+        let asm_dst = Self::convert_var_operand(dst);
 
         let asm_instr_1 = Instruction::Mov {
             src: asm_src,
@@ -85,9 +84,11 @@ impl AsmCodeGenerator {
         let asm_instr_2 = Instruction::Unary(asm_op, asm_dst);
         vec![asm_instr_1, asm_instr_2]
     }
-    fn gen_unary_comparison_instrs(t_unary: t::Unary) -> Vec<Instruction<PreFinalOperand>> {
-        let asm_src = Self::convert_val_operand(t_unary.src);
-        let asm_dst = Self::convert_var_operand(t_unary.dst);
+    fn gen_unary_comparison_instrs(
+        t::Unary { op: _, src, dst }: t::Unary,
+    ) -> Vec<Instruction<PreFinalOperand>> {
+        let asm_src = Self::convert_val_operand(src);
+        let asm_dst = Self::convert_var_operand(dst);
 
         Self::gen_comparison_instrs_from_asm(
             ConditionCode::E,
@@ -120,11 +121,16 @@ impl AsmCodeGenerator {
     }
     fn gen_arithmetic_instrs(
         asm_op: BinaryOperator,
-        t_binary: t::Binary,
+        t::Binary {
+            op: _,
+            src1,
+            src2,
+            dst,
+        }: t::Binary,
     ) -> Vec<Instruction<PreFinalOperand>> {
-        let asm_src1 = Self::convert_val_operand(t_binary.src1);
-        let asm_src2 = Self::convert_val_operand(t_binary.src2);
-        let asm_dst = Self::convert_var_operand(t_binary.dst);
+        let asm_src1 = Self::convert_val_operand(src1);
+        let asm_src2 = Self::convert_val_operand(src2);
+        let asm_dst = Self::convert_var_operand(dst);
 
         let asm_instr_1 = Instruction::Mov {
             src: asm_src1,
@@ -139,11 +145,16 @@ impl AsmCodeGenerator {
     }
     fn gen_divrem_instrs(
         ans_reg: Register,
-        t_binary: t::Binary,
+        t::Binary {
+            op: _,
+            src1,
+            src2,
+            dst,
+        }: t::Binary,
     ) -> Vec<Instruction<PreFinalOperand>> {
-        let asm_src1 = Self::convert_val_operand(t_binary.src1);
-        let asm_src2 = Self::convert_val_operand(t_binary.src2);
-        let asm_dst = Self::convert_var_operand(t_binary.dst);
+        let asm_src1 = Self::convert_val_operand(src1);
+        let asm_src2 = Self::convert_val_operand(src2);
+        let asm_dst = Self::convert_var_operand(dst);
 
         let asm_instr_1 = Instruction::Mov {
             src: asm_src1,
@@ -159,11 +170,16 @@ impl AsmCodeGenerator {
     }
     fn gen_comparison_instrs(
         cmp_0_cc: ConditionCode,
-        t_binary: t::Binary,
+        t::Binary {
+            op: _,
+            src1,
+            src2,
+            dst,
+        }: t::Binary,
     ) -> Vec<Instruction<PreFinalOperand>> {
-        let asm_src1 = Self::convert_val_operand(t_binary.src1);
-        let asm_src2 = Self::convert_val_operand(t_binary.src2);
-        let asm_dst = Self::convert_var_operand(t_binary.dst);
+        let asm_src1 = Self::convert_val_operand(src1);
+        let asm_src2 = Self::convert_val_operand(src2);
+        let asm_dst = Self::convert_var_operand(dst);
 
         Self::gen_comparison_instrs_from_asm(cmp_0_cc, asm_src1, asm_src2, asm_dst)
     }
@@ -197,14 +213,14 @@ impl AsmCodeGenerator {
 
     fn gen_jumpif_instrs(
         cmp_0_cc: ConditionCode,
-        t_jumpif: t::JumpIf,
+        t::JumpIf { condition, tgt }: t::JumpIf,
     ) -> Vec<Instruction<PreFinalOperand>> {
-        let condition = Self::convert_val_operand(t_jumpif.condition);
+        let condition = Self::convert_val_operand(condition);
         let asm_instr_1 = Instruction::Cmp {
             tgt: condition,
             arg: PreFinalOperand::ImmediateValue(0),
         };
-        let asm_instr_2 = Instruction::JmpCC(cmp_0_cc, t_jumpif.tgt);
+        let asm_instr_2 = Instruction::JmpCC(cmp_0_cc, tgt);
         vec![asm_instr_1, asm_instr_2]
     }
 

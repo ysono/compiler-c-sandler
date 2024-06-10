@@ -15,37 +15,37 @@ pub struct CAstValidator {
     loop_ids_stack: LoopIdsStack,
 }
 impl CAstValidator {
-    pub fn resolve_program(&mut self, prog: p::Program) -> Result<Program> {
-        let inner = || -> Result<Program> {
-            let p::Program { func } = prog;
+    pub fn resolve_program(&mut self, p::Program { func }: p::Program) -> Result<Program> {
+        let inner = || -> Result<_> {
             let func = self.resolve_func(func)?;
             Ok(Program { func })
         };
         inner().context("c_ast validator on <program>")
     }
-    fn resolve_func(&mut self, func: p::Function) -> Result<Function> {
-        let inner = || -> Result<Function> {
-            let p::Function { ident, body } = func;
+    fn resolve_func(&mut self, p::Function { ident, body }: p::Function) -> Result<Function> {
+        let inner = || -> Result<_> {
             let body = self.resolve_block(body)?;
             Ok(Function { ident, body })
         };
         inner().context("<function>")
     }
-    fn resolve_block(&mut self, block: p::Block) -> Result<Block> {
-        self.ident_to_var.push_new_scope();
+    fn resolve_block(&mut self, p::Block { items }: p::Block) -> Result<Block> {
+        let inner = || -> Result<_> {
+            self.ident_to_var.push_new_scope();
 
-        let items = block
-            .items
-            .into_iter()
-            .map(|item| self.resolve_block_item(item))
-            .collect::<Result<Vec<_>>>()?;
+            let items = items
+                .into_iter()
+                .map(|item| self.resolve_block_item(item))
+                .collect::<Result<Vec<_>>>()?;
 
-        self.ident_to_var.pop_scope();
+            self.ident_to_var.pop_scope();
 
-        Ok(Block { items })
+            Ok(Block { items })
+        };
+        inner().context("<block>")
     }
     fn resolve_block_item(&mut self, item: p::BlockItem) -> Result<BlockItem> {
-        let inner = || -> Result<BlockItem> {
+        let inner = || -> Result<_> {
             match item {
                 p::BlockItem::Declaration(decl) => {
                     let decl = self.resolve_decl(decl)?;
@@ -59,10 +59,11 @@ impl CAstValidator {
         };
         inner().context("<block-item>")
     }
-    fn resolve_decl(&mut self, decl: p::Declaration) -> Result<Declaration> {
-        let inner = || -> Result<Declaration> {
-            let p::Declaration { ident, init } = decl;
-
+    fn resolve_decl(
+        &mut self,
+        p::Declaration { ident, init }: p::Declaration,
+    ) -> Result<Declaration> {
+        let inner = || -> Result<_> {
             let var = self.ident_to_var.declare_new_var(ident)?;
 
             let init = init
@@ -81,7 +82,7 @@ impl CAstValidator {
     /* Statement */
 
     fn resolve_stmt(&mut self, stmt: p::Statement) -> Result<Statement> {
-        let inner = || -> Result<Statement> {
+        let inner = || -> Result<_> {
             match stmt {
                 p::Statement::Return(p_exp) => {
                     let exp = self.resolve_exp(p_exp)?;
@@ -91,10 +92,14 @@ impl CAstValidator {
                     let exp = self.resolve_exp(p_exp)?;
                     Ok(Statement::Expression(exp))
                 }
-                p::Statement::If(p_yf) => {
-                    let condition = self.resolve_exp(p_yf.condition)?;
-                    let then = self.resolve_stmt(*p_yf.then)?;
-                    let elze = p_yf.elze.map(|elze| self.resolve_stmt(*elze)).transpose()?;
+                p::Statement::If(p::If {
+                    condition,
+                    then,
+                    elze,
+                }) => {
+                    let condition = self.resolve_exp(condition)?;
+                    let then = self.resolve_stmt(*then)?;
+                    let elze = elze.map(|elze| self.resolve_stmt(*elze)).transpose()?;
                     return Ok(Statement::If(If {
                         condition,
                         then: Box::new(then),
@@ -128,14 +133,14 @@ impl CAstValidator {
         inner().context("<statement>")
     }
     fn resolve_stmt_while(&mut self, p_condbody: p::CondBody) -> Result<Statement> {
-        let inner = || -> Result<Statement> {
+        let inner = || -> Result<_> {
             let (loop_id, condbody) = self.resolve_stmt_condbody("while", p_condbody)?;
             Ok(Statement::While(loop_id, condbody))
         };
         inner().context("<statement> while")
     }
     fn resolve_stmt_dowhile(&mut self, p_condbody: p::CondBody) -> Result<Statement> {
-        let inner = || -> Result<Statement> {
+        let inner = || -> Result<_> {
             let (loop_id, condbody) = self.resolve_stmt_condbody("dowhile", p_condbody)?;
             Ok(Statement::DoWhile(loop_id, condbody))
         };
@@ -146,7 +151,7 @@ impl CAstValidator {
         descr: &'static str,
         p::CondBody { condition, body }: p::CondBody,
     ) -> Result<(Rc<LoopId>, CondBody)> {
-        let inner = || -> Result<_, anyhow::Error> {
+        let inner = || -> Result<_> {
             let condition = self.resolve_exp(condition)?;
 
             let loop_id = Rc::new(LoopId::new(descr));
@@ -169,40 +174,43 @@ impl CAstValidator {
             body,
         }: p::For,
     ) -> Result<Statement> {
-        self.ident_to_var.push_new_scope();
+        let inner = || -> Result<_> {
+            self.ident_to_var.push_new_scope();
 
-        let init = match init {
-            p::ForInit::Decl(p_decl) => ForInit::Decl(self.resolve_decl(p_decl)?),
-            p::ForInit::Exp(p_exp) => ForInit::Exp(self.resolve_exp(p_exp)?),
-            p::ForInit::None => ForInit::None,
+            let init = match init {
+                p::ForInit::Decl(p_decl) => ForInit::Decl(self.resolve_decl(p_decl)?),
+                p::ForInit::Exp(p_exp) => ForInit::Exp(self.resolve_exp(p_exp)?),
+                p::ForInit::None => ForInit::None,
+            };
+
+            let condition = condition.map(|p_exp| self.resolve_exp(p_exp)).transpose()?;
+
+            let post = post.map(|p_exp| self.resolve_exp(p_exp)).transpose()?;
+
+            let loop_id = Rc::new(LoopId::new("for"));
+            self.loop_ids_stack.push(loop_id);
+
+            let body = Box::new(self.resolve_stmt(*body)?);
+
+            let loop_id = self.loop_ids_stack.pop().unwrap();
+
+            self.ident_to_var.pop_scope();
+
+            let foor = For {
+                init,
+                condition,
+                post,
+                body,
+            };
+            Ok(Statement::For(loop_id, foor))
         };
-
-        let condition = condition.map(|p_exp| self.resolve_exp(p_exp)).transpose()?;
-
-        let post = post.map(|p_exp| self.resolve_exp(p_exp)).transpose()?;
-
-        let loop_id = Rc::new(LoopId::new("for"));
-        self.loop_ids_stack.push(loop_id);
-
-        let body = Box::new(self.resolve_stmt(*body)?);
-
-        let loop_id = self.loop_ids_stack.pop().unwrap();
-
-        self.ident_to_var.pop_scope();
-
-        let foor = For {
-            init,
-            condition,
-            post,
-            body,
-        };
-        Ok(Statement::For(loop_id, foor))
+        inner().context("<statement> for")
     }
 
     /* Expression */
 
     fn resolve_exp(&mut self, exp: p::Expression) -> Result<Expression> {
-        let inner = || -> Result<Expression> {
+        let inner = || -> Result<_> {
             match exp {
                 p::Expression::Const(konst) => return Ok(Expression::Const(konst)),
                 p::Expression::Var(ident) => {

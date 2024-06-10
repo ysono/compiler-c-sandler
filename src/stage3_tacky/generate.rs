@@ -15,9 +15,7 @@ enum ShortCircuitBOT {
 
 pub struct Tackifier {}
 impl Tackifier {
-    pub fn tackify_program(c_prog: c::Program) -> Program {
-        let c::Program { func } = c_prog;
-
+    pub fn tackify_program(c::Program { func }: c::Program) -> Program {
         let gen_instrs = TackyAstGenerator::default();
         let func = gen_instrs.tackify_func(func);
 
@@ -32,9 +30,7 @@ struct TackyAstGenerator {
     instrs: Vec<Instruction>,
 }
 impl TackyAstGenerator {
-    fn tackify_func(mut self, c_func: c::Function) -> Function {
-        let c::Function { ident, body } = c_func;
-
+    fn tackify_func(mut self, c::Function { ident, body }: c::Function) -> Function {
         self.gen_block(body);
 
         let ret_kon = c::Const::Int(0);
@@ -47,16 +43,15 @@ impl TackyAstGenerator {
             instructions: self.instrs,
         }
     }
-    fn gen_block(&mut self, c_block: c::Block) {
-        for c_item in c_block.items {
+    fn gen_block(&mut self, c::Block { items }: c::Block) {
+        for c_item in items {
             match c_item {
                 c::BlockItem::Declaration(c_decl) => self.gen_decl(c_decl),
                 c::BlockItem::Statement(c_stmt) => self.gen_stmt(c_stmt),
             }
         }
     }
-    fn gen_decl(&mut self, c_decl: c::Declaration) {
-        let c::Declaration { var, init } = c_decl;
+    fn gen_decl(&mut self, c::Declaration { var, init }: c::Declaration) {
         match init {
             None => { /* No-op. */ }
             Some(init_exp) => {
@@ -98,9 +93,9 @@ impl TackyAstGenerator {
 
     /* C Unary */
 
-    fn gen_exp_unary(&mut self, c_unary: c::Unary) -> ReadableValue {
-        let op = Self::convert_op_unary(c_unary.op);
-        let src = self.gen_exp(*c_unary.sub_exp);
+    fn gen_exp_unary(&mut self, c::Unary { op, sub_exp }: c::Unary) -> ReadableValue {
+        let op = Self::convert_op_unary(op);
+        let src = self.gen_exp(*sub_exp);
         let dst = Rc::new(Variable::new_anon());
         self.instrs.push(Instruction::Unary(Unary {
             op,
@@ -123,10 +118,10 @@ impl TackyAstGenerator {
     fn gen_exp_binary_evalboth(
         &mut self,
         op: BinaryOperator,
-        c_binary: c::Binary,
+        c::Binary { op: _, lhs, rhs }: c::Binary,
     ) -> ReadableValue {
-        let src1 = self.gen_exp(*c_binary.lhs);
-        let src2 = self.gen_exp(*c_binary.rhs);
+        let src1 = self.gen_exp(*lhs);
+        let src2 = self.gen_exp(*rhs);
         let dst = Rc::new(Variable::new_anon());
         self.instrs.push(Instruction::Binary(Binary {
             op,
@@ -139,7 +134,7 @@ impl TackyAstGenerator {
     fn gen_exp_binary_shortcirc(
         &mut self,
         op_type: ShortCircuitBOT,
-        c_binary: c::Binary,
+        c::Binary { op: _, lhs, rhs }: c::Binary,
     ) -> ReadableValue {
         let result = Rc::new(Variable::new_anon());
 
@@ -165,11 +160,11 @@ impl TackyAstGenerator {
 
         /* Begin instructions */
 
-        let lhs_val = self.gen_exp(*c_binary.lhs);
+        let lhs_val = self.gen_exp(*lhs);
 
         self.instrs.push(new_shortcirc_jump_instr(lhs_val));
 
-        let rhs_val = self.gen_exp(*c_binary.rhs);
+        let rhs_val = self.gen_exp(*rhs);
 
         self.instrs.push(new_shortcirc_jump_instr(rhs_val));
 
@@ -239,13 +234,14 @@ impl TackyAstGenerator {
 
     /* Conditional */
 
-    fn gen_stmt_conditional(&mut self, c_if: c::If) {
-        let c::If {
+    fn gen_stmt_conditional(
+        &mut self,
+        c::If {
             condition,
             then,
             elze,
-        } = c_if;
-
+        }: c::If,
+    ) {
         match elze {
             None => {
                 let label_end = Rc::new(LabelIdentifier::new("stmt_cond_end".to_string()));
@@ -289,13 +285,14 @@ impl TackyAstGenerator {
             }
         }
     }
-    fn gen_exp_conditional(&mut self, c_cond: c::Conditional) -> ReadableValue {
-        let c::Conditional {
+    fn gen_exp_conditional(
+        &mut self,
+        c::Conditional {
             condition,
             then,
             elze,
-        } = c_cond;
-
+        }: c::Conditional,
+    ) -> ReadableValue {
         let result = Rc::new(Variable::new_anon());
 
         let name = result.id();
