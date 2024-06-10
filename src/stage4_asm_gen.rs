@@ -4,14 +4,14 @@ pub mod asm_code {
     use std::rc::Rc;
 
     #[derive(Debug)]
-    pub struct Program<Oprnd> {
-        pub func: Function<Oprnd>,
+    pub struct Program {
+        pub func: Function,
     }
 
     #[derive(Debug)]
-    pub struct Function<Oprnd> {
+    pub struct Function {
         pub ident: Identifier,
-        pub instructions: Vec<Instruction<Oprnd>>,
+        pub instructions: Vec<Instruction<Operand>>,
     }
 
     #[derive(Debug)]
@@ -98,12 +98,12 @@ use std::rc::Rc;
 
 pub struct AsmCodeGenerator {}
 impl AsmCodeGenerator {
-    pub fn gen_program(t_prog: t::Program) -> Program<Operand> {
+    pub fn gen_program(t_prog: t::Program) -> Program {
         let t::Program { func } = t_prog;
         let func = Self::gen_func(func);
         Program { func }
     }
-    fn gen_func(t_func: t::Function) -> Function<Operand> {
+    fn gen_func(t_func: t::Function) -> Function {
         let t::Function {
             ident,
             instructions: t_intrs,

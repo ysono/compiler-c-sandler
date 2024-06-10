@@ -38,7 +38,7 @@ impl<'a> TryFrom<&'a AsmFilepath> for AsmCodeEmitter {
     }
 }
 impl AsmCodeEmitter {
-    pub fn emit_program(mut self, prog: Program<Operand>) -> Result<(), io::Error> {
+    pub fn emit_program(mut self, prog: Program) -> Result<(), io::Error> {
         let Program { func } = prog;
 
         self.write_func(func)?;
@@ -50,7 +50,7 @@ impl AsmCodeEmitter {
         self.bw.flush()?;
         Ok(())
     }
-    fn write_func(&mut self, func: Function<Operand>) -> Result<(), io::Error> {
+    fn write_func(&mut self, func: Function) -> Result<(), io::Error> {
         const IDENT_PFX: &str = if cfg!(target_os = "macos") { "_" } else { "" };
         let ident = &func.ident as &String;
 
