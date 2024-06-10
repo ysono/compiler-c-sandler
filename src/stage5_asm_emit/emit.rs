@@ -38,10 +38,10 @@ impl<'a> TryFrom<&'a AsmFilepath> for AsmCodeEmitter {
     }
 }
 impl AsmCodeEmitter {
-    pub fn emit_program(mut self, prog: Program) -> Result<(), io::Error> {
-        let Program { func } = prog;
-
-        self.write_func(func)?;
+    pub fn emit_program(mut self, Program { funs }: Program) -> Result<(), io::Error> {
+        for fun in funs {
+            self.write_func(fun)?;
+        }
 
         if cfg!(target_os = "linux") {
             writeln!(&mut self.bw, "{TAB}.section	.note.GNU-stack,\"\",@progbits")?;
@@ -50,13 +50,7 @@ impl AsmCodeEmitter {
         self.bw.flush()?;
         Ok(())
     }
-    fn write_func(
-        &mut self,
-        Function {
-            ident,
-            instructions,
-        }: Function,
-    ) -> Result<(), io::Error> {
+    fn write_func(&mut self, Function { ident, instrs }: Function) -> Result<(), io::Error> {
         const IDENT_PFX: &str = if cfg!(target_os = "macos") { "_" } else { "" };
 
         let ident: &String = match ident.as_ref() {
@@ -68,7 +62,7 @@ impl AsmCodeEmitter {
         writeln!(&mut self.bw, "{IDENT_PFX}{ident}:")?;
         writeln!(&mut self.bw, "{TAB}pushq{TAB}%rbp")?;
         writeln!(&mut self.bw, "{TAB}movq{TAB}%rsp, %rbp")?;
-        for instr in instructions.into_iter() {
+        for instr in instrs {
             self.write_instr(instr)?;
         }
         Ok(())
@@ -142,6 +136,9 @@ impl AsmCodeEmitter {
             Instruction::AllocateStack(stkpos) => {
                 writeln!(&mut self.bw, "{TAB}subq{TAB}${}, %rsp", *stkpos)?;
             }
+            Instruction::DeallocateStack(_stkpos) => todo!(),
+            Instruction::Push(_operand) => todo!(),
+            Instruction::Call(_ident) => todo!(),
             Instruction::Ret => {
                 writeln!(&mut self.bw, "{TAB}movq{TAB}%rbp, %rsp")?;
                 writeln!(&mut self.bw, "{TAB}popq{TAB}%rbp")?;
@@ -166,6 +163,7 @@ impl AsmCodeEmitter {
                     (Register::R10, OBL::B1) => "%r10b",
                     (Register::R11, OBL::B4) => "%r11d",
                     (Register::R11, OBL::B1) => "%r11b",
+                    _ => todo!(),
                 };
                 write!(&mut self.bw, "{reg_str}")?;
             }

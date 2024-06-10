@@ -1,16 +1,16 @@
 pub use crate::stage3_tacky::tacky_ast::{LabelIdentifier, ResolvedIdentifier};
-use derive_more::{Deref, From, Mul};
+use derive_more::{Deref, DerefMut, From};
 use std::rc::Rc;
 
 #[derive(Debug)]
 pub struct Program {
-    pub func: Function,
+    pub funs: Vec<Function>,
 }
 
 #[derive(Debug)]
 pub struct Function {
     pub ident: Rc<ResolvedIdentifier>,
-    pub instructions: Vec<Instruction<Operand>>,
+    pub instrs: Vec<Instruction<Operand>>,
 }
 
 #[derive(Debug)]
@@ -36,6 +36,9 @@ pub enum Instruction<Oprnd> {
     SetCC(ConditionCode, Oprnd),
     Label(Rc<LabelIdentifier>),
     AllocateStack(StackPosition),
+    DeallocateStack(StackPosition),
+    Push(Oprnd),
+    Call(Rc<ResolvedIdentifier>),
     Ret,
 }
 
@@ -56,6 +59,7 @@ pub enum BinaryOperator {
 pub enum PreFinalOperand {
     ImmediateValue(i32),
     Register(Register),
+    StackPosition(StackPosition),
     PseudoRegister(Rc<ResolvedIdentifier>),
 }
 
@@ -69,13 +73,19 @@ pub enum Operand {
 #[derive(Clone, Copy, Debug)]
 pub enum Register {
     AX,
+    CX,
     DX,
+    DI,
+    SI,
+    R8,
+    R9,
     R10,
     R11,
+    /* These are all caller-saved. */
 }
 
 /// Offset from RBP.
-#[derive(Clone, Copy, Deref, Mul, Debug)]
+#[derive(Clone, Copy, Deref, DerefMut, Debug)]
 pub struct StackPosition(pub(super) isize);
 
 #[derive(Debug)]

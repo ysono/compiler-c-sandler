@@ -20,8 +20,7 @@ impl InstrsFinalizer {
         &mut self,
         in_instrs: impl Iterator<Item = Instruction<PreFinalOperand>>,
     ) -> Vec<Instruction<Operand>> {
-        let instrs = in_instrs.into_iter();
-        let instrs = self.convert_operands(instrs);
+        let instrs = self.convert_operands(in_instrs);
         let instrs = OperandFixer::fix_invalid_operands(instrs);
 
         let dummy_alloc_stack_instr = Instruction::AllocateStack(StackPosition(0));
@@ -29,9 +28,34 @@ impl InstrsFinalizer {
 
         out_instrs.extend(instrs);
 
-        /* We must evaluate self.last_used_stack_pos only after the iterator of `Instruction`s has been completely traversed. */
-        let stack_bytelen = self.last_used_stack_pos * -1;
-        let alloc_stack_instr = Instruction::AllocateStack(stack_bytelen);
+        /*
+        RBP == RSP@1 -> | The previous stack frame's RBP
+                        | \
+                        |  + Local variables; and maybe padding
+                RSP@2-> | /
+                        | \
+                        |  + For one function call at a time: maybe padding; and args
+                        | /
+
+        When the next instruction is executed,
+            + RBP equals RSP. This is ensured by the function prologue (emitted in the subsequent asm emission stage).
+            + RBP and RSP are are 16-byte aligned. This is ensured by the cooperation of:
+                + how we allocate each stack frame, by the finalizer here and by the function-call instructions
+                + the fact that the `call` instruction pushes one 8-byte item (the RIP at which to resume)
+
+        Here in the finalizer, we pre-allocate the stack, for local variables only.
+        The current function's stack frame may be longer than the amount we allocate here. That extra portion is managed atomically per function call.
+
+        We must allocate s.t. RSP becomes 16-byte aligned (at "RSP@2"). For the reason, see documentation for function calls.
+
+        The compiler can't know the total byte length of all local variables until the iterator of `Instruction`s has been completely traversed.
+        */
+        let mut stack_frame_bytelen = self.last_used_stack_pos.0 * -1;
+        let rem = stack_frame_bytelen % 16;
+        if rem != 0 {
+            stack_frame_bytelen += 16 - rem;
+        }
+        let alloc_stack_instr = Instruction::AllocateStack(StackPosition(stack_frame_bytelen));
         out_instrs[0] = alloc_stack_instr;
 
         out_instrs
@@ -74,15 +98,22 @@ impl InstrsFinalizer {
             }
             Instruction::Label(l) => Instruction::Label(l),
             Instruction::AllocateStack(s) => Instruction::AllocateStack(s),
+            Instruction::DeallocateStack(s) => Instruction::DeallocateStack(s),
+            Instruction::Push(operand) => {
+                let operand = self.convert_operand(operand);
+                Instruction::Push(operand)
+            }
+            Instruction::Call(ident) => Instruction::Call(ident),
             Instruction::Ret => Instruction::Ret,
         })
     }
     fn convert_operand(&mut self, pfo: PreFinalOperand) -> Operand {
         use PreFinalOperand as PFO;
         match pfo {
-            PFO::PseudoRegister(ident) => self.var_to_stack_pos(ident).into(),
             PFO::ImmediateValue(i) => Operand::ImmediateValue(i),
             PFO::Register(r) => Operand::Register(r),
+            PFO::StackPosition(s) => Operand::StackPosition(s),
+            PFO::PseudoRegister(ident) => self.var_to_stack_pos(ident).into(),
         }
     }
     fn var_to_stack_pos(&mut self, ident: Rc<ResolvedIdentifier>) -> StackPosition {
