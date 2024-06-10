@@ -140,7 +140,7 @@ fn compile(pp_filepath: PreprocessedFilepath, args: &CliArgs) -> Result<Option<A
     }
 
     let asm_filepath = AsmFilepath::from(&pp_filepath);
-    let asm_emitter = AsmCodeEmitter::try_from(&asm_filepath)?;
+    let asm_emitter = AsmCodeEmitter::new(&asm_filepath, &symbol_table)?;
     asm_emitter.emit_program(asm_prog)?;
     if args.until_asm_emission {
         return Ok(None);
