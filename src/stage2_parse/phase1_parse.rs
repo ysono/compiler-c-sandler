@@ -1,9 +1,11 @@
 //! ```ebnf
-//! <program> ::= <function>
-//! <function> ::= "int" <identifier> "(" "void" ")" <block>
+//! <program> ::= { <function-declaration> }
+//! <declaration> ::= <variable-declaration> | <function-declaration>
+//! <variable-declaration> ::= "int" <identifier> [ "=" <exp> ] ";"
+//! <function-declaration> ::= "int" <identifier> "(" <param-list> ")" ( <block> | ";")
+//! <param-list> ::= "void" | "int" <identifier> { "," "int" <identifier> }
 //! <block> ::= "{" { <block-item> } "}"
 //! <block-item> ::= <statement> | <declaration>
-//! <declaration> ::= "int" <identifier> [ "=" <exp> ] ";"
 //! <statement> ::= "return" <exp> ";"
 //!               | <exp> ";"
 //!               | "if" "(" <exp> ")" <statement> [ "else" <statement> ]
@@ -17,6 +19,8 @@
 //! <for-init> ::= <variable-declaration> | [ <exp> ] ";"
 //! <exp> ::= <factor> | <exp> <binop> <exp> | <exp> "?" <exp> ":" <exp>
 //! <factor> ::= <int> | <identifier> | <unop> <factor> | "(" <exp> ")"
+//!            | <identifier> "(" [ <argument-list> ] ")"
+//! <argument-list> ::= <exp> { "," <exp> }
 //! <unop> ::= "-" | "~" | "!"
 //! <binop> ::= "-" | "+" | "*" | "/" | "%" | "&&" | "||" | "==" | "!=" | "<" | "<=" | ">" | ">=" | "="
 //! <identifier> ::= ? An identifier token ?
@@ -97,44 +101,118 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
 
     pub fn parse_program(&mut self) -> Result<Program> {
         let mut inner = || -> Result<_> {
-            let func = self.parse_func()?;
-
-            match self.tokens.next() {
-                None => {}
-                actual => return Err(anyhow!("Expected end-of-tokens but found {actual:?}")),
+            let mut fun_decls = vec![];
+            loop {
+                match self.tokens.peek() {
+                    None => break,
+                    _ => match self.parse_decl()? {
+                        Declaration::FunDecl(fun_decl) => fun_decls.push(fun_decl),
+                        Declaration::VarDecl(var_decl) => {
+                            return Err(anyhow!(
+                                "Global variable declarations are not supported yet. {var_decl:?}"
+                            ))
+                        }
+                    },
+                }
             }
-
-            Ok(Program { func })
+            Ok(Program { fun_decls })
         };
         inner().context("tokens -> c_ast <program>")
     }
-    fn parse_func(&mut self) -> Result<Function> {
+
+    /* Declaration */
+
+    fn parse_decl(&mut self) -> Result<Declaration> {
         let mut inner = || -> Result<_> {
             self.expect_exact(&[t::Keyword::Int.into()])?;
 
-            let ident = self.parse_ident()?;
+            let ident = match self.tokens.next() {
+                Some(Ok(t::Token::Identifier(ident))) => ident,
+                actual => return Err(anyhow!("{actual:?}")),
+            };
 
-            self.expect_exact(&[
-                t::Demarcator::ParenOpen.into(),
-                t::Keyword::Void.into(),
-                t::Demarcator::ParenClose.into(),
-            ])?;
-
-            let body = self.parse_block()?;
-
-            Ok(Function { ident, body })
-        };
-        inner().context("<function>")
-    }
-    fn parse_ident(&mut self) -> Result<Identifier> {
-        let mut inner = || -> Result<_> {
             match self.tokens.next() {
-                Some(Ok(t::Token::Identifier(ident))) => Ok(ident),
+                Some(Ok(t::Token::Demarcator(t::Demarcator::Semicolon))) => {
+                    Ok(Declaration::VarDecl(VariableDeclaration {
+                        ident,
+                        init: None,
+                    }))
+                }
+                Some(Ok(t::Token::Operator(t::Operator::Assign))) => {
+                    let init = self.parse_exp(BinaryOperatorPrecedence::min())?;
+
+                    self.expect_exact(&[t::Demarcator::Semicolon.into()])?;
+
+                    Ok(Declaration::VarDecl(VariableDeclaration {
+                        ident,
+                        init: Some(init),
+                    }))
+                }
+                Some(Ok(t::Token::Demarcator(t::Demarcator::ParenOpen))) => {
+                    let params = self.parse_param_list()?;
+
+                    self.expect_exact(&[t::Demarcator::ParenClose.into()])?;
+
+                    let body = match self.tokens.peek() {
+                        Some(Ok(t::Token::Demarcator(t::Demarcator::Semicolon))) => {
+                            self.tokens.next();
+                            None
+                        }
+                        _ => {
+                            let body = self.parse_block()?;
+                            Some(body)
+                        }
+                    };
+
+                    Ok(Declaration::FunDecl(FunctionDeclaration {
+                        ident,
+                        params,
+                        body,
+                    }))
+                }
                 actual => Err(anyhow!("{actual:?}")),
             }
         };
-        inner().context("<identifier>")
+        inner().context("<declaration>")
     }
+    fn parse_param_list(&mut self) -> Result<Vec<Identifier>> {
+        let mut inner = || -> Result<Vec<_>> {
+            match self.tokens.peek() {
+                Some(Ok(t::Token::Keyword(t::Keyword::Void))) => {
+                    self.tokens.next();
+
+                    Ok(Vec::with_capacity(0))
+                }
+                Some(Ok(t::Token::Keyword(t::Keyword::Int))) => {
+                    let mut idents = vec![];
+
+                    loop {
+                        self.expect_exact(&[t::Keyword::Int.into()])?;
+
+                        match self.tokens.next() {
+                            Some(Ok(t::Token::Identifier(ident))) => idents.push(ident),
+                            actual => return Err(anyhow!("{actual:?}")),
+                        }
+
+                        match self.tokens.peek() {
+                            Some(Ok(t::Token::Demarcator(t::Demarcator::Comma))) => {
+                                self.tokens.next();
+                                continue;
+                            }
+                            _ => break,
+                        }
+                    }
+
+                    Ok(idents)
+                }
+                actual => Err(anyhow!("{actual:?}")),
+            }
+        };
+        inner().context("<param-list>")
+    }
+
+    /* Block */
+
     fn parse_block(&mut self) -> Result<Block> {
         let mut inner = || -> Result<_> {
             self.expect_exact(&[t::Demarcator::BraceOpen.into()])?;
@@ -161,34 +239,12 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
         let mut inner = || -> Result<_> {
             match self.tokens.peek() {
                 Some(Ok(t::Token::Keyword(t::Keyword::Int))) => {
-                    self.parse_declaration().map(BlockItem::Declaration)
+                    self.parse_decl().map(BlockItem::Declaration)
                 }
                 _ => self.parse_stmt().map(BlockItem::Statement),
             }
         };
         inner().context("<block-item>")
-    }
-    fn parse_declaration(&mut self) -> Result<Declaration> {
-        let mut inner = || -> Result<_> {
-            self.expect_exact(&[t::Keyword::Int.into()])?;
-
-            let ident = self.parse_ident()?;
-
-            let init = match self.tokens.peek() {
-                Some(Ok(t::Token::Operator(t::Operator::Assign))) => {
-                    self.tokens.next();
-
-                    let exp = self.parse_exp(BinaryOperatorPrecedence::min())?;
-                    Some(exp)
-                }
-                _ => None,
-            };
-
-            self.expect_exact(&[t::Demarcator::Semicolon.into()])?;
-
-            Ok(Declaration { ident, init })
-        };
-        inner().context("<declaration>")
     }
 
     /* Statement */
@@ -315,10 +371,10 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
             self.expect_exact(&[t::Loop::For.into(), t::Demarcator::ParenOpen.into()])?;
 
             let init = match self.tokens.peek() {
-                Some(Ok(t::Token::Keyword(t::Keyword::Int))) => {
-                    let decl = self.parse_declaration()?;
-                    ForInit::Decl(decl)
-                }
+                Some(Ok(t::Token::Keyword(t::Keyword::Int))) => match self.parse_decl()? {
+                    Declaration::VarDecl(var_decl) => ForInit::Decl(var_decl),
+                    Declaration::FunDecl(fun_decl) => return Err(anyhow!("{fun_decl:?}")),
+                },
                 Some(Ok(t::Token::Demarcator(t::Demarcator::Semicolon))) => {
                     self.tokens.next();
 
@@ -431,7 +487,13 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
         let mut inner = || -> Result<_> {
             match self.tokens.next() {
                 Some(Ok(t::Token::Const(konst))) => return Ok(Expression::Const(konst)),
-                Some(Ok(t::Token::Identifier(ident))) => return Ok(Expression::Var(ident)),
+                Some(Ok(t::Token::Identifier(ident))) => match self.tokens.peek() {
+                    Some(Ok(t::Token::Demarcator(t::Demarcator::ParenOpen))) => {
+                        let args = self.parse_arg_list()?;
+                        return Ok(Expression::FunctionCall(FunctionCall { ident, args }));
+                    }
+                    _ => return Ok(Expression::Var(ident)),
+                },
                 Some(Ok(t::Token::Operator(t_op))) => {
                     let c_op_unary = match t_op {
                         t::Operator::Tilde => Some(UnaryOperator::Complement),
@@ -463,6 +525,31 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
             }
         };
         inner().context("<factor>")
+    }
+    fn parse_arg_list(&mut self) -> Result<Vec<Expression>> {
+        let mut inner = || -> Result<_> {
+            self.expect_exact(&[t::Demarcator::ParenOpen.into()])?;
+
+            let mut args = vec![];
+            loop {
+                match self.tokens.peek() {
+                    Some(Ok(t::Token::Demarcator(t::Demarcator::ParenClose))) => {
+                        self.tokens.next();
+                        break;
+                    }
+                    _ => {
+                        if args.len() > 0 {
+                            self.expect_exact(&[t::Demarcator::Comma.into()])?;
+                        }
+
+                        let arg = self.parse_exp(BinaryOperatorPrecedence::min())?;
+                        args.push(arg);
+                    }
+                }
+            }
+            Ok(args)
+        };
+        inner().context("<argument-list>")
     }
 
     /* Helpers */

@@ -15,20 +15,59 @@ pub struct CAstValidator {
     loop_ids_stack: LoopIdsStack,
 }
 impl CAstValidator {
-    pub fn resolve_program(&mut self, p::Program { func }: p::Program) -> Result<Program> {
-        let inner = || -> Result<_> {
-            let func = self.resolve_func(func)?;
+    pub fn resolve_program(&mut self, p::Program { mut fun_decls }: p::Program) -> Result<Program> {
+        let mut inner = || -> Result<_> {
+            // TODO
+            let fun_decl = fun_decls.pop().ok_or_else(|| {
+                anyhow!("For now, Program is expected to contain at least one FunctionDeclaration.")
+            })?;
+            let func = self.resolve_decl_fun(fun_decl)?;
             Ok(Program { func })
         };
         inner().context("c_ast validator on <program>")
     }
-    fn resolve_func(&mut self, p::Function { ident, body }: p::Function) -> Result<Function> {
+
+    /* Declaration */
+
+    fn resolve_decl_var(
+        &mut self,
+        p::VariableDeclaration { ident, init }: p::VariableDeclaration,
+    ) -> Result<VariableDeclaration> {
         let inner = || -> Result<_> {
+            let var = self.ident_to_var.declare_new_var(ident)?;
+
+            let init = init
+                .map(|init_exp| self.resolve_exp(init_exp))
+                .transpose()?;
+
+            if init.is_some() {
+                self.ident_to_var.mark_var_as_initialized(&var)?;
+            }
+
+            Ok(VariableDeclaration { var, init })
+        };
+        inner().context("<declaration>")
+    }
+    fn resolve_decl_fun(
+        &mut self,
+        p::FunctionDeclaration {
+            ident,
+            params: _, // TODO
+            body,
+        }: p::FunctionDeclaration,
+    ) -> Result<FunctionDeclaration> {
+        let inner = || -> Result<_> {
+            let body = body.ok_or_else(|| {
+                anyhow!("Function declaration without definition is not supported yet.")
+            })?;
             let body = self.resolve_block(body)?;
-            Ok(Function { ident, body })
+            Ok(FunctionDeclaration { ident, body })
         };
         inner().context("<function>")
     }
+
+    /* Block */
+
     fn resolve_block(&mut self, p::Block { items }: p::Block) -> Result<Block> {
         let inner = || -> Result<_> {
             self.ident_to_var.push_new_scope();
@@ -47,36 +86,20 @@ impl CAstValidator {
     fn resolve_block_item(&mut self, item: p::BlockItem) -> Result<BlockItem> {
         let inner = || -> Result<_> {
             match item {
-                p::BlockItem::Declaration(decl) => {
-                    let decl = self.resolve_decl(decl)?;
-                    Ok(BlockItem::Declaration(decl))
-                }
-                p::BlockItem::Statement(stmt) => {
-                    let stmt = self.resolve_stmt(stmt)?;
+                p::BlockItem::Declaration(p_decl) => match p_decl {
+                    p::Declaration::VarDecl(p_var_decl) => {
+                        let decl = self.resolve_decl_var(p_var_decl)?;
+                        Ok(BlockItem::Declaration(decl))
+                    }
+                    p::Declaration::FunDecl(_p_fun_decl) => todo!(),
+                },
+                p::BlockItem::Statement(p_stmt) => {
+                    let stmt = self.resolve_stmt(p_stmt)?;
                     Ok(BlockItem::Statement(stmt))
                 }
             }
         };
         inner().context("<block-item>")
-    }
-    fn resolve_decl(
-        &mut self,
-        p::Declaration { ident, init }: p::Declaration,
-    ) -> Result<Declaration> {
-        let inner = || -> Result<_> {
-            let var = self.ident_to_var.declare_new_var(ident)?;
-
-            let init = init
-                .map(|init_exp| self.resolve_exp(init_exp))
-                .transpose()?;
-
-            if init.is_some() {
-                self.ident_to_var.mark_var_as_initialized(&var)?;
-            }
-
-            Ok(Declaration { var, init })
-        };
-        inner().context("<declaration>")
     }
 
     /* Statement */
@@ -178,7 +201,7 @@ impl CAstValidator {
             self.ident_to_var.push_new_scope();
 
             let init = match init {
-                p::ForInit::Decl(p_decl) => ForInit::Decl(self.resolve_decl(p_decl)?),
+                p::ForInit::Decl(p_var_decl) => ForInit::Decl(self.resolve_decl_var(p_var_decl)?),
                 p::ForInit::Exp(p_exp) => ForInit::Exp(self.resolve_exp(p_exp)?),
                 p::ForInit::None => ForInit::None,
             };
@@ -262,6 +285,7 @@ impl CAstValidator {
                         elze: Box::new(elze),
                     }));
                 }
+                p::Expression::FunctionCall(_fun_call) => todo!(),
             }
         };
         inner().context("<exp>")

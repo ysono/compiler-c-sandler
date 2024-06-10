@@ -30,7 +30,10 @@ struct TackyAstGenerator {
     instrs: Vec<Instruction>,
 }
 impl TackyAstGenerator {
-    fn tackify_func(mut self, c::Function { ident, body }: c::Function) -> Function {
+    fn tackify_func(
+        mut self,
+        c::FunctionDeclaration { ident, body }: c::FunctionDeclaration,
+    ) -> Function {
         self.gen_block(body);
 
         let ret_kon = c::Const::Int(0);
@@ -46,12 +49,12 @@ impl TackyAstGenerator {
     fn gen_block(&mut self, c::Block { items }: c::Block) {
         for c_item in items {
             match c_item {
-                c::BlockItem::Declaration(c_decl) => self.gen_decl(c_decl),
+                c::BlockItem::Declaration(c_decl) => self.gen_decl_var(c_decl),
                 c::BlockItem::Statement(c_stmt) => self.gen_stmt(c_stmt),
             }
         }
     }
-    fn gen_decl(&mut self, c::Declaration { var, init }: c::Declaration) {
+    fn gen_decl_var(&mut self, c::VariableDeclaration { var, init }: c::VariableDeclaration) {
         match init {
             None => { /* No-op. */ }
             Some(init_exp) => {
@@ -414,7 +417,7 @@ impl TackyAstGenerator {
         /* Begin instructions */
 
         match init {
-            c::ForInit::Decl(c_decl) => self.gen_decl(c_decl),
+            c::ForInit::Decl(c_var_decl) => self.gen_decl_var(c_var_decl),
             c::ForInit::Exp(c_exp) => {
                 self.gen_exp(c_exp);
             }

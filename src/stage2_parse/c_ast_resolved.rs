@@ -8,11 +8,16 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 #[derive(Debug)]
 pub struct Program {
-    pub func: Function,
+    pub func: FunctionDeclaration,
 }
 
 #[derive(Debug)]
-pub struct Function {
+pub struct VariableDeclaration {
+    pub var: Rc<Variable>,
+    pub init: Option<Expression>,
+}
+#[derive(Debug)]
+pub struct FunctionDeclaration {
     pub ident: Identifier,
     pub body: Block,
 }
@@ -24,14 +29,8 @@ pub struct Block {
 
 #[derive(Debug)]
 pub enum BlockItem {
-    Declaration(Declaration),
+    Declaration(VariableDeclaration),
     Statement(Statement),
-}
-
-#[derive(Debug)]
-pub struct Declaration {
-    pub var: Rc<Variable>,
-    pub init: Option<Expression>,
 }
 
 #[derive(Debug)]
@@ -73,7 +72,7 @@ mod statement {
 
     #[derive(Debug)]
     pub enum ForInit {
-        Decl(Declaration),
+        Decl(VariableDeclaration),
         Exp(Expression),
         None,
     }

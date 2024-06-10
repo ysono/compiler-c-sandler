@@ -1,16 +1,33 @@
+pub use self::declaration::*;
 pub use self::expression::*;
 pub use self::statement::*;
 pub use crate::stage1_lex::tokens::{Const, Identifier};
 
 #[derive(Debug)]
 pub struct Program {
-    pub func: Function,
+    pub fun_decls: Vec<FunctionDeclaration>,
 }
 
 #[derive(Debug)]
-pub struct Function {
-    pub ident: Identifier,
-    pub body: Block,
+pub enum Declaration {
+    VarDecl(VariableDeclaration),
+    FunDecl(FunctionDeclaration),
+}
+mod declaration {
+    use super::*;
+
+    #[derive(Debug)]
+    pub struct VariableDeclaration {
+        pub ident: Identifier,
+        pub init: Option<Expression>,
+    }
+
+    #[derive(Debug)]
+    pub struct FunctionDeclaration {
+        pub ident: Identifier,
+        pub params: Vec<Identifier>,
+        pub body: Option<Block>,
+    }
 }
 
 #[derive(Debug)]
@@ -22,12 +39,6 @@ pub struct Block {
 pub enum BlockItem {
     Declaration(Declaration),
     Statement(Statement),
-}
-
-#[derive(Debug)]
-pub struct Declaration {
-    pub ident: Identifier,
-    pub init: Option<Expression>,
 }
 
 #[derive(Debug)]
@@ -69,7 +80,7 @@ mod statement {
 
     #[derive(Debug)]
     pub enum ForInit {
-        Decl(Declaration),
+        Decl(VariableDeclaration),
         Exp(Expression),
         None,
     }
@@ -83,6 +94,7 @@ pub enum Expression {
     Binary(Binary),
     Assignment(Assignment),
     Conditional(Conditional),
+    FunctionCall(FunctionCall),
 }
 mod expression {
     use super::*;
@@ -101,6 +113,35 @@ mod expression {
     }
 
     #[derive(Debug)]
+    pub enum UnaryOperator {
+        /* -> int */
+        Complement,
+        Negate,
+        /* -> bool */
+        Not,
+    }
+
+    #[derive(Debug)]
+    pub enum BinaryOperator {
+        /* -> int */
+        Sub,
+        Add,
+        Mul,
+        Div,
+        Rem,
+        /* -(logic)-> bool */
+        And,
+        Or,
+        /* -(compare)-> bool */
+        Eq,
+        Neq,
+        Lt,
+        Lte,
+        Gt,
+        Gte,
+    }
+
+    #[derive(Debug)]
     pub struct Assignment {
         pub lhs: Box<Expression>,
         pub rhs: Box<Expression>,
@@ -112,33 +153,10 @@ mod expression {
         pub then: Box<Expression>,
         pub elze: Box<Expression>,
     }
-}
 
-#[derive(Debug)]
-pub enum UnaryOperator {
-    /* -> int */
-    Complement,
-    Negate,
-    /* -> bool */
-    Not,
-}
-
-#[derive(Debug)]
-pub enum BinaryOperator {
-    /* -> int */
-    Sub,
-    Add,
-    Mul,
-    Div,
-    Rem,
-    /* -(logic)-> bool */
-    And,
-    Or,
-    /* -(compare)-> bool */
-    Eq,
-    Neq,
-    Lt,
-    Lte,
-    Gt,
-    Gte,
+    #[derive(Debug)]
+    pub struct FunctionCall {
+        pub ident: Identifier,
+        pub args: Vec<Expression>,
+    }
 }
