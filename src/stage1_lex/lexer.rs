@@ -80,6 +80,7 @@ impl Lexer {
             BRACE_OPEN => (match_len, token) = (1, Demarcator::BraceOpen.into()),
             BRACE_CLOSE => (match_len, token) = (1, Demarcator::BraceClose.into()),
             SEMICOLON => (match_len, token) = (1, Demarcator::Semicolon.into()),
+            COMMA => (match_len, token) = (1, Demarcator::Comma.into()),
             TILDE => (match_len, token) = (1, Operator::Tilde.into()),
             STAR => (match_len, token) = (1, Operator::Star.into()),
             SLASH => (match_len, token) = (1, Operator::Slash.into()),
@@ -189,6 +190,7 @@ mod token_matchers {
     pub const BRACE_OPEN: u8 = b'{';
     pub const BRACE_CLOSE: u8 = b'}';
     pub const SEMICOLON: u8 = b';';
+    pub const COMMA: u8 = b',';
     /* Operations */
     pub const TILDE: u8 = b'~';
     pub const STAR: u8 = b'*';

@@ -17,6 +17,7 @@ pub enum Demarcator {
     BraceOpen,
     BraceClose,
     Semicolon,
+    Comma,
 }
 #[derive(PartialEq, Eq, Debug)]
 pub enum Keyword {
