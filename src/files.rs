@@ -36,6 +36,16 @@ impl<'a> From<&'a PreprocessedFilepath> for AsmFilepath {
 }
 
 #[derive(Deref, Debug)]
+pub struct ObjectFilepath(PathBuf);
+impl<'a> From<&'a AsmFilepath> for ObjectFilepath {
+    fn from(asm_filepath: &'a AsmFilepath) -> Self {
+        let mut obj_filepath = PathBuf::from(asm_filepath as &PathBuf);
+        obj_filepath.set_extension("o");
+        Self(obj_filepath)
+    }
+}
+
+#[derive(Deref, Debug)]
 pub struct ProgramFilepath(PathBuf);
 impl<'a> From<&'a AsmFilepath> for ProgramFilepath {
     fn from(asm_filepath: &'a AsmFilepath) -> Self {

@@ -1,5 +1,5 @@
 use crate::{
-    files::{AsmFilepath, PreprocessedFilepath, ProgramFilepath, SrcFilepath},
+    files::{AsmFilepath, ObjectFilepath, PreprocessedFilepath, ProgramFilepath, SrcFilepath},
     stage1_lex::lexer::Lexer,
     stage2_parse::{phase1_parse::Parser, phase2_resolve::CAstValidator},
     stage3_tacky::generate::Tackifier,
@@ -15,7 +15,7 @@ use std::process::Command;
 
 #[derive(ClapParser, Debug)]
 struct CliArgs {
-    src_filepath: String,
+    src_filepaths: Vec<String>,
 
     #[clap(long = "lex")]
     until_lexer: bool,
@@ -34,6 +34,42 @@ struct CliArgs {
 
     #[clap(short = 'S')]
     until_asm_emission: bool,
+
+    #[clap(short = 'c')]
+    output_object_file: bool,
+}
+
+pub fn driver_main() -> Result<()> {
+    env_logger::init();
+
+    let args = CliArgs::parse();
+    log::info!("{args:?}");
+
+    let mut asm_filepaths = vec![];
+    for src_filepath in args.src_filepaths.iter() {
+        let src_filepath = SrcFilepath::try_from(&src_filepath[..])?;
+        let pp_filepath = preprocess(&src_filepath)?;
+        log::info!("Preprocessor done -> {pp_filepath:?}");
+
+        let asm_filepath = compile(pp_filepath, &args)?;
+        log::info!("Compiler done -> {asm_filepath:?}");
+        if let Some(asm_filepath) = asm_filepath {
+            asm_filepaths.push(asm_filepath);
+        }
+    }
+
+    match args.output_object_file {
+        true => {
+            for asm_filepath in asm_filepaths {
+                assemble(asm_filepath)?;
+            }
+        }
+        false => {
+            assemble_and_link_program(asm_filepaths)?;
+        }
+    }
+
+    Ok(())
 }
 
 fn preprocess(src_filepath: &SrcFilepath) -> Result<PreprocessedFilepath> {
@@ -66,33 +102,33 @@ fn compile(pp_filepath: PreprocessedFilepath, args: &CliArgs) -> Result<Option<A
     let lexer = Lexer::try_from(&pp_filepath)?;
     if args.until_lexer {
         let tokens = lexer.collect::<Result<Vec<_>>>()?;
-        println!("tokens: {tokens:?}");
+        println!("tokens: {tokens:#?}");
         return Ok(None);
     }
 
     let mut parser = Parser::new(lexer);
     let c_prog = parser.parse_program()?;
     if args.until_parser {
-        println!("c_prog: {c_prog:?}");
+        println!("c_prog: {c_prog:#?}");
         return Ok(None);
     }
 
     let mut vadlidator = CAstValidator::default();
     let c_prog = vadlidator.resolve_program(c_prog)?;
     if args.until_parser_validate {
-        println!("validated c_prog: {c_prog:?}");
+        println!("validated c_prog: {c_prog:#?}");
         return Ok(None);
     }
 
     let tacky_prog = Tackifier::tackify_program(c_prog);
     if args.until_tacky {
-        println!("tacky_prog: {tacky_prog:?}");
+        println!("tacky_prog: {tacky_prog:#?}");
         return Ok(None);
     }
 
     let asm_prog = AsmCodeGenerator::gen_program(tacky_prog);
     if args.until_asm_codegen {
-        println!("asm_prog: {asm_prog:?}");
+        println!("asm_prog: {asm_prog:#?}");
         return Ok(None);
     }
 
@@ -106,48 +142,49 @@ fn compile(pp_filepath: PreprocessedFilepath, args: &CliArgs) -> Result<Option<A
     Ok(Some(asm_filepath))
 }
 
-fn assemble_and_link(asm_filepath: AsmFilepath) -> Result<ProgramFilepath> {
-    let prog_filepath = ProgramFilepath::from(&asm_filepath);
-
+fn assemble(asm_filepath: AsmFilepath) -> Result<ObjectFilepath> {
+    /* Run separate gcc command per foo.s file, so that we can specify each `-o foo.o` filepath. */
+    let obj_filepath = ObjectFilepath::from(&asm_filepath);
+    use_gcc_on_asms(&["-c"], vec![asm_filepath], &obj_filepath, "assembler")?;
+    Ok(obj_filepath)
+}
+fn assemble_and_link_program(asm_filepaths: Vec<AsmFilepath>) -> Result<Option<ProgramFilepath>> {
+    /* In general, earlier inputs may depend on later inputs. We assume `main()` is inside the first asm input. */
+    match asm_filepaths.first() {
+        None => Ok(None),
+        Some(asm0) => {
+            let prog_filepath = ProgramFilepath::from(asm0);
+            use_gcc_on_asms(&[], asm_filepaths, &prog_filepath, "assembler and linker")?;
+            Ok(Some(prog_filepath))
+        }
+    }
+}
+fn use_gcc_on_asms(
+    gcc_flags: &[&str],
+    asm_paths: Vec<AsmFilepath>,
+    out_path: &PathBuf,
+    descr: &str,
+) -> Result<()> {
     let mut cmd = Command::new("gcc");
-    cmd.args([
-        asm_filepath.to_str().unwrap(),
-        "-o",
-        prog_filepath.to_str().unwrap(),
-    ]);
-    log::info!("Assembler and linker: {cmd:?}");
+    cmd.args(gcc_flags);
+    cmd.args(asm_paths.iter().map(|p| p.as_os_str()));
+    cmd.args(["-o", out_path.to_str().unwrap()]);
+    log::info!("{descr} command: {cmd:?}");
+
     let mut child = cmd
         .spawn()
-        .context("Failed to launch the assembler and linker process.")?;
-    let child_code = child
+        .with_context(|| format!("Failed to launch the {descr} process."))?;
+    let child_exit_status = child
         .wait()
-        .context("The assembler and linker process was not running.")?;
+        .with_context(|| format!("The {descr} process was not running."))?;
     assert!(
-        child_code.success(),
-        "The assembler and linker exit code = {child_code}",
+        child_exit_status.success(),
+        "The {descr} exit status = {child_exit_status}",
     );
+    log::info!("{descr} done -> {out_path:?}");
 
-    fs::remove_file(&asm_filepath as &PathBuf)?;
-
-    Ok(prog_filepath)
-}
-
-pub fn driver_main() -> Result<()> {
-    env_logger::init();
-
-    let args = CliArgs::parse();
-    log::info!("{args:?}");
-
-    let src_filepath = SrcFilepath::try_from(&args.src_filepath[..])?;
-    let pp_filepath = preprocess(&src_filepath)?;
-    log::info!("Preprocessor done -> {pp_filepath:?}");
-
-    let asm_filepath = compile(pp_filepath, &args)?;
-    log::info!("Assembly generator done -> {asm_filepath:?}");
-
-    if let Some(asm_filepath) = asm_filepath {
-        let prog_filepath = assemble_and_link(asm_filepath)?;
-        log::info!("Linker done -> {prog_filepath:?}");
+    for asm_path in asm_paths {
+        fs::remove_file(&asm_path as &PathBuf)?;
     }
 
     Ok(())
