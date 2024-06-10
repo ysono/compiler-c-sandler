@@ -93,7 +93,7 @@ pub mod asm_code {
 use self::asm_code::*;
 use crate::stage3_tacky::tacky_ir as t;
 use std::collections::HashMap;
-use std::mem::{self, MaybeUninit};
+use std::mem;
 use std::rc::Rc;
 
 pub struct AsmCodeGenerator {}
@@ -332,15 +332,14 @@ impl InstrsFinalizer {
         let instrs = self.convert_operands(instrs);
         let instrs = correct_invalid_operands::correct_invalid_operands(instrs);
 
-        #[allow(invalid_value)]
-        let dummy_alloc_stk_instr = unsafe { MaybeUninit::uninit().assume_init() };
-        let mut out_instrs = vec![dummy_alloc_stk_instr];
+        let dummy_alloc_stack_instr = Instruction::AllocateStack(StackPosition(0));
+        let mut out_instrs = vec![dummy_alloc_stack_instr];
 
         out_instrs.extend(instrs);
 
         /* We must evaluate self.last_used_stack_pos only after the iterator of `Instruction`s has been completely traversed. */
-        let alloc_stk_instr = Instruction::AllocateStack(self.last_used_stack_pos);
-        out_instrs[0] = alloc_stk_instr;
+        let alloc_stack_instr = Instruction::AllocateStack(self.last_used_stack_pos);
+        out_instrs[0] = alloc_stack_instr;
 
         out_instrs
     }
