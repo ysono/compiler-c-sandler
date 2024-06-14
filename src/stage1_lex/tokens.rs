@@ -4,6 +4,8 @@ use derive_more::{Deref, From};
 pub enum Token {
     Demarcator(Demarcator),
     Keyword(Keyword),
+    Type(Type),
+    StorageClassSpecifier(StorageClassSpecifier),
     Operator(Operator),
     Control(Control),
     Loop(Loop),
@@ -21,9 +23,17 @@ pub enum Demarcator {
 }
 #[derive(PartialEq, Eq, Debug)]
 pub enum Keyword {
+    Return,
+}
+#[derive(PartialEq, Eq, Debug)]
+pub enum Type {
     Int,
     Void,
-    Return,
+}
+#[derive(PartialEq, Eq, Debug)]
+pub enum StorageClassSpecifier {
+    Static,
+    Extern,
 }
 #[derive(PartialEq, Eq, Debug)]
 pub enum Operator {

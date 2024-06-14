@@ -124,7 +124,7 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
 
     fn parse_decl(&mut self) -> Result<Declaration> {
         let mut inner = || -> Result<_> {
-            self.expect_exact(&[t::Keyword::Int.into()])?;
+            self.expect_exact(&[t::Type::Int.into()])?;
 
             let ident = match self.tokens.next() {
                 Some(Ok(t::Token::Identifier(ident))) => ident,
@@ -178,16 +178,16 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
     fn parse_param_list(&mut self) -> Result<Vec<Identifier>> {
         let mut inner = || -> Result<Vec<_>> {
             match self.tokens.peek() {
-                Some(Ok(t::Token::Keyword(t::Keyword::Void))) => {
+                Some(Ok(t::Token::Type(t::Type::Void))) => {
                     self.tokens.next();
 
                     Ok(Vec::with_capacity(0))
                 }
-                Some(Ok(t::Token::Keyword(t::Keyword::Int))) => {
+                Some(Ok(t::Token::Type(t::Type::Int))) => {
                     let mut idents = vec![];
 
                     loop {
-                        self.expect_exact(&[t::Keyword::Int.into()])?;
+                        self.expect_exact(&[t::Type::Int.into()])?;
 
                         match self.tokens.next() {
                             Some(Ok(t::Token::Identifier(ident))) => idents.push(ident),
@@ -238,7 +238,7 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
     fn parse_block_item(&mut self) -> Result<BlockItem> {
         let mut inner = || -> Result<_> {
             match self.tokens.peek() {
-                Some(Ok(t::Token::Keyword(t::Keyword::Int))) => {
+                Some(Ok(t::Token::Type(t::Type::Int))) => {
                     self.parse_decl().map(BlockItem::Declaration)
                 }
                 _ => self.parse_stmt().map(BlockItem::Statement),
@@ -371,7 +371,7 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
             self.expect_exact(&[t::Loop::For.into(), t::Demarcator::ParenOpen.into()])?;
 
             let init = match self.tokens.peek() {
-                Some(Ok(t::Token::Keyword(t::Keyword::Int))) => match self.parse_decl()? {
+                Some(Ok(t::Token::Type(t::Type::Int))) => match self.parse_decl()? {
                     Declaration::VarDecl(var_decl) => ForInit::Decl(var_decl),
                     Declaration::FunDecl(fun_decl) => return Err(anyhow!("{fun_decl:?}")),
                 },

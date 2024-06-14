@@ -132,12 +132,16 @@ impl Lexer {
                     } else {
                         token = Operator::Assign.into();
                     }
-                } else if let Some(mach) = KW_INT.find(sfx) {
-                    (match_len, token) = (mach.len(), Keyword::Int.into());
-                } else if let Some(mach) = KW_VOID.find(sfx) {
-                    (match_len, token) = (mach.len(), Keyword::Void.into());
                 } else if let Some(mach) = KW_RET.find(sfx) {
                     (match_len, token) = (mach.len(), Keyword::Return.into());
+                } else if let Some(mach) = KW_INT.find(sfx) {
+                    (match_len, token) = (mach.len(), Type::Int.into());
+                } else if let Some(mach) = KW_VOID.find(sfx) {
+                    (match_len, token) = (mach.len(), Type::Void.into());
+                } else if let Some(mach) = KW_STATIC.find(sfx) {
+                    (match_len, token) = (mach.len(), StorageClassSpecifier::Static.into());
+                } else if let Some(mach) = KW_EXTERN.find(sfx) {
+                    (match_len, token) = (mach.len(), StorageClassSpecifier::Extern.into());
                 } else if let Some(mach) = KW_IF.find(sfx) {
                     (match_len, token) = (mach.len(), Control::If.into());
                 } else if let Some(mach) = KW_ELSE.find(sfx) {
@@ -212,9 +216,13 @@ mod token_matchers {
         pub static ref GT_EQ: Regex = Regex::new(r"^>=?").unwrap();
         pub static ref EQ_EQ: Regex = Regex::new(r"^==?").unwrap();
         /* Keywords */
+        pub static ref KW_RET: Regex = Regex::new(r"^return\b").unwrap();
+        /* Types */
         pub static ref KW_INT: Regex = Regex::new(r"^int\b").unwrap();
         pub static ref KW_VOID: Regex = Regex::new(r"^void\b").unwrap();
-        pub static ref KW_RET: Regex = Regex::new(r"^return\b").unwrap();
+        /* Storage class specifiers */
+        pub static ref KW_STATIC: Regex = Regex::new(r"^static\b").unwrap();
+        pub static ref KW_EXTERN: Regex = Regex::new(r"^extern\b").unwrap();
         /* Control */
         pub static ref KW_IF: Regex = Regex::new(r"^if\b").unwrap();
         pub static ref KW_ELSE: Regex = Regex::new(r"^else\b").unwrap();
