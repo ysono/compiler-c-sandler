@@ -17,10 +17,14 @@ pub struct CAstValidator {
     loop_ids_stack: LoopIdsStack,
 }
 impl CAstValidator {
-    pub fn resolve_program(&mut self, p::Program { fun_decls }: p::Program) -> Result<Program> {
+    pub fn resolve_program(&mut self, p::Program { decls }: p::Program) -> Result<Program> {
         let inner = || -> Result<_> {
-            let funs = fun_decls
+            let funs = decls
                 .into_iter()
+                .filter_map(|decl| match decl {
+                    p::Declaration::VarDecl(_) => None, // TODO
+                    p::Declaration::FunDecl(fd) => Some(fd),
+                })
                 .map(|p_fd| self.resolve_decl_fun(p_fd))
                 .collect::<Result<Vec<_>>>()?;
             Ok(Program { funs })
@@ -60,7 +64,11 @@ impl CAstValidator {
     }
     fn resolve_decl_var(
         &mut self,
-        p::VariableDeclaration { ident, init }: p::VariableDeclaration,
+        p::VariableDeclaration {
+            ident,
+            init,
+            storage_class: _, // TODO
+        }: p::VariableDeclaration,
     ) -> Result<VariableDeclaration> {
         let inner = || -> Result<_> {
             let ident = self.ident_resolver.declare_new_no_linkage(ident)?;
@@ -77,6 +85,7 @@ impl CAstValidator {
             ident,
             params,
             body,
+            storage_class: _, // TODO
         }: p::FunctionDeclaration,
     ) -> Result<FunctionDeclOrDefn> {
         let inner = || -> Result<_> {

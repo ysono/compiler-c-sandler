@@ -1,11 +1,11 @@
 pub use self::declaration::*;
 pub use self::expression::*;
 pub use self::statement::*;
-pub use crate::stage1_lex::tokens::{Const, Identifier};
+pub use crate::stage1_lex::tokens::{Const, Identifier, StorageClassSpecifier};
 
 #[derive(Debug)]
 pub struct Program {
-    pub fun_decls: Vec<FunctionDeclaration>,
+    pub decls: Vec<Declaration>,
 }
 
 #[derive(Debug)]
@@ -20,6 +20,7 @@ mod declaration {
     pub struct VariableDeclaration {
         pub ident: Identifier,
         pub init: Option<Expression>,
+        pub storage_class: Option<StorageClassSpecifier>,
     }
 
     #[derive(Debug)]
@@ -27,6 +28,7 @@ mod declaration {
         pub ident: Identifier,
         pub params: Vec<Identifier>,
         pub body: Option<Block>,
+        pub storage_class: Option<StorageClassSpecifier>,
     }
 }
 

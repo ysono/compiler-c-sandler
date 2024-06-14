@@ -1,8 +1,9 @@
 //! ```ebnf
-//! <program> ::= { <function-declaration> }
+//! <program> ::= { <declaration> }
 //! <declaration> ::= <variable-declaration> | <function-declaration>
-//! <variable-declaration> ::= "int" <identifier> [ "=" <exp> ] ";"
-//! <function-declaration> ::= "int" <identifier> "(" <param-list> ")" ( <block> | ";")
+//! <variable-declaration> ::= { <specifier> }+ <identifier> [ "=" <exp> ] ";"
+//! <function-declaration> ::= { <specifier> }+ <identifier> "(" <param-list> ")" ( <block> | ";")
+//! <specifier> ::= "int" | "static" | "extern"
 //! <param-list> ::= "void" | "int" <identifier> { "," "int" <identifier> }
 //! <block> ::= "{" { <block-item> } "}"
 //! <block-item> ::= <statement> | <declaration>
@@ -101,30 +102,36 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
 
     pub fn parse_program(&mut self) -> Result<Program> {
         let mut inner = || -> Result<_> {
-            let mut fun_decls = vec![];
+            let mut decls = vec![];
             loop {
                 match self.tokens.peek() {
                     None => break,
-                    _ => match self.parse_decl()? {
-                        Declaration::FunDecl(fun_decl) => fun_decls.push(fun_decl),
-                        Declaration::VarDecl(var_decl) => {
-                            return Err(anyhow!(
-                                "Global variable declarations are not supported yet. {var_decl:?}"
-                            ))
-                        }
-                    },
+                    _ => {
+                        let decl = self.maybe_parse_decl()?.ok_or_else(|| {
+                            let actual = self.tokens.peek();
+                            anyhow!("Expected <declaration> but found {actual:?}")
+                        })?;
+                        decls.push(decl);
+                    }
                 }
             }
-            Ok(Program { fun_decls })
+            Ok(Program { decls })
         };
         inner().context("tokens -> c_ast <program>")
     }
 
     /* Declaration */
 
-    fn parse_decl(&mut self) -> Result<Declaration> {
+    fn maybe_parse_decl(&mut self) -> Result<Option<Declaration>> {
         let mut inner = || -> Result<_> {
-            self.expect_exact(&[t::Type::Int.into()])?;
+            let (typ, storage_class) = match self.maybe_parse_specifiers()? {
+                None => return Ok(None),
+                Some((t, sc)) => (t, sc),
+            };
+            match typ {
+                t::Type::Int => { /* No-op. */ }
+                actual => return Err(anyhow!("Non-supported type {actual:?}")),
+            }
 
             let ident = match self.tokens.next() {
                 Some(Ok(t::Token::Identifier(ident))) => ident,
@@ -133,20 +140,22 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
 
             match self.tokens.next() {
                 Some(Ok(t::Token::Demarcator(t::Demarcator::Semicolon))) => {
-                    Ok(Declaration::VarDecl(VariableDeclaration {
+                    Ok(Some(Declaration::VarDecl(VariableDeclaration {
                         ident,
                         init: None,
-                    }))
+                        storage_class,
+                    })))
                 }
                 Some(Ok(t::Token::Operator(t::Operator::Assign))) => {
                     let init = self.parse_exp(BinaryOperatorPrecedence::min())?;
 
                     self.expect_exact(&[t::Demarcator::Semicolon.into()])?;
 
-                    Ok(Declaration::VarDecl(VariableDeclaration {
+                    Ok(Some(Declaration::VarDecl(VariableDeclaration {
                         ident,
                         init: Some(init),
-                    }))
+                        storage_class,
+                    })))
                 }
                 Some(Ok(t::Token::Demarcator(t::Demarcator::ParenOpen))) => {
                     let params = self.parse_param_list()?;
@@ -164,19 +173,56 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
                         }
                     };
 
-                    Ok(Declaration::FunDecl(FunctionDeclaration {
+                    Ok(Some(Declaration::FunDecl(FunctionDeclaration {
                         ident,
                         params,
                         body,
-                    }))
+                        storage_class,
+                    })))
                 }
                 actual => Err(anyhow!("{actual:?}")),
             }
         };
         inner().context("<declaration>")
     }
+    fn maybe_parse_specifiers(
+        &mut self,
+    ) -> Result<Option<(t::Type, Option<StorageClassSpecifier>)>> {
+        let mut inner = || -> Result<_> {
+            let mut typ = None;
+            let mut scs = None;
+            while let Some(Ok(t::Token::Type(_) | t::Token::StorageClassSpecifier(_))) =
+                self.tokens.peek()
+            {
+                match self.tokens.next().unwrap().unwrap() {
+                    t::Token::Type(next_typ) => match typ {
+                        None => typ = Some(next_typ),
+                        Some(prev_typ) => {
+                            return Err(anyhow!("Cannot have 2+ types. {prev_typ:?} {next_typ:?}"))
+                        }
+                    },
+                    t::Token::StorageClassSpecifier(next_scs) => match scs {
+                        None => scs = Some(next_scs),
+                        Some(prev_scs) => {
+                            return Err(anyhow!(
+                            "Cannot have 2+ storage class specifiers. {prev_scs:?} {next_scs:?}"
+                        ))
+                        }
+                    },
+                    _ => { /* Impossible. */ }
+                }
+            }
+
+            match (typ, scs) {
+                (None, None) => Ok(None),
+                (None, scs @ Some(_)) => Err(anyhow!("Missing type. {scs:?}")),
+                (Some(typ), scs) => Ok(Some((typ, scs))),
+            }
+        };
+        inner().context("<declaration> specifiers")
+    }
     fn parse_param_list(&mut self) -> Result<Vec<Identifier>> {
-        let mut inner = || -> Result<Vec<_>> {
+        let mut inner = || -> Result<_> {
             match self.tokens.peek() {
                 Some(Ok(t::Token::Type(t::Type::Void))) => {
                     self.tokens.next();
@@ -237,11 +283,9 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
     }
     fn parse_block_item(&mut self) -> Result<BlockItem> {
         let mut inner = || -> Result<_> {
-            match self.tokens.peek() {
-                Some(Ok(t::Token::Type(t::Type::Int))) => {
-                    self.parse_decl().map(BlockItem::Declaration)
-                }
-                _ => self.parse_stmt().map(BlockItem::Statement),
+            match self.maybe_parse_decl()? {
+                Some(decl) => Ok(BlockItem::Declaration(decl)),
+                None => self.parse_stmt().map(BlockItem::Statement),
             }
         };
         inner().context("<block-item>")
@@ -370,23 +414,23 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
         let mut inner = || -> Result<_> {
             self.expect_exact(&[t::Loop::For.into(), t::Demarcator::ParenOpen.into()])?;
 
-            let init = match self.tokens.peek() {
-                Some(Ok(t::Token::Type(t::Type::Int))) => match self.parse_decl()? {
-                    Declaration::VarDecl(var_decl) => ForInit::Decl(var_decl),
-                    Declaration::FunDecl(fun_decl) => return Err(anyhow!("{fun_decl:?}")),
+            let init = match self.maybe_parse_decl()? {
+                Some(Declaration::VarDecl(var_decl)) => ForInit::Decl(var_decl),
+                Some(Declaration::FunDecl(fun_decl)) => return Err(anyhow!("{fun_decl:?}")),
+                None => match self.tokens.peek() {
+                    Some(Ok(t::Token::Demarcator(t::Demarcator::Semicolon))) => {
+                        self.tokens.next();
+
+                        ForInit::None
+                    }
+                    _ => {
+                        let exp = self.parse_exp(BinaryOperatorPrecedence::min())?;
+
+                        self.expect_exact(&[t::Demarcator::Semicolon.into()])?;
+
+                        ForInit::Exp(exp)
+                    }
                 },
-                Some(Ok(t::Token::Demarcator(t::Demarcator::Semicolon))) => {
-                    self.tokens.next();
-
-                    ForInit::None
-                }
-                _ => {
-                    let exp = self.parse_exp(BinaryOperatorPrecedence::min())?;
-
-                    self.expect_exact(&[t::Demarcator::Semicolon.into()])?;
-
-                    ForInit::Exp(exp)
-                }
             };
 
             let condition = match self.tokens.peek() {
