@@ -16,6 +16,7 @@ impl Default for InstrsFinalizer {
     }
 }
 impl InstrsFinalizer {
+    /// See documentation at [`crate::stage4_asm_gen`].
     pub fn finalize_instrs(
         &mut self,
         in_instrs: impl Iterator<Item = Instruction<PreFinalOperand>>,
@@ -28,28 +29,7 @@ impl InstrsFinalizer {
 
         out_instrs.extend(instrs);
 
-        /*
-        RBP == RSP@1 -> | The previous stack frame's RBP
-                        | \
-                        |  + Local variables; and maybe padding
-                RSP@2-> | /
-                        | \
-                        |  + For one function call at a time: maybe padding; and args
-                        | /
-
-        When the next instruction is executed,
-            + RBP equals RSP. This is ensured by the function prologue (emitted in the subsequent asm emission stage).
-            + RBP and RSP are are 16-byte aligned. This is ensured by the cooperation of:
-                + how we allocate each stack frame, by the finalizer here and by the function-call instructions
-                + the fact that the `call` instruction pushes one 8-byte item (the RIP at which to resume)
-
-        Here in the finalizer, we pre-allocate the stack, for local variables only.
-        The current function's stack frame may be longer than the amount we allocate here. That extra portion is managed atomically per function call.
-
-        We must allocate s.t. RSP becomes 16-byte aligned (at "RSP@2"). For the reason, see documentation for function calls.
-
-        The compiler can't know the total byte length of all local variables until the iterator of `Instruction`s has been completely traversed.
-        */
+        /* We must read `self.last_used_stack_pos` strictly after the iterator of `Instruction`s has been completely traversed. */
         let mut stack_frame_bytelen = self.last_used_stack_pos.0 * -1;
         let rem = stack_frame_bytelen % 16;
         if rem != 0 {

@@ -1,3 +1,5 @@
+#![allow(rustdoc::private_intra_doc_links)]
+
 pub mod driver;
 pub mod files;
 pub mod stage1_lex;

@@ -22,6 +22,7 @@ impl AsmCodeGenerator {
         Register::R8,
         Register::R9,
     ];
+    /// See documentation at [`crate::stage4_asm_gen`].
     fn gen_fun(
         t::Function {
             ident,
@@ -29,16 +30,6 @@ impl AsmCodeGenerator {
             instrs: t_instrs,
         }: t::Function,
     ) -> Function {
-        /*
-        When the next instruction is executed, the stack has been arrangd to look like:
-            |      ...
-            | 24(%rbp) : Arg #8
-            | 16(%rbp) : Arg #7
-            |  8(%rbp) : The RIP at which to resume, when the current function returns.
-            |  0(%rbp) : The previous stack frame's RBP.
-
-        I believe it's always redundant to copy args[6..], which are in the previous stack frame, to pseudoregisters, which are in the current stack frame. Presumably this can be optimized away in the future.
-        */
         let mut extra_arg_stack_pos = StackPosition(8);
         let asm_instrs_copy_args = params.into_iter().enumerate().map(|(i, param_ident)| {
             let src = match Self::ARG_REGS.get(i) {
@@ -64,6 +55,7 @@ impl AsmCodeGenerator {
             instrs: asm_instrs,
         }
     }
+    /// See documentation at [`crate::stage4_asm_gen`].
     fn gen_funcall_instrs(
         t::FunCall { ident, args, dst }: t::FunCall,
     ) -> Vec<Instruction<PreFinalOperand>> {
@@ -72,28 +64,6 @@ impl AsmCodeGenerator {
         let reg_args_count = cmp::min(Self::ARG_REGS.len(), args.len());
         let stack_args_count = args.len() - reg_args_count;
 
-        /*
-        RBP ->  | 0x???0 -  The previous stack frame's RBP
-                | 0x???1 \
-                |    ...  |
-                |    ...  |
-        RSP@1-> | 0x???0 -+ Current function's local variables; and maybe padding
-                | 0x???8 \
-                |    ...  |
-                |    ...  |
-        RSP@2-> | 0x???0 -+ Maybe padding; and args to the callee
-
-        When the next instruction is executed, RSP is 16-byte aligned (at "RSP@1"). The instruction finalizer will have ensured this.
-
-        To prepare for a function-call, the next instructions must save necessary caller-saved registers into the stack.
-        But, all our usages elsewhere of these registers entail immediately returning them or saving them to a memory location. Eg we always copy function args. Eg we always copy outputs of operations to the memory.
-        Hence, we omit saving these registers here.
-
-        The next instructions will push 0+ args into the stack, while also ensuring that after the pushing, RSP will be 16-byte aligned again (at "RSP@2").
-        RSP is always 8-byte aligned. To ensure 16-byte alignment, we pad 0-or-1 unit of 8 bytes.
-
-        As a consequence, when the `call` instruction will be executed, RSP is guaranteed to be 16-byte aligned.
-        */
         let stack_padding_bytelen = if (stack_args_count & 1) == 1 { 8 } else { 0 };
 
         if stack_padding_bytelen != 0 {
@@ -102,7 +72,6 @@ impl AsmCodeGenerator {
             )));
         }
 
-        /* Note, we must push args[6..] to the stack in the reverse order. */
         for (i, arg_val) in args.into_iter().enumerate().rev() {
             let arg_operand = Self::convert_val_operand(arg_val);
             match Self::ARG_REGS.get(i) {
