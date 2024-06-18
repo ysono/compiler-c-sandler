@@ -1,4 +1,8 @@
-use crate::{stage2_parse::c_ast_resolved as c, stage3_tacky::tacky_ast::*};
+use crate::{
+    stage2_parse::c_ast_resolved as c,
+    stage3_tacky::tacky_ast::*,
+    symbol_table::{FunAttrs, StaticInitialValue, Symbol, SymbolTable, VarAttrs},
+};
 use derive_more::Display;
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -15,44 +19,87 @@ enum ShortCircuitBOT {
 
 pub struct Tackifier {}
 impl Tackifier {
-    pub fn tackify_program(c::Program { decls: c_decls }: c::Program) -> Program {
+    pub fn tackify_program(
+        c::Program { decls: c_decls }: c::Program,
+        symbol_table: &SymbolTable,
+    ) -> Program {
+        use StaticInitialValue as SIV;
+
         let mut funs = vec![];
         for c_decl in c_decls {
             match c_decl {
-                c::Declaration::VarDecl(_) => todo!(),
+                c::Declaration::VarDecl(_) => { /* No-op. */ }
                 c::Declaration::FunDecl(_) => { /* No-op. */ }
                 c::Declaration::FunDefn(fd) => {
-                    let gen = FunInstrsGenerator::default();
+                    let gen = FunInstrsGenerator::new(symbol_table);
                     let fun = gen.tackify_fun_defn(fd);
                     funs.push(fun);
                 }
             }
         }
-        Program { funs }
+
+        let mut vars = vec![];
+        for (ident, symbol) in symbol_table.iter() {
+            if let Symbol::Var {
+                attrs:
+                    VarAttrs::StaticStorageDuration {
+                        visibility,
+                        initial_value,
+                    },
+            } = symbol
+            {
+                let konst = match initial_value {
+                    SIV::Initial(konst) => *konst,
+                    SIV::Tentative => Const::Int(0),
+                    SIV::NoInitializer => continue,
+                };
+                let var = StaticVariable {
+                    ident: Rc::clone(ident),
+                    visibility: *visibility,
+                    init: konst,
+                };
+                vars.push(var);
+            }
+        }
+
+        Program { funs, vars }
     }
 }
 
-#[derive(Default)]
-struct FunInstrsGenerator {
+struct FunInstrsGenerator<'a> {
     loop_id_to_labels: LoopIdToLabels,
+
+    symbol_table: &'a SymbolTable,
 
     instrs: Vec<Instruction>,
 }
-impl FunInstrsGenerator {
+impl<'a> FunInstrsGenerator<'a> {
+    fn new(symbol_table: &'a SymbolTable) -> Self {
+        Self {
+            loop_id_to_labels: Default::default(),
+            symbol_table,
+            instrs: Default::default(),
+        }
+    }
+
     /* Declaration, Definition */
 
     fn tackify_fun_defn(
         mut self,
         c::FunctionDefinition {
-            decl:
-                c::FunctionDeclaration {
-                    ident,
-                    params,
-                    storage_class: _, // TODO
-                },
+            decl: c::FunctionDeclaration { ident, params, .. },
             body,
         }: c::FunctionDefinition,
     ) -> Function {
+        let symbol = self.symbol_table.get(&ident).unwrap();
+        let visibility = match symbol {
+            Symbol::Var { .. } => panic!("Impossible."),
+            Symbol::Fun {
+                attrs: FunAttrs { visibility, .. },
+                ..
+            } => *visibility,
+        };
+
         self.gen_block(body);
 
         let ret_kon = c::Const::Int(0);
@@ -62,29 +109,34 @@ impl FunInstrsGenerator {
 
         Function {
             ident,
+            visibility,
             params,
             instrs: self.instrs,
         }
     }
     fn gen_decl_block_scope(&mut self, c_decl: c::BlockScopeDeclaration) {
         match c_decl {
-            c::BlockScopeDeclaration::VarDecl(c_var_decl) => self.gen_decl_var(c_var_decl),
+            c::BlockScopeDeclaration::VarDecl(c_var_decl) => {
+                self.gen_decl_var_block_scope(c_var_decl)
+            }
             c::BlockScopeDeclaration::FunDecl(_c_fun_decl) => { /* No-op. */ }
         }
     }
-    fn gen_decl_var(
+    fn gen_decl_var_block_scope(
         &mut self,
         c::VariableDeclaration {
             ident,
             init,
-            storage_class: _, // TODO
+            storage_class,
         }: c::VariableDeclaration,
     ) {
-        match init {
-            None => { /* No-op. */ }
-            Some(init_exp) => {
+        /* Iff this var has storage_duration=automatic and initializer=some, then initialize.
+        As a performance improvement, we infer storage duration from storage class tokens, rather than from the symbol table. */
+        match (storage_class, init) {
+            (None, Some(init_exp)) => {
                 self.gen_exp_assignment(ident, init_exp);
             }
+            _ => { /* No-op. */ }
         }
     }
 
@@ -458,7 +510,7 @@ impl FunInstrsGenerator {
         /* Begin instructions */
 
         match init {
-            c::ForInit::Decl(c_var_decl) => self.gen_decl_var(c_var_decl),
+            c::ForInit::Decl(c_var_decl) => self.gen_decl_var_block_scope(c_var_decl),
             c::ForInit::Exp(c_exp) => {
                 self.gen_exp(c_exp);
             }

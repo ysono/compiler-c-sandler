@@ -127,7 +127,7 @@ fn compile(pp_filepath: PreprocessedFilepath, args: &CliArgs) -> Result<Option<A
         return Ok(None);
     }
 
-    let tacky_prog = Tackifier::tackify_program(c_prog);
+    let tacky_prog = Tackifier::tackify_program(c_prog, &symbol_table);
     if args.until_tacky {
         println!("tacky_prog: {tacky_prog:#?}");
         return Ok(None);

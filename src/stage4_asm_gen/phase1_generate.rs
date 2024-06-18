@@ -7,8 +7,9 @@ use std::rc::Rc;
 
 pub struct AsmCodeGenerator {}
 impl AsmCodeGenerator {
-    pub fn gen_program(t::Program { funs }: t::Program) -> Program {
+    pub fn gen_program(t::Program { funs, vars }: t::Program) -> Program {
         let funs = funs.into_iter().map(Self::gen_fun).collect::<Vec<_>>();
+        let _ = vars; // TODO
         Program { funs }
     }
 
@@ -26,6 +27,7 @@ impl AsmCodeGenerator {
     fn gen_fun(
         t::Function {
             ident,
+            visibility: _, // TODO
             params,
             instrs: t_instrs,
         }: t::Function,

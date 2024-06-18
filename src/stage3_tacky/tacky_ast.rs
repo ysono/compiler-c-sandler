@@ -1,5 +1,8 @@
 pub use self::instruction::*;
-pub use crate::stage2_parse::c_ast_resolved::ResolvedIdentifier;
+pub use crate::{
+    stage2_parse::c_ast_resolved::Const,
+    symbol_table::{ResolvedIdentifier, StaticVisibility},
+};
 use getset::Getters;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -7,13 +10,22 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 #[derive(Debug)]
 pub struct Program {
     pub funs: Vec<Function>,
+    pub vars: Vec<StaticVariable>,
 }
 
 #[derive(Debug)]
 pub struct Function {
     pub ident: Rc<ResolvedIdentifier>,
+    pub visibility: StaticVisibility,
     pub params: Vec<Rc<ResolvedIdentifier>>,
     pub instrs: Vec<Instruction>,
+}
+
+#[derive(Debug)]
+pub struct StaticVariable {
+    pub ident: Rc<ResolvedIdentifier>,
+    pub visibility: StaticVisibility,
+    pub init: Const,
 }
 
 #[derive(Debug)]

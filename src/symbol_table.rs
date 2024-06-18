@@ -85,7 +85,7 @@ pub struct FunAttrs {
     pub is_defined: bool,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug)]
 pub enum StaticVisibility {
     Global,    // Visible to other translation units.
     NonGlobal, // Visible either in translation unit or in block.
