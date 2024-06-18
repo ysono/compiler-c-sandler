@@ -2,7 +2,6 @@ use crate::{stage1_lex::tokens::Identifier, stage2_parse::c_ast_resolved::Expres
 use anyhow::{anyhow, Result};
 use derivative::Derivative;
 use derive_more::{Deref, DerefMut};
-use log;
 use std::collections::{hash_map::Entry, HashMap};
 use std::rc::Rc;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -50,9 +49,7 @@ impl IdentifierId {
 
 #[derive(Debug)]
 pub enum SymbolType {
-    Var {
-        is_initialized: bool,
-    },
+    Var,
     Function {
         params_count: usize,
         is_defined: bool,
@@ -64,32 +61,13 @@ pub struct SymbolTable {
     symbol_table: HashMap<Rc<ResolvedIdentifier>, SymbolType>,
 }
 impl SymbolTable {
-    pub fn declare_var(
-        &mut self,
-        ident: &Rc<ResolvedIdentifier>,
-        is_initialized: bool,
-    ) -> Result<()> {
+    pub fn declare_var(&mut self, ident: &Rc<ResolvedIdentifier>) -> Result<()> {
         match self.symbol_table.entry(Rc::clone(ident)) {
             Entry::Vacant(entry) => {
-                entry.insert(SymbolType::Var { is_initialized });
+                entry.insert(SymbolType::Var);
                 Ok(())
             }
             Entry::Occupied(_) => Err(anyhow!("Cannot declare {ident:?} 2+ times.")),
-        }
-    }
-    pub fn assign_var(&mut self, ident: &ResolvedIdentifier) -> Result<()> {
-        let prior_typ = self
-            .symbol_table
-            .get_mut(ident)
-            .ok_or_else(|| anyhow!("Cannot assign to non-declared {ident:?}."))?;
-        match prior_typ {
-            SymbolType::Var { is_initialized } => {
-                *is_initialized = true;
-                Ok(())
-            }
-            SymbolType::Function { .. } => Err(anyhow!(
-                "Cannot assign var to {ident:?} typed {prior_typ:?}."
-            )),
         }
     }
     pub fn use_var(&self, ident: &ResolvedIdentifier) -> Result<()> {
@@ -98,12 +76,7 @@ impl SymbolTable {
             .get(ident)
             .ok_or_else(|| anyhow!("Cannot use non-declared {ident:?}."))?;
         match prior_typ {
-            SymbolType::Var { is_initialized } => {
-                if *is_initialized == false {
-                    log::warn!("Using non-initialized var {ident:?}.");
-                }
-                Ok(())
-            }
+            SymbolType::Var => Ok(()),
             SymbolType::Function { .. } => {
                 Err(anyhow!("Cannot use {ident:?} typed {prior_typ:?} as var."))
             }

@@ -29,12 +29,10 @@ impl TypeChecker {
         &mut self,
         VariableDeclaration { ident, init }: &VariableDeclaration,
     ) -> Result<()> {
-        self.symbol_table.declare_var(ident, false)?;
+        self.symbol_table.declare_var(ident)?;
 
         if let Some(exp) = init {
             self.typecheck_exp(exp)?;
-
-            self.symbol_table.assign_var(ident)?;
         }
 
         Ok(())
@@ -57,7 +55,7 @@ impl TypeChecker {
             .declare_or_define_fun(ident, params, true)?;
 
         for ident in params.iter() {
-            self.symbol_table.declare_var(ident, true)?;
+            self.symbol_table.declare_var(ident)?;
         }
 
         self.typecheck_block(body)?;
@@ -146,7 +144,7 @@ impl TypeChecker {
             }
             Expression::Assignment(Assignment { ident, rhs }) => {
                 self.typecheck_exp(rhs)?;
-                self.symbol_table.assign_var(ident)?;
+                self.symbol_table.use_var(ident)?;
             }
             Expression::Conditional(Conditional {
                 condition,
