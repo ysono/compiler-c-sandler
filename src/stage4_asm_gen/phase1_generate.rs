@@ -1,16 +1,25 @@
 use crate::{
     stage3_tacky::tacky_ast as t,
     stage4_asm_gen::{asm_ast::*, phase2_finalize::InstrsFinalizer},
+    symbol_table::SymbolTable,
 };
 use std::cmp;
 use std::rc::Rc;
 
-pub struct AsmCodeGenerator {}
+pub struct AsmCodeGenerator {
+    symbol_table: Rc<SymbolTable>,
+}
 impl AsmCodeGenerator {
-    pub fn gen_program(t::Program { funs, vars }: t::Program) -> Program {
-        let funs = funs.into_iter().map(Self::gen_fun).collect::<Vec<_>>();
-        let _ = vars; // TODO
-        Program { funs }
+    pub fn new(symbol_table: Rc<SymbolTable>) -> Self {
+        Self { symbol_table }
+    }
+
+    pub fn gen_program(&self, t::Program { funs, vars }: t::Program) -> Program {
+        let funs = funs
+            .into_iter()
+            .map(|fun| self.gen_fun(fun))
+            .collect::<Vec<_>>();
+        Program { funs, vars }
     }
 
     /* Tacky Function */
@@ -25,9 +34,10 @@ impl AsmCodeGenerator {
     ];
     /// See documentation at [`crate::stage4_asm_gen`].
     fn gen_fun(
+        &self,
         t::Function {
             ident,
-            visibility: _, // TODO
+            visibility,
             params,
             instrs: t_instrs,
         }: t::Function,
@@ -41,7 +51,7 @@ impl AsmCodeGenerator {
                     PreFinalOperand::StackPosition(extra_arg_stack_pos)
                 }
             };
-            let dst = PreFinalOperand::from(param_ident);
+            let dst = PreFinalOperand::Pseudo(param_ident);
             Instruction::Mov { src, dst }
         });
 
@@ -49,11 +59,12 @@ impl AsmCodeGenerator {
 
         let asm_instrs = asm_instrs_copy_args.chain(asm_instrs_body);
 
-        let mut fin = InstrsFinalizer::default();
+        let mut fin = InstrsFinalizer::new(Rc::clone(&self.symbol_table));
         let asm_instrs = fin.finalize_instrs(asm_instrs);
 
         Function {
             ident,
+            visibility,
             instrs: asm_instrs,
         }
     }
@@ -81,7 +92,7 @@ impl AsmCodeGenerator {
                     PreFinalOperand::ImmediateValue(_) | PreFinalOperand::Register(_) => {
                         asm_instrs.push(Instruction::Push(arg_operand));
                     }
-                    PreFinalOperand::PseudoRegister(_) | PreFinalOperand::StackPosition(_) => {
+                    PreFinalOperand::Pseudo(_) | PreFinalOperand::StackPosition(_) => {
                         /* `pushq` operation always reads and pushes 8 bytes.
                         In case (arg's memory address + (8-1)) lies outside the readable memory, we cannot `pushq` directly. */
                         asm_instrs.push(Instruction::Mov {
@@ -328,7 +339,7 @@ impl AsmCodeGenerator {
     fn convert_val_operand(t_val: t::ReadableValue) -> PreFinalOperand {
         match t_val {
             t::ReadableValue::Constant(i) => PreFinalOperand::ImmediateValue(i),
-            t::ReadableValue::Variable(v) => PreFinalOperand::PseudoRegister(v),
+            t::ReadableValue::Variable(v) => PreFinalOperand::Pseudo(v),
         }
     }
 }

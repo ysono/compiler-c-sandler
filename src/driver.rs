@@ -14,6 +14,7 @@ use log;
 use std::fs;
 use std::path::PathBuf;
 use std::process::Command;
+use std::rc::Rc;
 
 #[derive(ClapParser, Debug)]
 struct CliArgs {
@@ -133,7 +134,9 @@ fn compile(pp_filepath: PreprocessedFilepath, args: &CliArgs) -> Result<Option<A
         return Ok(None);
     }
 
-    let asm_prog = AsmCodeGenerator::gen_program(tacky_prog);
+    let symbol_table = Rc::new(symbol_table);
+    let asm_gen = AsmCodeGenerator::new(Rc::clone(&symbol_table));
+    let asm_prog = asm_gen.gen_program(tacky_prog);
     if args.until_asm_codegen {
         println!("asm_prog: {asm_prog:#?}");
         return Ok(None);

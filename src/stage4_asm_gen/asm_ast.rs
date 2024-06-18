@@ -1,15 +1,19 @@
-pub use crate::stage3_tacky::tacky_ast::{LabelIdentifier, ResolvedIdentifier};
+pub use crate::stage3_tacky::tacky_ast::{
+    Const, LabelIdentifier, ResolvedIdentifier, StaticVariable, StaticVisibility,
+};
 use derive_more::{Deref, DerefMut, From};
 use std::rc::Rc;
 
 #[derive(Debug)]
 pub struct Program {
     pub funs: Vec<Function>,
+    pub vars: Vec<StaticVariable>,
 }
 
 #[derive(Debug)]
 pub struct Function {
     pub ident: Rc<ResolvedIdentifier>,
+    pub visibility: StaticVisibility,
     pub instrs: Vec<Instruction<Operand>>,
 }
 
@@ -60,7 +64,7 @@ pub enum PreFinalOperand {
     ImmediateValue(i32),
     Register(Register),
     StackPosition(StackPosition),
-    PseudoRegister(Rc<ResolvedIdentifier>),
+    Pseudo(Rc<ResolvedIdentifier>),
 }
 
 #[derive(From, Clone, Debug)]
@@ -68,6 +72,7 @@ pub enum Operand {
     ImmediateValue(i32),
     Register(Register),
     StackPosition(StackPosition),
+    Data(Rc<ResolvedIdentifier>),
 }
 
 #[derive(Clone, Copy, Debug)]

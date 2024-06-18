@@ -1,21 +1,26 @@
-use crate::stage4_asm_gen::asm_ast::*;
+use crate::{
+    stage4_asm_gen::asm_ast::*,
+    symbol_table::{Symbol, SymbolTable, VarAttrs},
+};
 use std::collections::HashMap;
 use std::mem;
 use std::rc::Rc;
 
 pub struct InstrsFinalizer {
+    symbol_table: Rc<SymbolTable>,
+
     last_used_stack_pos: StackPosition,
     var_to_stack_pos: HashMap<Rc<ResolvedIdentifier>, StackPosition>,
 }
-impl Default for InstrsFinalizer {
-    fn default() -> Self {
+impl InstrsFinalizer {
+    pub fn new(symbol_table: Rc<SymbolTable>) -> Self {
         Self {
+            symbol_table,
             last_used_stack_pos: StackPosition(0),
             var_to_stack_pos: HashMap::new(),
         }
     }
-}
-impl InstrsFinalizer {
+
     /// See documentation at [`crate::stage4_asm_gen`].
     pub fn finalize_instrs(
         &mut self,
@@ -93,7 +98,16 @@ impl InstrsFinalizer {
             PFO::ImmediateValue(i) => Operand::ImmediateValue(i),
             PFO::Register(r) => Operand::Register(r),
             PFO::StackPosition(s) => Operand::StackPosition(s),
-            PFO::PseudoRegister(ident) => self.var_to_stack_pos(ident).into(),
+            PFO::Pseudo(ident) => match self.symbol_table.get(&ident) {
+                Some(Symbol::Var {
+                    attrs: VarAttrs::AutomaticStorageDuration,
+                })
+                | None => self.var_to_stack_pos(ident).into(),
+                Some(Symbol::Var {
+                    attrs: VarAttrs::StaticStorageDuration { .. },
+                }) => Operand::Data(ident),
+                Some(Symbol::Fun { .. }) => panic!("Cannot use fun as var."),
+            },
         }
     }
     fn var_to_stack_pos(&mut self, ident: Rc<ResolvedIdentifier>) -> StackPosition {
@@ -114,8 +128,8 @@ impl OperandFixer {
     ) -> impl 'a + Iterator<Item = Instruction<Operand>> {
         in_instrs.flat_map(|in_instr| match in_instr {
             Instruction::Mov {
-                src: src @ Operand::StackPosition(_),
-                dst: dst @ Operand::StackPosition(_),
+                src: src @ (Operand::StackPosition(_) | Operand::Data(_)),
+                dst: dst @ (Operand::StackPosition(_) | Operand::Data(_)),
             } => {
                 let reg = Register::R10;
                 let instr_at_reg = Instruction::Mov {
@@ -126,8 +140,8 @@ impl OperandFixer {
             }
             Instruction::Binary {
                 op: op @ (BinaryOperator::Add | BinaryOperator::Sub),
-                arg: arg @ Operand::StackPosition(_),
-                tgt: tgt @ Operand::StackPosition(_),
+                arg: arg @ (Operand::StackPosition(_) | Operand::Data(_)),
+                tgt: tgt @ (Operand::StackPosition(_) | Operand::Data(_)),
             } => {
                 let reg = Register::R10;
                 let instr_at_reg = Instruction::Binary {
@@ -140,7 +154,7 @@ impl OperandFixer {
             Instruction::Binary {
                 op: op @ BinaryOperator::Mul,
                 arg,
-                tgt: tgt @ Operand::StackPosition(_),
+                tgt: tgt @ (Operand::StackPosition(_) | Operand::Data(_)),
             } => {
                 let reg = Register::R11;
                 let instr_at_reg = Instruction::Binary {
@@ -151,8 +165,8 @@ impl OperandFixer {
                 Self::to_and_from_reg(tgt, reg, instr_at_reg)
             }
             Instruction::Cmp {
-                arg: arg @ Operand::StackPosition(_),
-                tgt: tgt @ Operand::StackPosition(_),
+                arg: arg @ (Operand::StackPosition(_) | Operand::Data(_)),
+                tgt: tgt @ (Operand::StackPosition(_) | Operand::Data(_)),
             } => {
                 let reg = Register::R10;
                 let instr_at_reg = Instruction::Cmp {

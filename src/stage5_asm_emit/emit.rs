@@ -43,10 +43,12 @@ impl<'slf> AsmCodeEmitter<'slf> {
         Ok(Self { bw, symbol_table })
     }
 
-    pub fn emit_program(mut self, Program { funs }: Program) -> Result<(), io::Error> {
+    pub fn emit_program(mut self, Program { funs, vars }: Program) -> Result<(), io::Error> {
         for fun in funs {
             self.write_fun(fun)?;
         }
+
+        let _ = vars; // TODO
 
         if cfg!(target_os = "linux") {
             writeln!(&mut self.bw, "{TAB}.section	.note.GNU-stack,\"\",@progbits")?;
@@ -55,7 +57,16 @@ impl<'slf> AsmCodeEmitter<'slf> {
         self.bw.flush()?;
         Ok(())
     }
-    fn write_fun(&mut self, Function { ident, instrs }: Function) -> Result<(), io::Error> {
+    fn write_fun(
+        &mut self,
+        Function {
+            ident,
+            visibility,
+            instrs,
+        }: Function,
+    ) -> Result<(), io::Error> {
+        let _ = visibility; // TODO
+
         write!(&mut self.bw, "{TAB}.globl{TAB}")?;
         self.write_fun_name(&ident)?;
         writeln!(&mut self.bw)?;
@@ -199,6 +210,7 @@ impl<'slf> AsmCodeEmitter<'slf> {
             Operand::StackPosition(stkpos) => {
                 write!(&mut self.bw, "{}(%rbp)", *stkpos)?;
             }
+            Operand::Data(_) => todo!(),
         }
         Ok(())
     }
