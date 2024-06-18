@@ -4,7 +4,7 @@ use crate::{
         BinaryOperator, ConditionCode, Function, Instruction, LabelIdentifier, Operand, Program,
         Register, UnaryOperator,
     },
-    symbol_table::{ResolvedIdentifier, SymbolTable, SymbolType},
+    symbol_table::{FunAttrs, ResolvedIdentifier, Symbol, SymbolTable},
 };
 use lazy_static::lazy_static;
 use regex::Regex;
@@ -227,7 +227,7 @@ impl<'slf> AsmCodeEmitter<'slf> {
                 let id = id.as_int();
                 write!(&mut self.bw, "{IDENT_PFX}UNEXPECTED.{ident}.{id:x}")?;
             }
-            ResolvedIdentifier::ExternalLinkage(ident) => {
+            ResolvedIdentifier::SomeLinkage(ident) => {
                 let ident: &String = ident;
                 write!(&mut self.bw, "{IDENT_PFX}{ident}")?;
             }
@@ -235,8 +235,11 @@ impl<'slf> AsmCodeEmitter<'slf> {
 
         if cfg!(target_os = "linux") {
             match self.symbol_table.get(ident).unwrap() {
-                SymbolType::Var { .. } => { /* No-op. */ }
-                SymbolType::Function { is_defined, .. } => {
+                Symbol::Var { .. } => { /* No-op. */ }
+                Symbol::Fun {
+                    attrs: FunAttrs { is_defined, .. },
+                    ..
+                } => {
                     if *is_defined == false {
                         /* This is required iff the identifier will be lazily bound by a dynamic linker.
                         It doesn't hurt to specify even if the identifier's address offset will become statically known at link-time. */

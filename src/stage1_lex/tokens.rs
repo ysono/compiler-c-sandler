@@ -77,7 +77,7 @@ pub enum Loop {
     Break,
     Continue,
 }
-#[derive(PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Const {
     Int(i32),
 }

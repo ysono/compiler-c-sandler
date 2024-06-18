@@ -19,15 +19,11 @@ pub struct CAstValidator {
 impl CAstValidator {
     pub fn resolve_program(&mut self, p::Program { decls }: p::Program) -> Result<Program> {
         let inner = || -> Result<_> {
-            let funs = decls
+            let decls = decls
                 .into_iter()
-                .filter_map(|decl| match decl {
-                    p::Declaration::VarDecl(_) => None, // TODO
-                    p::Declaration::FunDecl(fd) => Some(fd),
-                })
-                .map(|p_fd| self.resolve_decl_fun(p_fd))
+                .map(|p_decl| self.resolve_decl(p_decl))
                 .collect::<Result<Vec<_>>>()?;
-            Ok(Program { funs })
+            Ok(Program { decls })
         };
         inner().context("c_ast validator on <program>")
     }
@@ -38,13 +34,9 @@ impl CAstValidator {
         let inner = || -> Result<_> {
             match p_decl {
                 p::Declaration::VarDecl(p_var_decl) => {
-                    let var_decl = self.resolve_decl_var(p_var_decl)?;
-                    Ok(Declaration::VarDecl(var_decl))
+                    self.resolve_decl_var(p_var_decl).map(Declaration::VarDecl)
                 }
-                p::Declaration::FunDecl(p_fun_decl) => match self.resolve_decl_fun(p_fun_decl)? {
-                    FunctionDeclOrDefn::FunDecl(fd) => Ok(Declaration::FunDecl(fd)),
-                    FunctionDeclOrDefn::FunDefn(_fd) => Ok(Declaration::FunDefn),
-                },
+                p::Declaration::FunDecl(p_fun_decl) => self.resolve_decl_fun(p_fun_decl),
             }
         };
         inner().context("<declaration>")
@@ -57,7 +49,7 @@ impl CAstValidator {
             let decl = match self.resolve_decl(p_decl)? {
                 Declaration::VarDecl(vd) => BlockScopeDeclaration::VarDecl(vd),
                 Declaration::FunDecl(fd) => BlockScopeDeclaration::FunDecl(fd),
-                Declaration::FunDefn => {
+                Declaration::FunDefn(_fd) => {
                     return Err(anyhow!("Cannot define function in any block scope."))
                 }
             };
@@ -70,15 +62,19 @@ impl CAstValidator {
         p::VariableDeclaration {
             ident,
             init,
-            storage_class: _, // TODO
+            storage_class,
         }: p::VariableDeclaration,
     ) -> Result<VariableDeclaration> {
         let inner = || -> Result<_> {
-            let ident = self.ident_resolver.declare_new_no_linkage(ident)?;
+            let ident = self.ident_resolver.declare_new_var(ident, &storage_class)?;
 
             let init = init.map(|p_exp| self.resolve_exp(p_exp)).transpose()?;
 
-            Ok(VariableDeclaration { ident, init })
+            Ok(VariableDeclaration {
+                ident,
+                init,
+                storage_class,
+            })
         };
         inner().context("<variable-declaration>")
     }
@@ -88,26 +84,33 @@ impl CAstValidator {
             ident,
             params,
             body,
-            storage_class: _, // TODO
+            storage_class,
         }: p::FunctionDeclaration,
-    ) -> Result<FunctionDeclOrDefn> {
+    ) -> Result<Declaration> {
         let inner = || -> Result<_> {
-            let ident = self.ident_resolver.declare_new_external_linkage(ident)?;
+            let ident = self.ident_resolver.declare_new_fun(ident)?;
 
             self.ident_resolver.push_new_scope();
 
             let params = params
                 .into_iter()
-                .map(|ident| self.ident_resolver.declare_new_no_linkage(ident))
+                .map(|ident| {
+                    let storage_class = None;
+                    self.ident_resolver.declare_new_var(ident, &storage_class)
+                })
                 .collect::<Result<Vec<_>>>()?;
 
-            let fun_decl = FunctionDeclaration { ident, params };
+            let fun_decl = FunctionDeclaration {
+                ident,
+                params,
+                storage_class,
+            };
 
             let fun_decl = match body {
-                None => FunctionDeclOrDefn::FunDecl(fun_decl),
+                None => Declaration::FunDecl(fun_decl),
                 Some(p_body) => {
                     let body = self.resolve_block(p_body, false)?;
-                    FunctionDeclOrDefn::FunDefn(FunctionDefinition {
+                    Declaration::FunDefn(FunctionDefinition {
                         decl: fun_decl,
                         body,
                     })
@@ -375,55 +378,12 @@ impl Default for IdentResolver {
     }
 }
 impl IdentResolver {
+    fn is_file_scope(&self) -> bool {
+        self.scope_to_idents.len() == 1
+    }
+
     fn push_new_scope(&mut self) {
         self.scope_to_idents.push(HashSet::new());
-    }
-    fn declare_new_no_linkage(&mut self, ident: p::Identifier) -> Result<Rc<ResolvedIdentifier>> {
-        let local_scope = self.scope_to_idents.last_mut().unwrap();
-        if local_scope.contains(&ident) {
-            return Err(anyhow!(
-                "Cannot declare a new no-linkage identifier in a local scope that has already declared the same identifier. {ident:?}"
-            ));
-        }
-        let ident = Rc::new(ident);
-        local_scope.insert(Rc::clone(&ident));
-
-        let resolved_ident = Rc::new(ResolvedIdentifier::new_no_linkage(Some(Rc::clone(&ident))));
-        self.ident_to_resolved_idents
-            .entry(ident)
-            .or_default()
-            .push(Rc::clone(&resolved_ident));
-
-        Ok(resolved_ident)
-    }
-    fn declare_new_external_linkage(
-        &mut self,
-        ident: p::Identifier,
-    ) -> Result<Rc<ResolvedIdentifier>> {
-        let local_scope = self.scope_to_idents.last_mut().unwrap();
-        if local_scope.contains(&ident) {
-            let resolved_idents = self.ident_to_resolved_idents.get(&ident).unwrap();
-            let resolved_ident = resolved_idents.last().unwrap();
-            match resolved_ident.as_ref() {
-                ResolvedIdentifier::NoLinkage { .. } => {
-                    return Err(anyhow!(
-                        "Cannot declare a new external-linkage identifier in a local scope that has already declared the same identifier as no-linkage. {ident:?}" 
-                    ));
-                }
-                ResolvedIdentifier::ExternalLinkage { .. } => return Ok(Rc::clone(resolved_ident)),
-            }
-        } else {
-            let ident = Rc::new(ident);
-            local_scope.insert(Rc::clone(&ident));
-
-            let resolved_ident = Rc::new(ResolvedIdentifier::ExternalLinkage(Rc::clone(&ident)));
-            self.ident_to_resolved_idents
-                .entry(Rc::clone(&ident))
-                .or_default()
-                .push(Rc::clone(&resolved_ident));
-
-            return Ok(resolved_ident);
-        }
     }
     fn pop_scope(&mut self) {
         let idents = self.scope_to_idents.pop().unwrap();
@@ -433,6 +393,65 @@ impl IdentResolver {
                 resolved_idents.pop();
             } else {
                 self.ident_to_resolved_idents.remove(&ident);
+            }
+        }
+    }
+
+    fn declare_new_var(
+        &mut self,
+        ident: p::Identifier,
+        storage_class: &Option<StorageClassSpecifier>,
+    ) -> Result<Rc<ResolvedIdentifier>> {
+        let has_linkage = self.is_file_scope()
+            || match storage_class {
+                Some(StorageClassSpecifier::Extern) => true,
+                Some(StorageClassSpecifier::Static) | None => false,
+            };
+        self.declare_new(ident, has_linkage)
+    }
+    fn declare_new_fun(&mut self, ident: p::Identifier) -> Result<Rc<ResolvedIdentifier>> {
+        let has_linkage = true;
+        self.declare_new(ident, has_linkage)
+    }
+    fn declare_new(
+        &mut self,
+        ident: p::Identifier,
+        new_has_linkage: bool,
+    ) -> Result<Rc<ResolvedIdentifier>> {
+        let local_scope = self.scope_to_idents.last_mut().unwrap();
+        match local_scope.contains(&ident) {
+            false => {
+                let ident = Rc::new(ident);
+
+                local_scope.insert(Rc::clone(&ident));
+
+                let resolved_ident = if new_has_linkage {
+                    ResolvedIdentifier::SomeLinkage(Rc::clone(&ident))
+                } else {
+                    ResolvedIdentifier::new_no_linkage(Some(Rc::clone(&ident)))
+                };
+                let resolved_ident = Rc::new(resolved_ident);
+
+                self.ident_to_resolved_idents
+                    .entry(ident)
+                    .or_default()
+                    .push(Rc::clone(&resolved_ident));
+
+                Ok(resolved_ident)
+            }
+            true => {
+                let resolved_idents = self.ident_to_resolved_idents.get_mut(&ident).unwrap();
+                let resolved_ident = resolved_idents.last_mut().unwrap();
+
+                let prev_has_linkage = matches!(
+                    resolved_ident.as_ref(),
+                    ResolvedIdentifier::SomeLinkage { .. }
+                );
+                if (prev_has_linkage && new_has_linkage) == false {
+                    Err(anyhow!("In one scope, 2+ declarations of a same identifier must all refer to the same object or function, hence must all have some linkage. {resolved_ident:?} vs {new_has_linkage}"))
+                } else {
+                    Ok(Rc::clone(resolved_ident))
+                }
             }
         }
     }

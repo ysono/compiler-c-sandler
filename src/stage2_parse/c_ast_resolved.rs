@@ -2,7 +2,7 @@ pub use self::declaration::*;
 pub use self::expression::*;
 pub use self::statement::*;
 pub use crate::{
-    stage2_parse::c_ast::{BinaryOperator, Const, UnaryOperator},
+    stage2_parse::c_ast::{BinaryOperator, Const, StorageClassSpecifier, UnaryOperator},
     symbol_table::ResolvedIdentifier,
 };
 use derivative::Derivative;
@@ -12,16 +12,12 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 #[derive(Debug)]
 pub struct Program {
-    pub funs: Vec<FunctionDeclOrDefn>,
+    pub decls: Vec<Declaration>,
 }
 
-pub(super) enum Declaration {
-    VarDecl(VariableDeclaration),
-    FunDecl(FunctionDeclaration),
-    FunDefn,
-}
 #[derive(Debug)]
-pub enum FunctionDeclOrDefn {
+pub enum Declaration {
+    VarDecl(VariableDeclaration),
     FunDecl(FunctionDeclaration),
     FunDefn(FunctionDefinition),
 }
@@ -37,12 +33,14 @@ mod declaration {
     pub struct VariableDeclaration {
         pub ident: Rc<ResolvedIdentifier>,
         pub init: Option<Expression>,
+        pub storage_class: Option<StorageClassSpecifier>,
     }
 
     #[derive(Debug)]
     pub struct FunctionDeclaration {
         pub ident: Rc<ResolvedIdentifier>,
         pub params: Vec<Rc<ResolvedIdentifier>>,
+        pub storage_class: Option<StorageClassSpecifier>,
     }
 
     #[derive(Debug)]

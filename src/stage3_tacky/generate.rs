@@ -15,12 +15,13 @@ enum ShortCircuitBOT {
 
 pub struct Tackifier {}
 impl Tackifier {
-    pub fn tackify_program(c::Program { funs: c_funs }: c::Program) -> Program {
+    pub fn tackify_program(c::Program { decls: c_decls }: c::Program) -> Program {
         let mut funs = vec![];
-        for c_fun in c_funs {
-            match c_fun {
-                c::FunctionDeclOrDefn::FunDecl(_) => { /* No-op. */ }
-                c::FunctionDeclOrDefn::FunDefn(fd) => {
+        for c_decl in c_decls {
+            match c_decl {
+                c::Declaration::VarDecl(_) => todo!(),
+                c::Declaration::FunDecl(_) => { /* No-op. */ }
+                c::Declaration::FunDefn(fd) => {
                     let gen = FunInstrsGenerator::default();
                     let fun = gen.tackify_fun_defn(fd);
                     funs.push(fun);
@@ -43,7 +44,12 @@ impl FunInstrsGenerator {
     fn tackify_fun_defn(
         mut self,
         c::FunctionDefinition {
-            decl: c::FunctionDeclaration { ident, params },
+            decl:
+                c::FunctionDeclaration {
+                    ident,
+                    params,
+                    storage_class: _, // TODO
+                },
             body,
         }: c::FunctionDefinition,
     ) -> Function {
@@ -66,7 +72,14 @@ impl FunInstrsGenerator {
             c::BlockScopeDeclaration::FunDecl(_c_fun_decl) => { /* No-op. */ }
         }
     }
-    fn gen_decl_var(&mut self, c::VariableDeclaration { ident, init }: c::VariableDeclaration) {
+    fn gen_decl_var(
+        &mut self,
+        c::VariableDeclaration {
+            ident,
+            init,
+            storage_class: _, // TODO
+        }: c::VariableDeclaration,
+    ) {
         match init {
             None => { /* No-op. */ }
             Some(init_exp) => {
