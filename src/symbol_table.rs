@@ -9,6 +9,7 @@ use derivative::Derivative;
 use derive_more::From;
 use derive_more::{Deref, DerefMut};
 use std::collections::{hash_map::Entry, HashMap};
+use std::fmt::Display;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -18,7 +19,6 @@ pub enum ResolvedIdentifier {
     NoLinkage {
         id: IdentifierId,
 
-        /// Used for debugging only.
         #[derivative(PartialEq = "ignore", Hash = "ignore")]
         orig: Option<Rc<Identifier>>,
     },
@@ -35,6 +35,27 @@ impl ResolvedIdentifier {
         match self {
             Self::NoLinkage { id, .. } => Some(id.as_int()),
             Self::SomeLinkage(..) => None,
+        }
+    }
+}
+impl Display for ResolvedIdentifier {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::NoLinkage { id, orig } => {
+                /* DELIM and ORIG_DEFAULT must each be a non-empty str that cannot be a substring within any original identifier string. */
+                const DELIM: char = '.';
+                const ORIG_DEFAULT: &str = "tmp.";
+                let name = orig
+                    .as_ref()
+                    .map(|ident| ident as &str)
+                    .unwrap_or(ORIG_DEFAULT);
+                let id = id.as_int();
+                write!(f, "{name}{DELIM}{id:x}")
+            }
+            Self::SomeLinkage(ident) => {
+                let name = ident as &str;
+                write!(f, "{name}")
+            }
         }
     }
 }

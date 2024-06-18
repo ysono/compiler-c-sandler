@@ -1,15 +1,16 @@
 use crate::{
     files::AsmFilepath,
     stage4_asm_gen::asm_ast::{
-        BinaryOperator, ConditionCode, Function, Instruction, LabelIdentifier, Operand, Program,
-        Register, UnaryOperator,
+        BinaryOperator, ConditionCode, Const, Function, Instruction, LabelIdentifier, Operand,
+        Program, Register, StaticVariable, UnaryOperator,
     },
-    symbol_table::{FunAttrs, ResolvedIdentifier, Symbol, SymbolTable},
+    symbol_table::{FunAttrs, ResolvedIdentifier, StaticVisibility, Symbol, SymbolTable},
 };
 use lazy_static::lazy_static;
 use regex::Regex;
 use std::fs::{File, OpenOptions};
 use std::io::{self, BufWriter, Write};
+use std::mem;
 use std::path::PathBuf;
 
 const TAB: &str = "\t";
@@ -48,7 +49,9 @@ impl<'slf> AsmCodeEmitter<'slf> {
             self.write_fun(fun)?;
         }
 
-        let _ = vars; // TODO
+        for var in vars {
+            self.write_static_var(var)?;
+        }
 
         if cfg!(target_os = "linux") {
             writeln!(&mut self.bw, "{TAB}.section	.note.GNU-stack,\"\",@progbits")?;
@@ -65,11 +68,15 @@ impl<'slf> AsmCodeEmitter<'slf> {
             instrs,
         }: Function,
     ) -> Result<(), io::Error> {
-        let _ = visibility; // TODO
-
-        write!(&mut self.bw, "{TAB}.globl{TAB}")?;
-        self.write_fun_name(&ident)?;
-        writeln!(&mut self.bw)?;
+        match visibility {
+            StaticVisibility::Global => {
+                write!(&mut self.bw, "{TAB}.globl{TAB}")?;
+                self.write_fun_name(&ident)?;
+                writeln!(&mut self.bw)?;
+            }
+            StaticVisibility::NonGlobal => { /* No-op. */ }
+        }
+        writeln!(&mut self.bw, "{TAB}.text")?;
         self.write_fun_name(&ident)?;
         writeln!(&mut self.bw, ":")?;
         writeln!(&mut self.bw, "{TAB}pushq{TAB}%rbp")?;
@@ -210,7 +217,9 @@ impl<'slf> AsmCodeEmitter<'slf> {
             Operand::StackPosition(stkpos) => {
                 write!(&mut self.bw, "{}(%rbp)", *stkpos)?;
             }
-            Operand::Data(_) => todo!(),
+            Operand::Data(ident) => {
+                write!(&mut self.bw, "{ident}(%rip)")?;
+            }
         }
         Ok(())
     }
@@ -232,18 +241,7 @@ impl<'slf> AsmCodeEmitter<'slf> {
     fn write_fun_name(&mut self, ident: &ResolvedIdentifier) -> Result<(), io::Error> {
         const IDENT_PFX: &str = if cfg!(target_os = "macos") { "_" } else { "" };
 
-        match ident {
-            ResolvedIdentifier::NoLinkage { id, orig } => {
-                /* This case should never be encountered. */
-                let ident = orig.as_ref().map(|s| s.as_str()).unwrap_or("");
-                let id = id.as_int();
-                write!(&mut self.bw, "{IDENT_PFX}UNEXPECTED.{ident}.{id:x}")?;
-            }
-            ResolvedIdentifier::SomeLinkage(ident) => {
-                let ident: &String = ident;
-                write!(&mut self.bw, "{IDENT_PFX}{ident}")?;
-            }
-        }
+        write!(&mut self.bw, "{IDENT_PFX}{ident}")?;
 
         if cfg!(target_os = "linux") {
             match self.symbol_table.get(ident).unwrap() {
@@ -272,5 +270,40 @@ impl<'slf> AsmCodeEmitter<'slf> {
             ConditionCode::G => "g",
             ConditionCode::Ge => "ge",
         }
+    }
+    fn write_static_var(
+        &mut self,
+        StaticVariable {
+            ident,
+            visibility,
+            init,
+        }: StaticVariable,
+    ) -> Result<(), io::Error> {
+        const IDENT_PFX: &str = if cfg!(target_os = "macos") { "_" } else { "" };
+        const BYTELEN: usize = mem::size_of::<i32>();
+
+        let section = match init {
+            Const::Int(0) => ".bss",
+            Const::Int(_) => ".data",
+        };
+
+        match visibility {
+            StaticVisibility::Global => {
+                writeln!(&mut self.bw, "{TAB}.globl{TAB}{IDENT_PFX}{ident}")?;
+            }
+            StaticVisibility::NonGlobal => { /* No-op. */ }
+        }
+        writeln!(&mut self.bw, "{TAB}{section}")?;
+        writeln!(&mut self.bw, "{TAB}.balign {BYTELEN}")?;
+        writeln!(&mut self.bw, "{IDENT_PFX}{ident}:")?;
+        match init {
+            Const::Int(0) => {
+                writeln!(&mut self.bw, "{TAB}.zero {BYTELEN}")?;
+            }
+            Const::Int(i) => {
+                writeln!(&mut self.bw, "{TAB}.long {i}")?;
+            }
+        };
+        Ok(())
     }
 }
