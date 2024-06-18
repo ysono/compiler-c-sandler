@@ -50,7 +50,7 @@ impl IdentifierId {
 
 #[derive(Debug)]
 pub enum SymbolType {
-    Int {
+    Var {
         is_initialized: bool,
     },
     Function {
@@ -64,48 +64,48 @@ pub struct SymbolTable {
     symbol_table: HashMap<Rc<ResolvedIdentifier>, SymbolType>,
 }
 impl SymbolTable {
-    pub fn declare_int(
+    pub fn declare_var(
         &mut self,
         ident: &Rc<ResolvedIdentifier>,
         is_initialized: bool,
     ) -> Result<()> {
         match self.symbol_table.entry(Rc::clone(ident)) {
             Entry::Vacant(entry) => {
-                entry.insert(SymbolType::Int { is_initialized });
+                entry.insert(SymbolType::Var { is_initialized });
                 Ok(())
             }
             Entry::Occupied(_) => Err(anyhow!("Cannot declare {ident:?} 2+ times.")),
         }
     }
-    pub fn assign_int(&mut self, ident: &ResolvedIdentifier) -> Result<()> {
+    pub fn assign_var(&mut self, ident: &ResolvedIdentifier) -> Result<()> {
         let prior_typ = self
             .symbol_table
             .get_mut(ident)
             .ok_or_else(|| anyhow!("Cannot assign to non-declared {ident:?}."))?;
         match prior_typ {
-            SymbolType::Int { is_initialized } => {
+            SymbolType::Var { is_initialized } => {
                 *is_initialized = true;
                 Ok(())
             }
             SymbolType::Function { .. } => Err(anyhow!(
-                "Cannot assign int to {ident:?} typed {prior_typ:?}."
+                "Cannot assign var to {ident:?} typed {prior_typ:?}."
             )),
         }
     }
-    pub fn use_int(&self, ident: &ResolvedIdentifier) -> Result<()> {
+    pub fn use_var(&self, ident: &ResolvedIdentifier) -> Result<()> {
         let prior_typ = self
             .symbol_table
             .get(ident)
             .ok_or_else(|| anyhow!("Cannot use non-declared {ident:?}."))?;
         match prior_typ {
-            SymbolType::Int { is_initialized } => {
+            SymbolType::Var { is_initialized } => {
                 if *is_initialized == false {
-                    log::warn!("Using non-initialized int {ident:?}.");
+                    log::warn!("Using non-initialized var {ident:?}.");
                 }
                 Ok(())
             }
             SymbolType::Function { .. } => {
-                Err(anyhow!("Cannot use {ident:?} typed {prior_typ:?} as int."))
+                Err(anyhow!("Cannot use {ident:?} typed {prior_typ:?} as var."))
             }
         }
     }

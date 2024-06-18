@@ -49,18 +49,21 @@ impl CAstValidator {
         };
         inner().context("<declaration>")
     }
-    fn resolve_decl_non_global(&mut self, p_decl: p::Declaration) -> Result<NonGlobalDeclaration> {
+    fn resolve_decl_block_scope(
+        &mut self,
+        p_decl: p::Declaration,
+    ) -> Result<BlockScopeDeclaration> {
         let inner = || -> Result<_> {
             let decl = match self.resolve_decl(p_decl)? {
-                Declaration::VarDecl(vd) => NonGlobalDeclaration::VarDecl(vd),
-                Declaration::FunDecl(fd) => NonGlobalDeclaration::FunDecl(fd),
+                Declaration::VarDecl(vd) => BlockScopeDeclaration::VarDecl(vd),
+                Declaration::FunDecl(fd) => BlockScopeDeclaration::FunDecl(fd),
                 Declaration::FunDefn => {
-                    return Err(anyhow!("Cannot define function in any non-global scope."))
+                    return Err(anyhow!("Cannot define function in any block scope."))
                 }
             };
             Ok(decl)
         };
-        inner().context("<declaration> non-global")
+        inner().context("<declaration> at block scope")
     }
     fn resolve_decl_var(
         &mut self,
@@ -123,10 +126,10 @@ impl CAstValidator {
     fn resolve_block(
         &mut self,
         p::Block { items }: p::Block,
-        is_new_ident_scope: bool,
+        need_new_ident_scope: bool,
     ) -> Result<Block> {
         let inner = || -> Result<_> {
-            if is_new_ident_scope {
+            if need_new_ident_scope {
                 self.ident_resolver.push_new_scope();
             }
 
@@ -135,7 +138,7 @@ impl CAstValidator {
                 .map(|p_item| self.resolve_block_item(p_item))
                 .collect::<Result<Vec<_>>>()?;
 
-            if is_new_ident_scope {
+            if need_new_ident_scope {
                 self.ident_resolver.pop_scope();
             }
 
@@ -147,7 +150,7 @@ impl CAstValidator {
         let inner = || -> Result<_> {
             match p_item {
                 p::BlockItem::Declaration(p_decl) => {
-                    let decl = self.resolve_decl_non_global(p_decl)?;
+                    let decl = self.resolve_decl_block_scope(p_decl)?;
                     Ok(BlockItem::Declaration(decl))
                 }
                 p::BlockItem::Statement(p_stmt) => {
@@ -194,14 +197,14 @@ impl CAstValidator {
                     let loop_id = self
                         .loop_ids_stack
                         .last()
-                        .ok_or(anyhow!("Break outside loop scope"))?;
+                        .ok_or(anyhow!("Cannot break outside loop scope"))?;
                     Ok(Statement::Break(Rc::clone(loop_id)))
                 }
                 p::Statement::Continue => {
                     let loop_id = self
                         .loop_ids_stack
                         .last()
-                        .ok_or(anyhow!("Continue outside loop scope"))?;
+                        .ok_or(anyhow!("Cannot continue outside loop scope"))?;
                     Ok(Statement::Continue(Rc::clone(loop_id)))
                 }
                 p::Statement::While(p_condbody) => self.resolve_stmt_while(p_condbody),
@@ -367,7 +370,7 @@ impl Default for IdentResolver {
     fn default() -> Self {
         Self {
             ident_to_resolved_idents: HashMap::new(),
-            scope_to_idents: vec![HashSet::new()], // One global scope.
+            scope_to_idents: vec![HashSet::new()], // The one file scope.
         }
     }
 }
@@ -438,7 +441,7 @@ impl IdentResolver {
         let resolved_idents = self
             .ident_to_resolved_idents
             .get(ident)
-            .ok_or_else(|| anyhow!("Non-declared identifier {ident:?}"))?;
+            .ok_or_else(|| anyhow!("Identifier wasn't declared in scope. {ident:?}"))?;
         let resolved_ident = resolved_idents.last().unwrap();
         Ok(Rc::clone(resolved_ident))
     }

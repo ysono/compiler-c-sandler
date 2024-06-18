@@ -26,7 +26,7 @@ pub enum FunctionDeclOrDefn {
     FunDefn(FunctionDefinition),
 }
 #[derive(Debug)]
-pub enum NonGlobalDeclaration {
+pub enum BlockScopeDeclaration {
     VarDecl(VariableDeclaration),
     FunDecl(FunctionDeclaration),
 }
@@ -59,7 +59,7 @@ pub struct Block {
 
 #[derive(Debug)]
 pub enum BlockItem {
-    Declaration(NonGlobalDeclaration),
+    Declaration(BlockScopeDeclaration),
     Statement(Statement),
 }
 

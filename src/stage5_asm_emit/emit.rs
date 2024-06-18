@@ -235,7 +235,7 @@ impl<'slf> AsmCodeEmitter<'slf> {
 
         if cfg!(target_os = "linux") {
             match self.symbol_table.get(ident).unwrap() {
-                SymbolType::Int { .. } => { /* No-op. */ }
+                SymbolType::Var { .. } => { /* No-op. */ }
                 SymbolType::Function { is_defined, .. } => {
                     if *is_defined == false {
                         /* This is required iff the identifier will be lazily bound by a dynamic linker.

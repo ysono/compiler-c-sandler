@@ -60,10 +60,10 @@ impl FunInstrsGenerator {
             instrs: self.instrs,
         }
     }
-    fn gen_decl_non_global(&mut self, c_decl: c::NonGlobalDeclaration) {
+    fn gen_decl_block_scope(&mut self, c_decl: c::BlockScopeDeclaration) {
         match c_decl {
-            c::NonGlobalDeclaration::VarDecl(c_var_decl) => self.gen_decl_var(c_var_decl),
-            c::NonGlobalDeclaration::FunDecl(_c_fun_decl) => { /* No-op. */ }
+            c::BlockScopeDeclaration::VarDecl(c_var_decl) => self.gen_decl_var(c_var_decl),
+            c::BlockScopeDeclaration::FunDecl(_c_fun_decl) => { /* No-op. */ }
         }
     }
     fn gen_decl_var(&mut self, c::VariableDeclaration { ident, init }: c::VariableDeclaration) {
@@ -80,7 +80,7 @@ impl FunInstrsGenerator {
     fn gen_block(&mut self, c_block: c::Block) {
         for c_item in c_block.items {
             match c_item {
-                c::BlockItem::Declaration(c_decl) => self.gen_decl_non_global(c_decl),
+                c::BlockItem::Declaration(c_decl) => self.gen_decl_block_scope(c_decl),
                 c::BlockItem::Statement(c_stmt) => self.gen_stmt(c_stmt),
             }
         }

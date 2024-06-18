@@ -19,22 +19,22 @@ impl TypeChecker {
             FunctionDeclOrDefn::FunDefn(fd) => self.typecheck_decl_fundefn(fd),
         }
     }
-    fn typecheck_decl_nonglobal(&mut self, decl: &NonGlobalDeclaration) -> Result<()> {
+    fn typecheck_decl_block_scope(&mut self, decl: &BlockScopeDeclaration) -> Result<()> {
         match decl {
-            NonGlobalDeclaration::VarDecl(vd) => self.typecheck_decl_var(vd),
-            NonGlobalDeclaration::FunDecl(fd) => self.typecheck_decl_fundecl(fd),
+            BlockScopeDeclaration::VarDecl(vd) => self.typecheck_decl_var(vd),
+            BlockScopeDeclaration::FunDecl(fd) => self.typecheck_decl_fundecl(fd),
         }
     }
     fn typecheck_decl_var(
         &mut self,
         VariableDeclaration { ident, init }: &VariableDeclaration,
     ) -> Result<()> {
-        self.symbol_table.declare_int(ident, false)?;
+        self.symbol_table.declare_var(ident, false)?;
 
         if let Some(exp) = init {
             self.typecheck_exp(exp)?;
 
-            self.symbol_table.assign_int(ident)?;
+            self.symbol_table.assign_var(ident)?;
         }
 
         Ok(())
@@ -57,7 +57,7 @@ impl TypeChecker {
             .declare_or_define_fun(ident, params, true)?;
 
         for ident in params.iter() {
-            self.symbol_table.declare_int(ident, true)?;
+            self.symbol_table.declare_var(ident, true)?;
         }
 
         self.typecheck_block(body)?;
@@ -73,7 +73,7 @@ impl TypeChecker {
     }
     fn typecheck_block_item(&mut self, item: &BlockItem) -> Result<()> {
         match item {
-            BlockItem::Declaration(decl) => self.typecheck_decl_nonglobal(decl),
+            BlockItem::Declaration(decl) => self.typecheck_decl_block_scope(decl),
             BlockItem::Statement(stmt) => self.typecheck_stmt(stmt),
         }
     }
@@ -135,7 +135,7 @@ impl TypeChecker {
         match exp {
             Expression::Const(_konst) => {}
             Expression::Var(ident) => {
-                self.symbol_table.use_int(ident)?;
+                self.symbol_table.use_var(ident)?;
             }
             Expression::Unary(Unary { op: _, sub_exp }) => {
                 self.typecheck_exp(sub_exp)?;
@@ -146,7 +146,7 @@ impl TypeChecker {
             }
             Expression::Assignment(Assignment { ident, rhs }) => {
                 self.typecheck_exp(rhs)?;
-                self.symbol_table.assign_int(ident)?;
+                self.symbol_table.assign_var(ident)?;
             }
             Expression::Conditional(Conditional {
                 condition,
