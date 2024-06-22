@@ -27,8 +27,9 @@ pub enum Keyword {
 }
 #[derive(PartialEq, Eq, Debug)]
 pub enum Type {
-    Int,
     Void,
+    Int,
+    Long,
 }
 #[derive(PartialEq, Eq, Debug)]
 pub enum StorageClassSpecifier {
@@ -80,6 +81,7 @@ pub enum Loop {
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Const {
     Int(i32),
+    Long(i64),
 }
 #[derive(Deref, PartialEq, Eq, Hash, Debug)]
 pub struct Identifier(pub(super) String);

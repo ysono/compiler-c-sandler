@@ -117,10 +117,15 @@ impl Lexer {
                 return Ok((match_len, token));
             }
             b if b.is_ascii_digit() => {
-                if let Some(mach) = self.matchers.decimals.find(sfx) {
-                    let literal = mach.as_str().parse::<i32>().context("Const integer")?;
-                    let token = Const::Int(literal).into();
-                    return Ok((mach.len(), token));
+                if let Some(caps) = self.matchers.decimals.captures(sfx) {
+                    let (literal, [digits, type_marker]) = caps.extract();
+                    let i = digits.parse::<i64>()?;
+                    let token = match (type_marker, i >> 31) {
+                        ("l" | "L", _) => Const::Long(i).into(),
+                        (_, 0 | -1) => Const::Int(i as i32).into(), // Note, there is no need to match (i >> 31) with -1.
+                        (_, _) => Const::Long(i).into(),
+                    };
+                    return Ok((literal.len(), token));
                 }
                 return Err(anyhow!("{sfx}"));
             }
@@ -129,8 +134,9 @@ impl Lexer {
                     #[rustfmt::skip]
                     let token = match mach.as_str() {
                         "return" => Keyword::Return.into(),
-                        "int"    => Type::Int.into(),
                         "void"   => Type::Void.into(),
+                        "int"    => Type::Int.into(),
+                        "long"   => Type::Long.into(),
                         "static" => StorageClassSpecifier::Static.into(),
                         "extern" => StorageClassSpecifier::Extern.into(),
                         "if"     => Control::If.into(),
@@ -162,7 +168,7 @@ struct TokenMatchers {
 }
 impl TokenMatchers {
     fn new() -> Result<Self> {
-        let decimals = Regex::new(r"^[0-9]+\b")?;
+        let decimals = Regex::new(r"^([0-9]+)([lL]?)\b")?;
         let wordlike = Regex::new(r"^[a-zA-Z_]\w*\b")?;
         Ok(Self { decimals, wordlike })
     }

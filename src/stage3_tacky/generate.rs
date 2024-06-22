@@ -174,6 +174,7 @@ impl<'a> FunInstrsGenerator<'a> {
     fn gen_exp(&mut self, c_exp: c::Expression) -> ReadableValue {
         match c_exp {
             c::Expression::Const(c::Const::Int(i)) => ReadableValue::Constant(i),
+            c::Expression::Const(c::Const::Long(_)) => todo!(),
             c::Expression::Var(ident) => ReadableValue::Variable(ident),
             c::Expression::Unary(unary) => self.gen_exp_unary(unary),
             c::Expression::Binary(binary) => self.gen_exp_binary(binary),
