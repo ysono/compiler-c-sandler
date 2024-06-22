@@ -1,6 +1,10 @@
 #![doc = include_str!("./phase1_parse.md")]
 
-use crate::{stage1_lex::tokens as t, stage2_parse::c_ast::*};
+use crate::{
+    stage1_lex::tokens as t,
+    stage2_parse::c_ast::*,
+    symbol_table::{FunType, VarType},
+};
 use anyhow::{anyhow, Context, Result};
 use std::iter::Peekable;
 
@@ -100,10 +104,6 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
                 None => return Ok(None),
                 Some((t, sc)) => (t, sc),
             };
-            match typ {
-                t::Type::Int => { /* No-op. */ }
-                actual => return Err(anyhow!("Non-supported type {actual:?}")),
-            }
 
             let ident = match self.tokens.next() {
                 Some(Ok(t::Token::Identifier(ident))) => ident,
@@ -115,6 +115,7 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
                     Ok(Some(Declaration::VarDecl(VariableDeclaration {
                         ident,
                         init: None,
+                        typ,
                         storage_class,
                     })))
                 }
@@ -126,11 +127,12 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
                     Ok(Some(Declaration::VarDecl(VariableDeclaration {
                         ident,
                         init: Some(init),
+                        typ,
                         storage_class,
                     })))
                 }
                 Some(Ok(t::Token::Demarcator(t::Demarcator::ParenOpen))) => {
-                    let params = self.parse_param_list()?;
+                    let (param_typs, param_idents) = self.parse_param_list()?;
 
                     self.expect_exact(&[t::Demarcator::ParenClose.into()])?;
 
@@ -145,10 +147,16 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
                         }
                     };
 
+                    let fun_type = FunType {
+                        params: param_typs,
+                        ret: typ,
+                    };
+
                     Ok(Some(Declaration::FunDecl(FunctionDeclaration {
                         ident,
-                        params,
+                        param_idents,
                         body,
+                        typ: fun_type,
                         storage_class,
                     })))
                 }
@@ -159,53 +167,64 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
     }
     fn maybe_parse_specifiers(
         &mut self,
-    ) -> Result<Option<(t::Type, Option<StorageClassSpecifier>)>> {
+    ) -> Result<Option<(VarType, Option<StorageClassSpecifier>)>> {
         let mut inner = || -> Result<_> {
-            let mut typ = None;
-            let mut scs = None;
+            let mut t_typs = vec![];
+            let mut scss = vec![];
+
             while let Some(Ok(t::Token::Type(_) | t::Token::StorageClassSpecifier(_))) =
                 self.tokens.peek()
             {
                 match self.tokens.next().unwrap().unwrap() {
-                    t::Token::Type(next_typ) => match typ {
-                        None => typ = Some(next_typ),
-                        Some(prev_typ) => {
-                            return Err(anyhow!("Cannot have 2+ types. {prev_typ:?} {next_typ:?}"))
-                        }
-                    },
-                    t::Token::StorageClassSpecifier(next_scs) => match scs {
-                        None => scs = Some(next_scs),
-                        Some(prev_scs) => {
-                            return Err(anyhow!(
-                            "Cannot have 2+ storage class specifiers. {prev_scs:?} {next_scs:?}"
-                        ))
-                        }
-                    },
+                    t::Token::Type(t_typ) => t_typs.push(t_typ),
+                    t::Token::StorageClassSpecifier(scs) => scss.push(scs),
                     _ => { /* Impossible. */ }
                 }
             }
 
-            match (typ, scs) {
-                (None, None) => Ok(None),
-                (None, scs @ Some(_)) => Err(anyhow!("Missing type. {scs:?}")),
-                (Some(typ), scs) => Ok(Some((typ, scs))),
+            match (&t_typs[..], &scss[..]) {
+                ([], []) => Ok(None),
+                (t_typs, scss) => {
+                    let typ = match t_typs {
+                        [t::Type::Int] => VarType::Int,
+                        [t::Type::Long]
+                        | [t::Type::Int, t::Type::Long]
+                        | [t::Type::Long, t::Type::Int] => VarType::Long,
+                        actual => return Err(anyhow!("Invalid types. {actual:?}")),
+                        /* Void is not supported yet. */
+                    };
+
+                    let scs = match scss {
+                        [] => None,
+                        [one] => Some(*one),
+                        actual => {
+                            return Err(anyhow!("Invalid storage class specifiers. {actual:?}"))
+                        }
+                    };
+
+                    Ok(Some((typ, scs)))
+                }
             }
         };
         inner().context("<declaration> specifiers")
     }
-    fn parse_param_list(&mut self) -> Result<Vec<Identifier>> {
+    fn parse_param_list(&mut self) -> Result<(Vec<VarType>, Vec<Identifier>)> {
         let mut inner = || -> Result<_> {
             match self.tokens.peek() {
                 Some(Ok(t::Token::Type(t::Type::Void))) => {
                     self.tokens.next();
 
-                    Ok(Vec::with_capacity(0))
+                    Ok((Vec::with_capacity(0), Vec::with_capacity(0)))
                 }
-                Some(Ok(t::Token::Type(t::Type::Int))) => {
+                _ => {
+                    let mut typs = vec![];
                     let mut idents = vec![];
 
                     loop {
-                        self.expect_exact(&[t::Type::Int.into()])?;
+                        match self.maybe_parse_specifiers()? {
+                            Some((typ, None)) => typs.push(typ),
+                            actual => return Err(anyhow!("{actual:?}")),
+                        };
 
                         match self.tokens.next() {
                             Some(Ok(t::Token::Identifier(ident))) => idents.push(ident),
@@ -221,9 +240,8 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
                         }
                     }
 
-                    Ok(idents)
+                    Ok((typs, idents))
                 }
-                actual => Err(anyhow!("{actual:?}")),
             }
         };
         inner().context("<param-list>")
@@ -525,17 +543,24 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
                                 sub_exp: Box::new(exp),
                             }));
                         }
-                        None => {
-                            let actual: Option<Result<t::Token>> =
-                                Some(Ok(t::Token::Operator(t_op)));
-                            return Err(anyhow!("{actual:?}"));
-                        }
+                        None => return Err(anyhow!("{t_op:?}")),
                     }
                 }
                 Some(Ok(t::Token::Demarcator(t::Demarcator::ParenOpen))) => {
-                    let exp = self.parse_exp(BinaryOperatorPrecedence::min())?;
-                    self.expect_exact(&[t::Demarcator::ParenClose.into()])?;
-                    return Ok(exp);
+                    match self.maybe_parse_specifiers()? {
+                        Some((typ, None)) => {
+                            self.expect_exact(&[t::Demarcator::ParenClose.into()])?;
+                            let factor = self.parse_factor()?;
+                            let sub_exp = Box::new(factor);
+                            return Ok(Expression::Cast(Cast { typ, sub_exp }));
+                        }
+                        Some(actual) => return Err(anyhow!("{actual:?}")),
+                        None => {
+                            let exp = self.parse_exp(BinaryOperatorPrecedence::min())?;
+                            self.expect_exact(&[t::Demarcator::ParenClose.into()])?;
+                            return Ok(exp);
+                        }
+                    }
                 }
                 actual => return Err(anyhow!("{actual:?}")),
             }

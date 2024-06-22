@@ -43,6 +43,7 @@ impl Tackifier {
         let mut vars = vec![];
         for (ident, symbol) in symbol_table.iter() {
             if let Symbol::Var {
+                typ: _, // TODO
                 attrs:
                     VarAttrs::StaticStorageDuration {
                         visibility,

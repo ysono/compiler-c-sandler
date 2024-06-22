@@ -31,7 +31,7 @@ pub enum Type {
     Int,
     Long,
 }
-#[derive(PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum StorageClassSpecifier {
     Static,
     Extern,

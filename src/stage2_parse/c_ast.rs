@@ -2,6 +2,7 @@ pub use self::declaration::*;
 pub use self::expression::*;
 pub use self::statement::*;
 pub use crate::stage1_lex::tokens::{Const, Identifier, StorageClassSpecifier};
+use crate::symbol_table::{FunType, VarType};
 
 #[derive(Debug)]
 pub struct Program {
@@ -20,14 +21,16 @@ mod declaration {
     pub struct VariableDeclaration {
         pub ident: Identifier,
         pub init: Option<Expression>,
+        pub typ: VarType,
         pub storage_class: Option<StorageClassSpecifier>,
     }
 
     #[derive(Debug)]
     pub struct FunctionDeclaration {
         pub ident: Identifier,
-        pub params: Vec<Identifier>,
+        pub param_idents: Vec<Identifier>,
         pub body: Option<Block>,
+        pub typ: FunType,
         pub storage_class: Option<StorageClassSpecifier>,
     }
 }
@@ -92,6 +95,7 @@ mod statement {
 pub enum Expression {
     Const(Const),
     Var(Identifier),
+    Cast(Cast),
     Unary(Unary),
     Binary(Binary),
     Assignment(Assignment),
@@ -100,6 +104,12 @@ pub enum Expression {
 }
 mod expression {
     use super::*;
+
+    #[derive(Debug)]
+    pub struct Cast {
+        pub typ: VarType,
+        pub sub_exp: Box<Expression>,
+    }
 
     #[derive(Debug)]
     pub struct Unary {

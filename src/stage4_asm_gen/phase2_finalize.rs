@@ -104,10 +104,12 @@ impl InstrsFinalizer {
             PFO::StackPosition(s) => Operand::StackPosition(s),
             PFO::Pseudo(ident) => match self.symbol_table.get(&ident) {
                 Some(Symbol::Var {
+                    typ: _, // TODO
                     attrs: VarAttrs::AutomaticStorageDuration,
                 })
                 | None => self.var_to_stack_pos(ident).into(),
                 Some(Symbol::Var {
+                    typ: _, // TODO
                     attrs: VarAttrs::StaticStorageDuration { .. },
                 }) => Operand::Data(ident),
                 Some(Symbol::Fun { .. }) => panic!("Cannot use fun as var."),

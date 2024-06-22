@@ -75,8 +75,14 @@ impl IdentifierId {
 
 #[derive(Debug)]
 pub enum Symbol {
-    Var { attrs: VarAttrs },
+    Var { typ: VarType, attrs: VarAttrs },
     Fun { typ: FunType, attrs: FunAttrs },
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum VarType {
+    Int,
+    Long,
 }
 
 #[derive(Debug)]
@@ -96,7 +102,8 @@ pub enum StaticInitialValue {
 
 #[derive(PartialEq, Eq, Debug)]
 pub struct FunType {
-    params_count: usize,
+    pub params: Vec<VarType>,
+    pub ret: VarType,
 }
 
 #[derive(Debug)]
@@ -176,6 +183,7 @@ impl SymbolTable {
         let entry = self.symbol_table.entry(Rc::clone(ident));
         match (entry, new_decl_summary) {
             (Entry::Vacant(entry), new_decl_summary) => {
+                let typ = VarType::Int; // TODO
                 let attrs = match new_decl_summary {
                     Decl::AutoStorDur => VarAttrs::AutomaticStorageDuration,
                     Decl::StaticStorDur(viz, initial_value) => {
@@ -191,7 +199,7 @@ impl SymbolTable {
                         }
                     }
                 };
-                entry.insert(Symbol::Var { attrs });
+                entry.insert(Symbol::Var { typ, attrs });
                 Ok(())
             }
             (Entry::Occupied(_), Decl::AutoStorDur | Decl::StaticStorDur(Viz::Block, _)) => {
@@ -201,7 +209,8 @@ impl SymbolTable {
                 let prior_symbol = entry.get_mut();
                 let inner = || {
                     match prior_symbol {
-                        Symbol::Var { attrs } => match attrs {
+                        // TODO typ
+                        Symbol::Var { attrs, .. } => match attrs {
                             #[rustfmt::skip]
                             VarAttrs::StaticStorageDuration { visibility, initial_value } => {
                                 match (visibility, new_viz) {
@@ -276,7 +285,9 @@ impl SymbolTable {
         };
 
         let new_typ = FunType {
-            params_count: params.len(),
+            // TODO types
+            params: vec![VarType::Int; params.len()],
+            ret: VarType::Int,
         };
 
         let newly_defined = body.is_some();
@@ -335,7 +346,9 @@ impl SymbolTable {
     }
     pub fn call_fun(&self, ident: &ResolvedIdentifier, args: &[Expression]) -> Result<()> {
         let new_typ = FunType {
-            params_count: args.len(),
+            // TODO types
+            params: vec![VarType::Int; args.len()],
+            ret: VarType::Int,
         };
         let prior_symbol = self
             .symbol_table

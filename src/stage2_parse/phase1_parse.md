@@ -3,8 +3,10 @@
 <declaration> ::= <variable-declaration> | <function-declaration>
 <variable-declaration> ::= { <specifier> }+ <identifier> [ "=" <exp> ] ";"
 <function-declaration> ::= { <specifier> }+ <identifier> "(" <param-list> ")" ( <block> | ";")
-<specifier> ::= "int" | "static" | "extern"
-<param-list> ::= "void" | "int" <identifier> { "," "int" <identifier> }
+<param-list> ::= "void"
+               | { <type-specifier> }+ <identifier> { "," { <type-specifier> }+ <identifier> }
+<specifier> ::= <type-specifier> | "static" | "extern"
+<type-specifier> ::= "int" | "long"
 <block> ::= "{" { <block-item> } "}"
 <block-item> ::= <statement> | <declaration>
 <statement> ::= "return" <exp> ";"
@@ -19,11 +21,17 @@
               | ";"
 <for-init> ::= <variable-declaration> | [ <exp> ] ";"
 <exp> ::= <factor> | <exp> <binop> <exp> | <exp> "?" <exp> ":" <exp>
-<factor> ::= <int> | <identifier> | <unop> <factor> | "(" <exp> ")"
+<factor> ::= <const>
+           | <identifier>
+           | "(" { <type-specifier> }+ ")" <factor>
+           | <unop> <factor>
+           | "(" <exp> ")"
            | <identifier> "(" [ <argument-list> ] ")"
 <argument-list> ::= <exp> { "," <exp> }
 <unop> ::= "-" | "~" | "!"
 <binop> ::= "-" | "+" | "*" | "/" | "%" | "&&" | "||" | "==" | "!=" | "<" | "<=" | ">" | ">=" | "="
+<const> ::= <int> | <long>
 <identifier> ::= ? An identifier token ?
-<int> ::= ? A constant token ?
+<int> ::= ? An int token ?
+<long> ::= ? An int or long token ?
 ```

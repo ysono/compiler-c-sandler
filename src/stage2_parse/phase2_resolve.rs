@@ -65,6 +65,7 @@ impl CAstValidator {
         p::VariableDeclaration {
             ident,
             init,
+            typ: _, // TODO
             storage_class,
         }: p::VariableDeclaration,
     ) -> Result<VariableDeclaration> {
@@ -85,8 +86,9 @@ impl CAstValidator {
         &mut self,
         p::FunctionDeclaration {
             ident,
-            params,
+            param_idents,
             body,
+            typ: _, // TODO
             storage_class,
         }: p::FunctionDeclaration,
     ) -> Result<Declaration> {
@@ -95,7 +97,7 @@ impl CAstValidator {
 
             self.ident_resolver.push_new_scope();
 
-            let params = params
+            let params = param_idents
                 .into_iter()
                 .map(|ident| {
                     let storage_class = None;
@@ -306,6 +308,7 @@ impl CAstValidator {
                     let ident = self.ident_resolver.get(&ident)?;
                     return Ok(Expression::Var(ident));
                 }
+                p::Expression::Cast(_) => todo!(),
                 p::Expression::Unary(p::Unary { op, sub_exp }) => {
                     let sub_exp = self.resolve_exp(*sub_exp)?;
                     return Ok(Expression::Unary(Unary {
