@@ -125,18 +125,17 @@ pub struct SymbolTable {
 impl SymbolTable {
     pub fn declare_var(
         &mut self,
-        scope: DeclarationScope,
-        decl @ VariableDeclaration {
+        new_scope: VarDeclScope,
+        new_decl @ VariableDeclaration {
             ident,
-            init,
-            storage_class,
+            init: new_init,
+            storage_class: new_sc,
         }: &VariableDeclaration,
     ) -> Result<()> {
-        use DeclarationScope as DS;
         use StaticInitialValue as SIV;
         use StorageClassSpecifier as SCS;
+        use VarDeclScope as DS;
 
-        #[allow(non_camel_case_types)]
         enum Decl {
             AutoStorDur,
             StaticStorDur(Viz, SIV),
@@ -159,18 +158,18 @@ impl SymbolTable {
             }
         };
         #[rustfmt::skip]
-        let new_decl_summary = match (scope, storage_class, init) {
-            (DS::File, None, Some(init)) =>              Decl::StaticStorDur(LViz::Global.into(), init_const(init)?),
-            (DS::File, None, None) =>                    Decl::StaticStorDur(LViz::Global.into(), SIV::Tentative),
+        let new_decl_summary = match (new_scope, new_sc, new_init) {
+            (DS::File, None, Some(init))              => Decl::StaticStorDur(LViz::Global.into(), init_const(init)?),
+            (DS::File, None, None)                    => Decl::StaticStorDur(LViz::Global.into(), SIV::Tentative),
             (DS::File, Some(SCS::Static), Some(init)) => Decl::StaticStorDur(LViz::TranslUnit.into(), init_const(init)?),
-            (DS::File, Some(SCS::Static), None) =>       Decl::StaticStorDur(LViz::TranslUnit.into(), SIV::Tentative),
+            (DS::File, Some(SCS::Static), None)       => Decl::StaticStorDur(LViz::TranslUnit.into(), SIV::Tentative),
             (DS::File, Some(SCS::Extern), Some(init)) => Decl::StaticStorDur(LViz::PrevOrGlobal.into(), init_const(init)?),
-            (DS::File, Some(SCS::Extern), None) =>       Decl::StaticStorDur(LViz::PrevOrGlobal.into(), SIV::NoInitializer),
-            (DS::Block, None, _) =>                      Decl::AutoStorDur,
+            (DS::File, Some(SCS::Extern), None)       => Decl::StaticStorDur(LViz::PrevOrGlobal.into(), SIV::NoInitializer),
+            (DS::Block, None, _)                       => Decl::AutoStorDur,
             (DS::Block, Some(SCS::Static), Some(init)) => Decl::StaticStorDur(Viz::Block, init_const(init)?),
-            (DS::Block, Some(SCS::Static), None) =>       Decl::StaticStorDur(Viz::Block, SIV::Initial(Const::Int(0))),
+            (DS::Block, Some(SCS::Static), None)       => Decl::StaticStorDur(Viz::Block, SIV::Initial(Const::Int(0))),
             (DS::Block, Some(SCS::Extern), Some(_)) => return Err(anyhow!(
-                "At scope=block, on type=var w/ `extern`, we cannot have an initializer. {decl:?}")),
+                "At scope=block, on type=var w/ `extern`, we cannot have an initializer. {new_decl:?}")),
             (DS::Block, Some(SCS::Extern), None) => {
                 /* Technically, the way we will determine this declaration's visibility is non-conformant to the C standard.
                 For explanation, see the book page 218 and https://gcc.gnu.org/bugzilla/show_bug.cgi?id=90472#c3
@@ -178,6 +177,9 @@ impl SymbolTable {
                     hence our overall resolution of this identifier's declaration is conformant to the C standard. */
                 Decl::StaticStorDur(LViz::PrevOrGlobal.into(), SIV::NoInitializer)
             }
+            (DS::ForInit, None, _) => Decl::AutoStorDur,
+            (DS::ForInit, Some(_), _) => return Err(anyhow!(
+                "For-loop init declaration must not have any storage class specifier. {new_decl:?}")),
         };
 
         let entry = self.symbol_table.entry(Rc::clone(ident));
@@ -206,9 +208,9 @@ impl SymbolTable {
                 Err(anyhow!("Cannot declare {ident:?} 2+ times."))
             }
             (Entry::Occupied(mut entry), Decl::StaticStorDur(Viz::L(new_viz), new_init_val)) => {
-                let prior_symbol = entry.get_mut();
+                let prev_symbol = entry.get_mut();
                 let inner = || {
-                    match prior_symbol {
+                    match prev_symbol {
                         // TODO typ
                         Symbol::Var { attrs, .. } => match attrs {
                             #[rustfmt::skip]
@@ -236,61 +238,63 @@ impl SymbolTable {
                         _ => return Err(anyhow!("Cannot declare with 2+ types.")),
                     }
                 };
-                inner().with_context(|| anyhow!("{ident:?}: {prior_symbol:?} vs {decl:?}"))
+                inner().with_context(|| anyhow!("{ident:?}: {prev_symbol:?} vs {new_decl:?}"))
             }
         }
     }
     pub fn use_var(&self, ident: &ResolvedIdentifier) -> Result<()> {
-        let prior_typ = self
+        let prev_symbol = self
             .symbol_table
             .get(ident)
             .ok_or_else(|| anyhow!("Cannot use non-declared {ident:?}."))?;
-        match prior_typ {
+        match prev_symbol {
             Symbol::Var { .. } => Ok(()),
-            Symbol::Fun { .. } => Err(anyhow!("Cannot use {ident:?} typed {prior_typ:?} as var.")),
+            Symbol::Fun { .. } => Err(anyhow!(
+                "Cannot use {ident:?} typed {prev_symbol:?} as var."
+            )),
         }
     }
 
     pub fn declare_fun(
         &mut self,
-        scope: DeclarationScope,
-        decl @ FunctionDeclaration {
+        new_scope: FunDeclScope,
+        new_decl @ FunctionDeclaration {
             ident,
-            params,
-            storage_class,
+            params: new_params,
+            storage_class: new_sc,
         }: &FunctionDeclaration,
-        body: Option<&Block>,
+        new_body: Option<&Block>,
     ) -> Result<()> {
-        use DeclarationScope as DS;
+        use FunDeclScope as DS;
         use StorageClassSpecifier as SCS;
         enum Viz {
             PrevOrGlobal,
             TranslUnit,
         }
 
-        let new_viz = match (scope, storage_class, body) {
+        let new_viz = match (new_scope, new_sc, new_body) {
             (DS::File, None | Some(SCS::Extern), _) =>  Viz::PrevOrGlobal,
             (DS::File, Some(SCS::Static), _) =>  Viz::TranslUnit,
             (DS::Block, None | Some(SCS::Extern), None) =>  Viz::PrevOrGlobal,
             (DS::Block, None | Some(SCS::Extern), Some(_)) => {
                 return Err(anyhow!(
-                    "At scope=block, on type=fun, we cannot have a definition. {decl:?}"
+                    "At scope=block, on type=fun, we cannot have a definition. {new_decl:?}"
                 ))
             }
             (DS::Block, Some(SCS::Static), _) => {
                 return Err(anyhow!(
-                    "At scope=block, on type=fun, we cannot specify storage duration `static`. {decl:?}"
+                    "At scope=block, on type=fun, we cannot specify storage duration `static`. {new_decl:?}"
                 ))
             }
         };
 
         let new_typ = FunType {
             // TODO types
-            params: vec![VarType::Int; params.len()],
+            params: vec![VarType::Int; new_params.len()],
             ret: VarType::Int,
         };
 
-        let newly_defined = body.is_some();
+        let newly_defined = new_body.is_some();
 
         match self.symbol_table.entry(Rc::clone(ident)) {
             Entry::Vacant(entry) => {
@@ -308,9 +312,9 @@ impl SymbolTable {
                 Ok(())
             }
             Entry::Occupied(mut entry) => {
-                let prior_symbol = entry.get_mut();
+                let prev_symbol = entry.get_mut();
                 let inner = || {
-                    match prior_symbol {
+                    match prev_symbol {
                         Symbol::Fun {
                             typ,
                             attrs:
@@ -340,7 +344,7 @@ impl SymbolTable {
                         _ => return Err(anyhow!("Cannot declare with 2+ types.")),
                     }
                 };
-                inner().with_context(|| anyhow!("{ident:?}: {prior_symbol:?} vs {decl:?}"))
+                inner().with_context(|| anyhow!("{ident:?}: {prev_symbol:?} vs {new_decl:?}"))
             }
         }
     }
@@ -350,23 +354,28 @@ impl SymbolTable {
             params: vec![VarType::Int; args.len()],
             ret: VarType::Int,
         };
-        let prior_symbol = self
+        let prev_symbol = self
             .symbol_table
             .get(ident)
             .ok_or_else(|| anyhow!("Cannot call non-declared {ident:?}."))?;
-        match prior_symbol {
+        match prev_symbol {
             Symbol::Fun { typ, .. } => {
                 if typ != &new_typ {
-                    return Err(anyhow!("Cannot call {ident:?} using mismatched signature. {prior_symbol:?} vs {new_typ:?}"));
+                    return Err(anyhow!("Cannot call {ident:?} using mismatched signature. {prev_symbol:?} vs {new_typ:?}"));
                 }
                 Ok(())
             }
-            _ => Err(anyhow!("Cannot call {ident:?}. {prior_symbol:?}")),
+            _ => Err(anyhow!("Cannot call {ident:?}. {prev_symbol:?}")),
         }
     }
 }
 
-pub enum DeclarationScope {
+pub enum VarDeclScope {
+    File,
+    Block,
+    ForInit,
+}
+pub enum FunDeclScope {
     File,
     Block,
 }

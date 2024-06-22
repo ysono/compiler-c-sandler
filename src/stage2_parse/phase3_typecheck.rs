@@ -1,8 +1,8 @@
 use crate::{
     stage2_parse::c_ast_resolved::*,
-    symbol_table::{DeclarationScope, SymbolTable},
+    symbol_table::{FunDeclScope, SymbolTable, VarDeclScope},
 };
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use std::rc::Rc;
 
 #[derive(Default)]
@@ -12,35 +12,22 @@ pub struct TypeChecker {
 impl TypeChecker {
     pub fn typecheck_prog(mut self, Program { decls }: &Program) -> Result<SymbolTable> {
         for decl in decls.iter() {
-            self.typecheck_decl::<true>(decl)?;
+            match decl {
+                Declaration::VarDecl(vd) => self.typecheck_decl_var(vd, VarDeclScope::File)?,
+                Declaration::FunDecl(fd) => self.typecheck_decl_fundecl(fd, FunDeclScope::File)?,
+                Declaration::FunDefn(fd) => self.typecheck_decl_fundefn(fd, FunDeclScope::File)?,
+            }
         }
         Ok(self.symbol_table)
     }
 
     /* Declaration */
 
-    fn typecheck_decl<const SCOPE_IS_FILE: bool>(&mut self, decl: &Declaration) -> Result<()> {
-        match decl {
-            Declaration::VarDecl(vd) => self.typecheck_decl_var::<SCOPE_IS_FILE>(vd),
-            Declaration::FunDecl(fd) => self.typecheck_decl_fundecl::<SCOPE_IS_FILE>(fd),
-            Declaration::FunDefn(fd) => self.typecheck_decl_fundefn::<SCOPE_IS_FILE>(fd),
-        }
-    }
-    fn typecheck_decl_block_scope(&mut self, decl: &BlockScopeDeclaration) -> Result<()> {
-        match decl {
-            BlockScopeDeclaration::VarDecl(vd) => self.typecheck_decl_var::<false>(vd),
-            BlockScopeDeclaration::FunDecl(fd) => self.typecheck_decl_fundecl::<false>(fd),
-        }
-    }
-    fn typecheck_decl_var<const SCOPE_IS_FILE: bool>(
+    fn typecheck_decl_var(
         &mut self,
         decl @ VariableDeclaration { init, .. }: &VariableDeclaration,
+        scope: VarDeclScope,
     ) -> Result<()> {
-        let scope = if SCOPE_IS_FILE {
-            DeclarationScope::File
-        } else {
-            DeclarationScope::Block
-        };
         self.symbol_table.declare_var(scope, decl)?;
 
         if let Some(exp) = init {
@@ -49,39 +36,31 @@ impl TypeChecker {
 
         Ok(())
     }
-    fn typecheck_decl_fundecl<const SCOPE_IS_FILE: bool>(
+    fn typecheck_decl_fundecl(
         &mut self,
         decl: &FunctionDeclaration,
+        scope: FunDeclScope,
     ) -> Result<()> {
-        let scope = if SCOPE_IS_FILE {
-            DeclarationScope::File
-        } else {
-            DeclarationScope::Block
-        };
         self.symbol_table.declare_fun(scope, decl, None)
     }
-    fn typecheck_decl_fundefn<const SCOPE_IS_FILE: bool>(
+    fn typecheck_decl_fundefn(
         &mut self,
         FunctionDefinition {
             decl: decl @ FunctionDeclaration { params, .. },
             body,
         }: &FunctionDefinition,
+        scope: FunDeclScope,
     ) -> Result<()> {
-        let scope = if SCOPE_IS_FILE {
-            DeclarationScope::File
-        } else {
-            DeclarationScope::Block
-        };
         self.symbol_table.declare_fun(scope, decl, Some(body))?;
 
         for ident in params.iter() {
-            let var_decl = VariableDeclaration {
+            let mock_var_decl = VariableDeclaration {
                 ident: Rc::clone(ident),
                 init: None,
                 storage_class: None,
             };
             self.symbol_table
-                .declare_var(DeclarationScope::Block, &var_decl)?;
+                .declare_var(VarDeclScope::Block, &mock_var_decl)?;
         }
 
         self.typecheck_block(body)?;
@@ -99,7 +78,14 @@ impl TypeChecker {
     }
     fn typecheck_block_item(&mut self, item: &BlockItem) -> Result<()> {
         match item {
-            BlockItem::Declaration(decl) => self.typecheck_decl_block_scope(decl),
+            BlockItem::Declaration(decl) => match decl {
+                BlockScopeDeclaration::VarDecl(vd) => {
+                    self.typecheck_decl_var(vd, VarDeclScope::Block)
+                }
+                BlockScopeDeclaration::FunDecl(fd) => {
+                    self.typecheck_decl_fundecl(fd, FunDeclScope::Block)
+                }
+            },
             BlockItem::Statement(stmt) => self.typecheck_stmt(stmt),
         }
     }
@@ -143,12 +129,7 @@ impl TypeChecker {
             ) => {
                 match init {
                     ForInit::Decl(var_decl) => {
-                        if var_decl.storage_class.is_some() {
-                            return Err(anyhow!(
-                                "For-loop init decl must not have any storage class specifier."
-                            ));
-                        }
-                        self.typecheck_decl_var::<false>(var_decl)?;
+                        self.typecheck_decl_var(var_decl, VarDeclScope::ForInit)?;
                     }
                     ForInit::Exp(exp) => self.typecheck_exp(exp)?,
                     ForInit::None => {}

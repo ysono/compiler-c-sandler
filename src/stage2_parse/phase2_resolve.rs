@@ -185,12 +185,15 @@ impl CAstValidator {
                     elze,
                 }) => {
                     let condition = self.resolve_exp(condition)?;
-                    let then = self.resolve_stmt(*then)?;
-                    let elze = elze.map(|elze| self.resolve_stmt(*elze)).transpose()?;
+                    let then = Box::new(self.resolve_stmt(*then)?);
+                    let elze = elze
+                        .map(|elze| self.resolve_stmt(*elze))
+                        .transpose()?
+                        .map(Box::new);
                     return Ok(Statement::If(If {
                         condition,
-                        then: Box::new(then),
-                        elze: elze.map(Box::new),
+                        then,
+                        elze,
                     }));
                 }
                 p::Statement::Compound(p_block) => {
@@ -298,37 +301,27 @@ impl CAstValidator {
 
     fn resolve_exp(&mut self, p_exp: p::Expression) -> Result<Expression> {
         let inner = || -> Result<_> {
-            match p_exp {
-                p::Expression::Const(konst) => return Ok(Expression::Const(konst)),
+            let exp = match p_exp {
+                p::Expression::Const(konst) => Expression::Const(konst),
                 p::Expression::Var(ident) => {
                     let ident = self.ident_resolver.get(&ident)?;
-                    return Ok(Expression::Var(ident));
+                    Expression::Var(ident)
                 }
                 p::Expression::Cast(_) => todo!(),
                 p::Expression::Unary(p::Unary { op, sub_exp }) => {
-                    let sub_exp = self.resolve_exp(*sub_exp)?;
-                    return Ok(Expression::Unary(Unary {
-                        op,
-                        sub_exp: Box::new(sub_exp),
-                    }));
+                    let sub_exp = Box::new(self.resolve_exp(*sub_exp)?);
+                    Expression::Unary(Unary { op, sub_exp })
                 }
                 p::Expression::Binary(p::Binary { op, lhs, rhs }) => {
-                    let lhs = self.resolve_exp(*lhs)?;
-                    let rhs = self.resolve_exp(*rhs)?;
-                    return Ok(Expression::Binary(Binary {
-                        op,
-                        lhs: Box::new(lhs),
-                        rhs: Box::new(rhs),
-                    }));
+                    let lhs = Box::new(self.resolve_exp(*lhs)?);
+                    let rhs = Box::new(self.resolve_exp(*rhs)?);
+                    Expression::Binary(Binary { op, lhs, rhs })
                 }
                 p::Expression::Assignment(p::Assignment { lhs, rhs }) => match *lhs {
                     p::Expression::Var(ident) => {
                         let ident = self.ident_resolver.get(&ident)?;
-                        let rhs = self.resolve_exp(*rhs)?;
-                        return Ok(Expression::Assignment(Assignment {
-                            ident,
-                            rhs: Box::new(rhs),
-                        }));
+                        let rhs = Box::new(self.resolve_exp(*rhs)?);
+                        Expression::Assignment(Assignment { ident, rhs })
                     }
                     _ => {
                         return Err(anyhow!(
@@ -341,14 +334,14 @@ impl CAstValidator {
                     then,
                     elze,
                 }) => {
-                    let condition = self.resolve_exp(*condition)?;
-                    let then = self.resolve_exp(*then)?;
-                    let elze = self.resolve_exp(*elze)?;
-                    return Ok(Expression::Conditional(Conditional {
-                        condition: Box::new(condition),
-                        then: Box::new(then),
-                        elze: Box::new(elze),
-                    }));
+                    let condition = Box::new(self.resolve_exp(*condition)?);
+                    let then = Box::new(self.resolve_exp(*then)?);
+                    let elze = Box::new(self.resolve_exp(*elze)?);
+                    Expression::Conditional(Conditional {
+                        condition,
+                        then,
+                        elze,
+                    })
                 }
                 p::Expression::FunctionCall(p::FunctionCall { ident, args }) => {
                     let ident = self.ident_resolver.get(&ident)?;
@@ -356,9 +349,10 @@ impl CAstValidator {
                         .into_iter()
                         .map(|exp| self.resolve_exp(exp))
                         .collect::<Result<Vec<_>>>()?;
-                    Ok(Expression::FunctionCall(FunctionCall { ident, args }))
+                    Expression::FunctionCall(FunctionCall { ident, args })
                 }
-            }
+            };
+            Ok(exp)
         };
         inner().context("<exp>")
     }
