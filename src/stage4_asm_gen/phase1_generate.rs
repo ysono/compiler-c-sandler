@@ -1,7 +1,7 @@
 use crate::{
     stage3_tacky::tacky_ast as t,
     stage4_asm_gen::{asm_ast::*, phase2_finalize::InstrsFinalizer},
-    symbol_table::SymbolTable,
+    symbol_table::{ResolvedIdentifier, SymbolTable},
 };
 use std::cmp;
 use std::rc::Rc;

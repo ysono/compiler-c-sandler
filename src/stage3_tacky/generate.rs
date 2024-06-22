@@ -1,7 +1,9 @@
 use crate::{
     stage2_parse::c_ast_resolved as c,
     stage3_tacky::tacky_ast::*,
-    symbol_table::{FunAttrs, StaticInitialValue, Symbol, SymbolTable, VarAttrs},
+    symbol_table::{
+        FunAttrs, ResolvedIdentifier, StaticInitialValue, Symbol, SymbolTable, VarAttrs,
+    },
 };
 use derive_more::Display;
 use std::collections::HashMap;

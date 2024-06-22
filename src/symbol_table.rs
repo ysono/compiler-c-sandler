@@ -6,8 +6,7 @@ use crate::stage2_parse::{
 };
 use anyhow::{anyhow, Context, Result};
 use derivative::Derivative;
-use derive_more::From;
-use derive_more::{Deref, DerefMut};
+use derive_more::{Deref, DerefMut, From};
 use std::collections::{hash_map::Entry, HashMap};
 use std::fmt::Display;
 use std::rc::Rc;

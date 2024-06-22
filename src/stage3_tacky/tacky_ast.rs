@@ -1,8 +1,6 @@
 pub use self::instruction::*;
-pub use crate::{
-    stage2_parse::c_ast_resolved::Const,
-    symbol_table::{ResolvedIdentifier, StaticVisibility},
-};
+pub use crate::stage2_parse::c_ast_resolved::Const;
+use crate::symbol_table::{ResolvedIdentifier, StaticVisibility};
 use getset::Getters;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicUsize, Ordering};

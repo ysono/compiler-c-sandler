@@ -1,9 +1,12 @@
 //! - Identifier resolution
 //! - Loop labelling
 
-use crate::stage2_parse::{
-    c_ast as p, // "p" for "previous c_ast".
-    c_ast_resolved::*,
+use crate::{
+    stage2_parse::{
+        c_ast as p, // "p" for "previous c_ast".
+        c_ast_resolved::*,
+    },
+    symbol_table::ResolvedIdentifier,
 };
 use anyhow::{anyhow, Context, Result};
 use derive_more::{Deref, DerefMut};

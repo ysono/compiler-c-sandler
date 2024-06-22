@@ -1,6 +1,6 @@
 use crate::{
     stage4_asm_gen::asm_ast::*,
-    symbol_table::{Symbol, SymbolTable, VarAttrs},
+    symbol_table::{ResolvedIdentifier, Symbol, SymbolTable, VarAttrs},
 };
 use std::collections::{HashMap, VecDeque};
 use std::mem;

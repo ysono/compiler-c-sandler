@@ -1,10 +1,8 @@
 pub use self::declaration::*;
 pub use self::expression::*;
 pub use self::statement::*;
-pub use crate::{
-    stage2_parse::c_ast::{BinaryOperator, Const, StorageClassSpecifier, UnaryOperator},
-    symbol_table::ResolvedIdentifier,
-};
+pub use crate::stage2_parse::c_ast::{BinaryOperator, Const, StorageClassSpecifier, UnaryOperator};
+use crate::symbol_table::ResolvedIdentifier;
 use derivative::Derivative;
 use getset::Getters;
 use std::rc::Rc;

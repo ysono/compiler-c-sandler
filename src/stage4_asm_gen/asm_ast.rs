@@ -1,6 +1,5 @@
-pub use crate::stage3_tacky::tacky_ast::{
-    Const, LabelIdentifier, ResolvedIdentifier, StaticVariable, StaticVisibility,
-};
+pub use crate::stage3_tacky::tacky_ast::{Const, LabelIdentifier, StaticVariable};
+use crate::symbol_table::{ResolvedIdentifier, StaticVisibility};
 use derive_more::{Deref, DerefMut, From};
 use std::collections::VecDeque;
 use std::rc::Rc;
