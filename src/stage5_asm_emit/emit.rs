@@ -6,7 +6,6 @@ use crate::{
     },
     symbol_table::{FunAttrs, ResolvedIdentifier, StaticVisibility, Symbol, SymbolTable},
 };
-use lazy_static::lazy_static;
 use regex::Regex;
 use std::fs::{File, OpenOptions};
 use std::io::{self, BufWriter, Write};
@@ -15,10 +14,6 @@ use std::path::PathBuf;
 
 const TAB: &str = "\t";
 
-lazy_static! {
-    pub static ref LABEL_BAD_CHAR: Regex = Regex::new(r"[^a-zA-Z0-9._]").unwrap();
-}
-
 enum OperandByteLen {
     B8,
     B4,
@@ -26,6 +21,8 @@ enum OperandByteLen {
 }
 
 pub struct AsmCodeEmitter<'slf> {
+    label_bad_char: Regex,
+
     bw: BufWriter<File>,
 
     symbol_table: &'slf SymbolTable,
@@ -35,13 +32,20 @@ impl<'slf> AsmCodeEmitter<'slf> {
         asm_filepath: &'a AsmFilepath,
         symbol_table: &'slf SymbolTable,
     ) -> Result<Self, io::Error> {
+        let label_bad_char = Regex::new(r"[^a-zA-Z0-9._]").unwrap();
+
         let f = OpenOptions::new()
             .create(true)
             .truncate(true)
             .write(true)
             .open(asm_filepath as &PathBuf)?;
         let bw = BufWriter::new(f);
-        Ok(Self { bw, symbol_table })
+
+        Ok(Self {
+            label_bad_char,
+            bw,
+            symbol_table,
+        })
     }
 
     pub fn emit_program(mut self, Program { funs, vars }: Program) -> Result<(), io::Error> {
@@ -230,7 +234,7 @@ impl<'slf> AsmCodeEmitter<'slf> {
             ".L."
         };
 
-        let name = LABEL_BAD_CHAR.replace_all(lbl.name(), "_");
+        let name = self.label_bad_char.replace_all(lbl.name(), "_");
 
         let id = lbl.id();
 
