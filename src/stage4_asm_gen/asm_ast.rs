@@ -2,6 +2,7 @@ pub use crate::stage3_tacky::tacky_ast::{
     Const, LabelIdentifier, ResolvedIdentifier, StaticVariable, StaticVisibility,
 };
 use derive_more::{Deref, DerefMut, From};
+use std::collections::VecDeque;
 use std::rc::Rc;
 
 #[derive(Debug)]
@@ -14,7 +15,7 @@ pub struct Program {
 pub struct Function {
     pub ident: Rc<ResolvedIdentifier>,
     pub visibility: StaticVisibility,
-    pub instrs: Vec<Instruction<Operand>>,
+    pub instrs: VecDeque<Instruction<Operand>>,
 }
 
 #[derive(Debug)]

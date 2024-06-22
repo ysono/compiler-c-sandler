@@ -2,7 +2,7 @@ use crate::{
     stage4_asm_gen::asm_ast::*,
     symbol_table::{Symbol, SymbolTable, VarAttrs},
 };
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::mem;
 use std::rc::Rc;
 
@@ -25,12 +25,12 @@ impl InstrsFinalizer {
     pub fn finalize_instrs(
         &mut self,
         in_instrs: impl Iterator<Item = Instruction<PreFinalOperand>>,
-    ) -> Vec<Instruction<Operand>> {
+    ) -> VecDeque<Instruction<Operand>> {
         let instrs = self.convert_operands(in_instrs);
         let instrs = OperandFixer::fix_invalid_operands(instrs);
 
         let dummy_alloc_stack_instr = Instruction::AllocateStack(StackPosition(0));
-        let mut out_instrs = vec![dummy_alloc_stack_instr];
+        let mut out_instrs = VecDeque::from([dummy_alloc_stack_instr]);
 
         out_instrs.extend(instrs);
 
@@ -40,8 +40,12 @@ impl InstrsFinalizer {
         if rem != 0 {
             stack_frame_bytelen += 16 - rem;
         }
-        let alloc_stack_instr = Instruction::AllocateStack(StackPosition(stack_frame_bytelen));
-        out_instrs[0] = alloc_stack_instr;
+
+        if stack_frame_bytelen == 0 {
+            out_instrs.pop_front();
+        } else {
+            out_instrs[0] = Instruction::AllocateStack(StackPosition(stack_frame_bytelen));
+        }
 
         out_instrs
     }
