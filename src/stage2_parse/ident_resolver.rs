@@ -72,7 +72,7 @@ impl IdentResolver {
                 let resolved_ident = if new_has_linkage {
                     ResolvedIdentifier::SomeLinkage(Rc::clone(&ident))
                 } else {
-                    ResolvedIdentifier::new_no_linkage(Some(Rc::clone(&ident)))
+                    ResolvedIdentifier::new_no_linkage_named(Rc::clone(&ident))
                 };
                 let resolved_ident = Rc::new(resolved_ident);
 

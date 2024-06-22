@@ -1,6 +1,6 @@
 pub use self::instruction::*;
 pub use crate::stage2_parse::c_ast_resolved::Const;
-use crate::symbol_table::{ResolvedIdentifier, StaticVisibility};
+use crate::symbol_table::{ResolvedIdentifier, StaticVisibility, VarType};
 use getset::Getters;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -12,23 +12,26 @@ pub struct Program {
 }
 
 #[derive(Debug)]
-pub struct Function {
-    pub ident: Rc<ResolvedIdentifier>,
-    pub visibility: StaticVisibility,
-    pub params: Vec<Rc<ResolvedIdentifier>>,
-    pub instrs: Vec<Instruction>,
-}
-
-#[derive(Debug)]
 pub struct StaticVariable {
     pub ident: Rc<ResolvedIdentifier>,
     pub visibility: StaticVisibility,
+    pub typ: VarType,
     pub init: Const,
+}
+
+#[derive(Debug)]
+pub struct Function {
+    pub ident: Rc<ResolvedIdentifier>,
+    pub visibility: StaticVisibility,
+    pub param_idents: Vec<Rc<ResolvedIdentifier>>,
+    pub instrs: Vec<Instruction>,
 }
 
 #[derive(Debug)]
 pub enum Instruction {
     Return(ReadableValue),
+    SignExtend(Convert),
+    Truncate(Convert),
     Unary(Unary),
     Binary(Binary),
     Copy(Copy),
@@ -40,6 +43,12 @@ pub enum Instruction {
 }
 mod instruction {
     use super::*;
+
+    #[derive(Debug)]
+    pub struct Convert {
+        pub src: ReadableValue,
+        pub dst: Rc<ResolvedIdentifier>,
+    }
 
     #[derive(Debug)]
     pub struct Unary {
@@ -104,7 +113,7 @@ pub enum BinaryOperator {
 
 #[derive(Debug)]
 pub enum ReadableValue {
-    Constant(i32),
+    Constant(Const),
     Variable(Rc<ResolvedIdentifier>),
 }
 

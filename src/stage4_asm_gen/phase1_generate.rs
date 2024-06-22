@@ -38,22 +38,25 @@ impl AsmCodeGenerator {
         t::Function {
             ident,
             visibility,
-            params,
+            param_idents,
             instrs: t_instrs,
         }: t::Function,
     ) -> Function {
         let mut extra_arg_stack_pos = StackPosition(8);
-        let asm_instrs_copy_args = params.into_iter().enumerate().map(|(i, param_ident)| {
-            let src = match Self::ARG_REGS.get(i) {
-                Some(reg) => PreFinalOperand::Register(*reg),
-                None => {
-                    *extra_arg_stack_pos += 8;
-                    PreFinalOperand::StackPosition(extra_arg_stack_pos)
-                }
-            };
-            let dst = PreFinalOperand::Pseudo(param_ident);
-            Instruction::Mov { src, dst }
-        });
+        let asm_instrs_copy_args = param_idents
+            .into_iter()
+            .enumerate()
+            .map(|(i, param_ident)| {
+                let src = match Self::ARG_REGS.get(i) {
+                    Some(reg) => PreFinalOperand::Register(*reg),
+                    None => {
+                        *extra_arg_stack_pos += 8;
+                        PreFinalOperand::StackPosition(extra_arg_stack_pos)
+                    }
+                };
+                let dst = PreFinalOperand::Pseudo(param_ident);
+                Instruction::Mov { src, dst }
+            });
 
         let asm_instrs_body = Self::gen_instructions(t_instrs);
 
@@ -137,6 +140,8 @@ impl AsmCodeGenerator {
     ) -> impl Iterator<Item = Instruction<PreFinalOperand>> {
         t_instrs.into_iter().flat_map(|t_instr| match t_instr {
             t::Instruction::Return(t_val) => Self::gen_return_instrs(t_val),
+            t::Instruction::SignExtend(_) => todo!(),
+            t::Instruction::Truncate(_) => todo!(),
             t::Instruction::Unary(unary) => Self::gen_unary_instrs(unary),
             t::Instruction::Binary(binary) => Self::gen_binary_instrs(binary),
             t::Instruction::Copy(copy) => Self::gen_copy_instrs(copy),
@@ -338,7 +343,10 @@ impl AsmCodeGenerator {
     }
     fn convert_val_operand(t_val: t::ReadableValue) -> PreFinalOperand {
         match t_val {
-            t::ReadableValue::Constant(i) => PreFinalOperand::ImmediateValue(i),
+            t::ReadableValue::Constant(konst) => match konst {
+                Const::Int(i) => PreFinalOperand::ImmediateValue(i),
+                Const::Long(_) => todo!(),
+            },
             t::ReadableValue::Variable(v) => PreFinalOperand::Pseudo(v),
         }
     }

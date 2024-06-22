@@ -26,10 +26,10 @@ pub enum ResolvedIdentifier {
     SomeLinkage(Rc<Identifier>),
 }
 impl ResolvedIdentifier {
-    pub fn new_no_linkage(orig: Option<Rc<Identifier>>) -> Self {
+    pub fn new_no_linkage_named(orig: Rc<Identifier>) -> Self {
         Self::NoLinkage {
             id: IdentifierId::new(),
-            orig,
+            orig: Some(orig),
         }
     }
     pub fn id_int(&self) -> Option<usize> {
@@ -43,7 +43,8 @@ impl Display for ResolvedIdentifier {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::NoLinkage { id, orig } => {
-                /* DELIM and ORIG_DEFAULT must each be a non-empty str that cannot be a substring within any original identifier string. */
+                /* DELIM must be, and ORIG_DEFAULT ought to be,
+                a non-empty str that cannot be a substring within any original identifier string. */
                 const DELIM: char = '.';
                 const ORIG_DEFAULT: &str = "tmp.";
                 let name = orig
@@ -125,6 +126,20 @@ pub struct SymbolTable {
     symbol_table: HashMap<Rc<ResolvedIdentifier>, Symbol>,
 }
 impl SymbolTable {
+    pub fn declare_var_anon(&mut self, typ: VarType) -> Rc<ResolvedIdentifier> {
+        let ident = Rc::new(ResolvedIdentifier::NoLinkage {
+            id: IdentifierId::new(),
+            orig: None,
+        });
+        self.symbol_table.insert(
+            Rc::clone(&ident),
+            Symbol::Var {
+                typ,
+                attrs: VarAttrs::AutomaticStorageDuration,
+            },
+        );
+        ident
+    }
     pub fn declare_var(
         &mut self,
         new_scope: VarDeclScope,

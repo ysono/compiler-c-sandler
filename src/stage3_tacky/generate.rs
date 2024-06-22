@@ -23,7 +23,7 @@ pub struct Tackifier {}
 impl Tackifier {
     pub fn tackify_program(
         c::Program { decls: c_decls }: c::Program<TypeCheckedCAst>,
-        symbol_table: &SymbolTable,
+        symbol_table: &mut SymbolTable,
     ) -> Program {
         use StaticInitialValue as SIV;
 
@@ -43,7 +43,7 @@ impl Tackifier {
         let mut vars = vec![];
         for (ident, symbol) in symbol_table.iter() {
             if let Symbol::Var {
-                typ: _, // TODO
+                typ,
                 attrs:
                     VarAttrs::StaticStorageDuration {
                         visibility,
@@ -53,12 +53,16 @@ impl Tackifier {
             {
                 let konst = match initial_value {
                     SIV::Initial(konst) => *konst,
-                    SIV::Tentative => Const::Int(0),
+                    SIV::Tentative => match typ {
+                        VarType::Int => Const::Int(0),
+                        VarType::Long => Const::Long(0),
+                    },
                     SIV::NoInitializer => continue,
                 };
                 let var = StaticVariable {
                     ident: Rc::clone(ident),
                     visibility: *visibility,
+                    typ: *typ,
                     init: konst,
                 };
                 vars.push(var);
@@ -70,17 +74,17 @@ impl Tackifier {
 }
 
 struct FunInstrsGenerator<'a> {
-    loop_id_to_labels: LoopIdToLabels,
+    symbol_table: &'a mut SymbolTable,
 
-    symbol_table: &'a SymbolTable,
+    loop_id_to_labels: LoopIdToLabels,
 
     instrs: Vec<Instruction>,
 }
 impl<'a> FunInstrsGenerator<'a> {
-    fn new(symbol_table: &'a SymbolTable) -> Self {
+    fn new(symbol_table: &'a mut SymbolTable) -> Self {
         Self {
-            loop_id_to_labels: Default::default(),
             symbol_table,
+            loop_id_to_labels: Default::default(),
             instrs: Default::default(),
         }
     }
@@ -94,7 +98,8 @@ impl<'a> FunInstrsGenerator<'a> {
                 c::FunctionDeclaration {
                     ident,
                     param_idents,
-                    ..
+                    typ: _,
+                    storage_class: _,
                 },
             body,
         }: c::FunctionDefinition<TypeCheckedCAst>,
@@ -110,19 +115,21 @@ impl<'a> FunInstrsGenerator<'a> {
 
         self.gen_block(body);
 
-        let ret_kon = c::Const::Int(0);
-        let ret_exp = c::Expression::Const(ret_kon);
-        let ret_exp = c::TypedExpression {
-            exp: ret_exp,
-            typ: VarType::Int, // TODO
-        };
-        let ret_stmt = c::Statement::Return(ret_exp);
+        /* This below fill-in implicit return statement is required for each function,
+            so that even if the src C code omits a `return` statement at the end, the emitted asm does return.
+        The return type of the `main` function must be `int`.
+        The return type of any non-`main` function that lacks a `return` statement is undefined.
+        Therefore, it's correct to always return `int`. */
+        let ret_stmt = c::Statement::Return(c::TypedExpression {
+            exp: c::Expression::Const(c::Const::Int(0)),
+            typ: VarType::Int,
+        });
         self.gen_stmt(ret_stmt);
 
         Function {
             ident,
             visibility,
-            params: param_idents,
+            param_idents,
             instrs: self.instrs,
         }
     }
@@ -139,12 +146,12 @@ impl<'a> FunInstrsGenerator<'a> {
         c::VariableDeclaration {
             ident,
             init,
-            typ: _, // TODO
+            typ: _,
             storage_class,
         }: c::VariableDeclaration<TypeCheckedCAst>,
     ) {
-        /* Iff this var has storage_duration=automatic and initializer=some, then initialize.
-        As a performance improvement, we infer storage duration from storage class tokens, rather than from the symbol table. */
+        /* Iff this var has storage_duration=automatic and initializer=some, then initialize at runtime.
+        As a performance improvement, we infer storage duration from storage class specifier, rather than from the symbol table. */
         match (storage_class, init) {
             (None, Some(init_exp)) => {
                 self.gen_exp_assignment(ident, init_exp);
@@ -165,19 +172,21 @@ impl<'a> FunInstrsGenerator<'a> {
     }
     fn gen_stmt(&mut self, c_stmt: c::Statement<TypeCheckedCAst>) {
         match c_stmt {
-            c::Statement::Return(c_root_exp) => {
-                let t_root_val = self.gen_exp(c_root_exp);
-                self.instrs.push(Instruction::Return(t_root_val));
+            c::Statement::Return(c_exp) => {
+                let t_val = self.gen_exp(c_exp);
+                self.instrs.push(Instruction::Return(t_val));
             }
-            c::Statement::Expression(c_root_exp) => {
-                self.gen_exp(c_root_exp);
+            c::Statement::Expression(c_exp) => {
+                self.gen_exp(c_exp);
             }
             c::Statement::If(c_if) => self.gen_stmt_conditional(c_if),
             c::Statement::Compound(c_block) => self.gen_block(c_block),
             c::Statement::Break(loop_id) => self.gen_stmt_break(loop_id),
             c::Statement::Continue(loop_id) => self.gen_stmt_continue(loop_id),
-            c::Statement::While(loop_id, condbody) => self.gen_stmt_while(loop_id, condbody),
-            c::Statement::DoWhile(loop_id, condbody) => self.gen_stmt_dowhile(loop_id, condbody),
+            c::Statement::While(loop_id, c_condbody) => self.gen_stmt_while(loop_id, c_condbody),
+            c::Statement::DoWhile(loop_id, c_condbody) => {
+                self.gen_stmt_dowhile(loop_id, c_condbody)
+            }
             c::Statement::For(loop_id, foor) => self.gen_stmt_for(loop_id, foor),
             c::Statement::Null => { /* No-op. */ }
         }
@@ -186,31 +195,53 @@ impl<'a> FunInstrsGenerator<'a> {
         &mut self,
         c::TypedExpression { exp, typ }: c::TypedExpression<TypeCheckedCAst>,
     ) -> ReadableValue {
-        let _ = typ; // TODO
         match exp {
-            c::Expression::Const(c::Const::Int(i)) => ReadableValue::Constant(i),
-            c::Expression::Const(c::Const::Long(_)) => todo!(),
+            c::Expression::Const(konst) => ReadableValue::Constant(konst),
             c::Expression::Var(ident) => ReadableValue::Variable(ident),
-            c::Expression::Cast(_) => todo!(),
-            c::Expression::Unary(unary) => self.gen_exp_unary(unary),
-            c::Expression::Binary(binary) => self.gen_exp_binary(binary),
+            c::Expression::Cast(c_cast) => self.gen_exp_cast(c_cast),
+            c::Expression::Unary(c_unary) => self.gen_exp_unary(c_unary, typ),
+            c::Expression::Binary(c_binary) => self.gen_exp_binary(c_binary, typ),
             c::Expression::Assignment(c::Assignment { ident, rhs }) => {
                 self.gen_exp_assignment(ident, *rhs)
             }
-            c::Expression::Conditional(c_cond) => self.gen_exp_conditional(c_cond),
-            c::Expression::FunctionCall(c_fun_call) => self.gen_exp_fun_call(c_fun_call),
+            c::Expression::Conditional(c_cond) => self.gen_exp_conditional(c_cond, typ),
+            c::Expression::FunctionCall(c_fun_call) => self.gen_exp_fun_call(c_fun_call, typ),
         }
     }
 
-    /* C Unary */
+    /* C Cast and Unary */
+
+    fn gen_exp_cast(
+        &mut self,
+        c::Cast { typ, sub_exp }: c::Cast<TypeCheckedCAst>,
+    ) -> ReadableValue {
+        let sub_typ = sub_exp.typ;
+        let sub_val = self.gen_exp(*sub_exp);
+        if sub_typ == typ {
+            sub_val
+        } else {
+            let dst = self.symbol_table.declare_var_anon(typ);
+            let convert = Convert {
+                src: sub_val,
+                dst: Rc::clone(&dst),
+            };
+            let instr = match typ {
+                VarType::Long => Instruction::SignExtend(convert),
+                VarType::Int => Instruction::Truncate(convert),
+            };
+            self.instrs.push(instr);
+            ReadableValue::Variable(dst)
+        }
+    }
 
     fn gen_exp_unary(
         &mut self,
         c::Unary { op, sub_exp }: c::Unary<TypeCheckedCAst>,
+        out_typ: VarType,
     ) -> ReadableValue {
         let op = Self::convert_op_unary(op);
         let src = self.gen_exp(*sub_exp);
-        let dst = Rc::new(ResolvedIdentifier::new_no_linkage(None));
+        let dst = self.symbol_table.declare_var_anon(out_typ);
         self.instrs.push(Instruction::Unary(Unary {
             op,
             src,
@@ -221,22 +252,29 @@ impl<'a> FunInstrsGenerator<'a> {
 
     /* C Binary */
 
-    fn gen_exp_binary(&mut self, c_binary: c::Binary<TypeCheckedCAst>) -> ReadableValue {
+    fn gen_exp_binary(
+        &mut self,
+        c_binary: c::Binary<TypeCheckedCAst>,
+        out_typ: VarType,
+    ) -> ReadableValue {
         match Self::convert_op_binary(&c_binary.op) {
             BinaryOperatorType::EvaluateBothHands(t_op) => {
-                self.gen_exp_binary_evalboth(t_op, c_binary)
+                self.gen_exp_binary_evalboth(t_op, c_binary, out_typ)
             }
-            BinaryOperatorType::ShortCircuit(t_op) => self.gen_exp_binary_shortcirc(t_op, c_binary),
+            BinaryOperatorType::ShortCircuit(t_op) => {
+                self.gen_exp_binary_shortcirc(t_op, c_binary, out_typ)
+            }
         }
     }
     fn gen_exp_binary_evalboth(
         &mut self,
         op: BinaryOperator,
         c::Binary { op: _, lhs, rhs }: c::Binary<TypeCheckedCAst>,
+        out_typ: VarType,
     ) -> ReadableValue {
         let src1 = self.gen_exp(*lhs);
         let src2 = self.gen_exp(*rhs);
-        let dst = Rc::new(ResolvedIdentifier::new_no_linkage(None));
+        let dst = self.symbol_table.declare_var_anon(out_typ);
         self.instrs.push(Instruction::Binary(Binary {
             op,
             src1,
@@ -249,8 +287,9 @@ impl<'a> FunInstrsGenerator<'a> {
         &mut self,
         op_type: ShortCircuitBOT,
         c::Binary { op: _, lhs, rhs }: c::Binary<TypeCheckedCAst>,
+        out_typ: VarType,
     ) -> ReadableValue {
-        let result = Rc::new(ResolvedIdentifier::new_no_linkage(None));
+        let result = self.symbol_table.declare_var_anon(out_typ);
 
         let name = result.id_int().unwrap();
         let label_shortcirc = Rc::new(LabelIdentifier::new(format!(
@@ -267,9 +306,13 @@ impl<'a> FunInstrsGenerator<'a> {
             }
         };
 
+        let new_out_const = |i: i32| match out_typ {
+            VarType::Int => Const::Int(i),
+            VarType::Long => Const::Long(i as i64),
+        };
         let (shortcirc_val, fully_evald_val) = match op_type {
-            ShortCircuitBOT::And => (0, 1),
-            ShortCircuitBOT::Or => (1, 0),
+            ShortCircuitBOT::And => (new_out_const(0), new_out_const(1)),
+            ShortCircuitBOT::Or => (new_out_const(1), new_out_const(0)),
         };
 
         /* Begin instructions */
@@ -410,8 +453,9 @@ impl<'a> FunInstrsGenerator<'a> {
             then,
             elze,
         }: c::Conditional<TypeCheckedCAst>,
+        out_typ: VarType,
     ) -> ReadableValue {
-        let result = Rc::new(ResolvedIdentifier::new_no_linkage(None));
+        let result = self.symbol_table.declare_var_anon(out_typ);
 
         let name = result.id_int().unwrap();
         let label_else = Rc::new(LabelIdentifier::new(format!("exp_cond.{name:x}.else")));
@@ -568,8 +612,9 @@ impl<'a> FunInstrsGenerator<'a> {
     fn gen_exp_fun_call(
         &mut self,
         c::FunctionCall { ident, args }: c::FunctionCall<TypeCheckedCAst>,
+        out_typ: VarType,
     ) -> ReadableValue {
-        let result = Rc::new(ResolvedIdentifier::new_no_linkage(None));
+        let result = self.symbol_table.declare_var_anon(out_typ);
 
         /* Begin instructions */
 

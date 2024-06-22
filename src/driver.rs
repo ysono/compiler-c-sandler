@@ -120,7 +120,7 @@ fn compile(pp_filepath: PreprocessedFilepath, args: &CliArgs) -> Result<Option<A
     let c_prog = vadlidator.resolve_program(c_prog)?;
 
     let type_checker = TypeChecker::default();
-    let (c_prog, symbol_table) = type_checker.typecheck_prog(c_prog)?;
+    let (c_prog, mut symbol_table) = type_checker.typecheck_prog(c_prog)?;
 
     if args.until_parser_validate {
         println!("validated c_prog: {c_prog:#?}");
@@ -128,7 +128,7 @@ fn compile(pp_filepath: PreprocessedFilepath, args: &CliArgs) -> Result<Option<A
         return Ok(None);
     }
 
-    let tacky_prog = Tackifier::tackify_program(c_prog, &symbol_table);
+    let tacky_prog = Tackifier::tackify_program(c_prog, &mut symbol_table);
     if args.until_tacky {
         println!("tacky_prog: {tacky_prog:#?}");
         return Ok(None);

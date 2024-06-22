@@ -280,6 +280,7 @@ impl<'slf> AsmCodeEmitter<'slf> {
         StaticVariable {
             ident,
             visibility,
+            typ: _, // TODO
             init,
         }: StaticVariable,
     ) -> Result<(), io::Error> {
