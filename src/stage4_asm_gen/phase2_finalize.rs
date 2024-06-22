@@ -133,64 +133,30 @@ impl OperandFixer {
         in_instrs: impl 'a + Iterator<Item = Instruction<Operand>>,
     ) -> impl 'a + Iterator<Item = Instruction<Operand>> {
         in_instrs.flat_map(|in_instr| match in_instr {
-            Instruction::Mov {
-                src: src @ (Operand::StackPosition(_) | Operand::Data(_)),
-                dst: dst @ (Operand::StackPosition(_) | Operand::Data(_)),
-            } => {
-                let reg = Register::R10;
-                let instr_at_reg = Instruction::Mov {
-                    src: reg.into(),
-                    dst,
-                };
-                Self::to_reg(src, reg, instr_at_reg)
+            Instruction::Mov { src, dst } => {
+                let src_to_reg1 = src.is_on_mem() && dst.is_on_mem();
+                let new_instr = |src: Operand, dst: Operand| Instruction::Mov { src, dst };
+                Self::maybe_use_2_regs(src, dst, src_to_reg1, (false, false), new_instr)
             }
-            Instruction::Binary {
-                op: op @ (BinaryOperator::Add | BinaryOperator::Sub),
-                arg: arg @ (Operand::StackPosition(_) | Operand::Data(_)),
-                tgt: tgt @ (Operand::StackPosition(_) | Operand::Data(_)),
-            } => {
-                let reg = Register::R10;
-                let instr_at_reg = Instruction::Binary {
-                    op,
-                    arg: reg.into(),
-                    tgt,
-                };
-                Self::to_reg(arg, reg, instr_at_reg)
+            Instruction::Binary { op, arg, tgt } => {
+                let src_to_reg1 = matches!(&op, BinaryOperator::Add | BinaryOperator::Sub)
+                    && arg.is_on_mem()
+                    && tgt.is_on_mem();
+                let (dst_to_reg2, reg2_to_dst) =
+                    if matches!(&op, BinaryOperator::Mul) && tgt.is_on_mem() {
+                        (true, true)
+                    } else {
+                        (false, false)
+                    };
+                let new_instr = |arg: Operand, tgt: Operand| Instruction::Binary { op, arg, tgt };
+                Self::maybe_use_2_regs(arg, tgt, src_to_reg1, (dst_to_reg2, reg2_to_dst), new_instr)
             }
-            Instruction::Binary {
-                op: op @ BinaryOperator::Mul,
-                arg,
-                tgt: tgt @ (Operand::StackPosition(_) | Operand::Data(_)),
-            } => {
-                let reg = Register::R11;
-                let instr_at_reg = Instruction::Binary {
-                    op,
-                    arg,
-                    tgt: reg.into(),
-                };
-                Self::to_and_from_reg(tgt, reg, instr_at_reg)
-            }
-            Instruction::Cmp {
-                arg: arg @ (Operand::StackPosition(_) | Operand::Data(_)),
-                tgt: tgt @ (Operand::StackPosition(_) | Operand::Data(_)),
-            } => {
-                let reg = Register::R10;
-                let instr_at_reg = Instruction::Cmp {
-                    arg,
-                    tgt: reg.into(),
-                };
-                Self::to_reg(tgt, reg, instr_at_reg)
-            }
-            Instruction::Cmp {
-                arg,
-                tgt: tgt @ Operand::ImmediateValue(_),
-            } => {
-                let reg = Register::R11;
-                let instr_at_reg = Instruction::Cmp {
-                    arg,
-                    tgt: reg.into(),
-                };
-                Self::to_reg(tgt, reg, instr_at_reg)
+            Instruction::Cmp { arg, tgt } => {
+                let src_to_reg1 = arg.is_on_mem() && tgt.is_on_mem();
+                let dst_to_reg2 = matches!(&tgt, Operand::ImmediateValue(_));
+                let reg2_to_dst = false;
+                let new_instr = |arg: Operand, tgt: Operand| Instruction::Cmp { arg, tgt };
+                Self::maybe_use_2_regs(arg, tgt, src_to_reg1, (dst_to_reg2, reg2_to_dst), new_instr)
             }
             Instruction::Idiv(imm @ Operand::ImmediateValue(_)) => {
                 let reg = Register::R10;
@@ -211,19 +177,48 @@ impl OperandFixer {
         };
         vec![instr_to_reg, instr_at_reg]
     }
-    fn to_and_from_reg(
-        operand_to_and_from_reg: Operand,
-        reg: Register,
-        instr_at_reg: Instruction<Operand>,
+    fn maybe_use_2_regs(
+        mut src: Operand,
+        mut dst: Operand,
+        src_to_reg1: bool,
+        (dst_to_reg2, reg2_to_dst): (bool, bool),
+        new_instr: impl FnOnce(Operand, Operand) -> Instruction<Operand>,
     ) -> Vec<Instruction<Operand>> {
-        let instr_to_reg = Instruction::Mov {
-            src: operand_to_and_from_reg.clone(),
-            dst: reg.into(),
-        };
-        let instr_from_reg = Instruction::Mov {
-            src: reg.into(),
-            dst: operand_to_and_from_reg,
-        };
-        vec![instr_to_reg, instr_at_reg, instr_from_reg]
+        let reg1 = Register::R10;
+        let reg2 = Register::R11;
+
+        let new_mov = |src: Operand, dst: Operand| Instruction::Mov { src, dst };
+
+        let mut instr_to_reg1 = None;
+        if src_to_reg1 {
+            instr_to_reg1 = Some(new_mov(src, reg1.into()));
+            src = reg1.into();
+        }
+
+        let mut instr_to_reg2 = None;
+        let mut instr_from_reg2 = None;
+        match (dst_to_reg2, reg2_to_dst) {
+            (false, false) => { /* No-op. */ }
+            (false, true) => {
+                instr_from_reg2 = Some(new_mov(reg2.into(), dst));
+                dst = reg2.into();
+            }
+            (true, false) => {
+                instr_to_reg2 = Some(new_mov(dst, reg2.into()));
+                dst = reg2.into();
+            }
+            (true, true) => {
+                instr_to_reg2 = Some(new_mov(dst.clone(), reg2.into()));
+                instr_from_reg2 = Some(new_mov(reg2.into(), dst));
+                dst = reg2.into();
+            }
+        }
+
+        let instr = new_instr(src, dst);
+
+        [instr_to_reg1, instr_to_reg2, Some(instr), instr_from_reg2]
+            .into_iter()
+            .flatten()
+            .collect::<Vec<_>>()
     }
 }

@@ -74,6 +74,14 @@ pub enum Operand {
     StackPosition(StackPosition),
     Data(Rc<ResolvedIdentifier>),
 }
+impl Operand {
+    pub fn is_on_mem(&self) -> bool {
+        match self {
+            Self::ImmediateValue(_) | Self::Register(_) => false,
+            Self::StackPosition(_) | Self::Data(_) => true,
+        }
+    }
+}
 
 #[derive(Clone, Copy, Debug)]
 pub enum Register {
