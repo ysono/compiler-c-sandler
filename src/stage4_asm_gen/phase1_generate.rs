@@ -1,17 +1,25 @@
 use crate::{
     stage3_tacky::tacky_ast as t,
     stage4_asm_gen::{asm_ast::*, phase2_finalize::InstrsFinalizer},
-    symbol_table::{ResolvedIdentifier, SymbolTable},
+    symbol_table::{ResolvedIdentifier, SymbolTable, VarType},
+    symbol_table_backend::{Alignment, AssemblyType, BackendSymbolTable},
 };
 use std::cmp;
 use std::rc::Rc;
 
 pub struct AsmCodeGenerator {
     symbol_table: Rc<SymbolTable>,
+    backend_symbol_table: Rc<BackendSymbolTable>,
 }
 impl AsmCodeGenerator {
-    pub fn new(symbol_table: Rc<SymbolTable>) -> Self {
-        Self { symbol_table }
+    pub fn new(
+        symbol_table: Rc<SymbolTable>,
+        backend_symbol_table: Rc<BackendSymbolTable>,
+    ) -> Self {
+        Self {
+            symbol_table,
+            backend_symbol_table,
+        }
     }
 
     pub fn gen_program(&self, t::Program { funs, vars }: t::Program) -> Program {
@@ -19,6 +27,27 @@ impl AsmCodeGenerator {
             .into_iter()
             .map(|fun| self.gen_fun(fun))
             .collect::<Vec<_>>();
+
+        let vars = vars
+            .into_iter()
+            .map(
+                |t::StaticVariable {
+                     ident,
+                     visibility,
+                     typ,
+                     init,
+                 }| {
+                    let alignment = Alignment::from(typ);
+                    StaticVariable {
+                        ident,
+                        visibility,
+                        alignment,
+                        init,
+                    }
+                },
+            )
+            .collect::<Vec<_>>();
+
         Program { funs, vars }
     }
 
@@ -54,15 +83,15 @@ impl AsmCodeGenerator {
                         PreFinalOperand::StackPosition(extra_arg_stack_pos)
                     }
                 };
-                let dst = PreFinalOperand::Pseudo(param_ident);
-                Instruction::Mov { src, dst }
+                let (dst, asm_type) = self.convert_var_operand(param_ident);
+                Instruction::Mov { asm_type, src, dst }
             });
 
         let asm_instrs_body = self.gen_instructions(t_instrs);
 
         let asm_instrs = asm_instrs_copy_args.chain(asm_instrs_body);
 
-        let mut fin = InstrsFinalizer::new(Rc::clone(&self.symbol_table));
+        let mut fin = InstrsFinalizer::new(Rc::clone(&self.backend_symbol_table));
         let asm_instrs = fin.finalize_instrs(asm_instrs);
 
         Function {
@@ -84,22 +113,30 @@ impl AsmCodeGenerator {
         let stack_padding_bytelen = if (stack_args_count & 1) == 1 { 8 } else { 0 };
 
         if stack_padding_bytelen != 0 {
-            asm_instrs.push(Instruction::AllocateStack(StackPosition(
-                stack_padding_bytelen,
-            )));
+            asm_instrs.push(Instruction::Binary {
+                op: BinaryOperator::Sub,
+                asm_type: AssemblyType::Quadword,
+                tgt: Register::SP.into(),
+                arg: PreFinalOperand::ImmediateValue(stack_padding_bytelen),
+            });
         }
 
         for (i, arg_val) in args.into_iter().enumerate().rev() {
-            let arg_operand = self.convert_val_operand(arg_val);
+            let (arg_operand, arg_asm_type) = self.convert_val_operand(arg_val);
             match Self::ARG_REGS.get(i) {
-                None => match &arg_operand {
-                    PreFinalOperand::ImmediateValue(_) | PreFinalOperand::Register(_) => {
+                None => match (&arg_operand, arg_asm_type) {
+                    (PreFinalOperand::ImmediateValue(_) | PreFinalOperand::Register(_), _)
+                    | (_, AssemblyType::Quadword) => {
                         asm_instrs.push(Instruction::Push(arg_operand));
                     }
-                    PreFinalOperand::Pseudo(_) | PreFinalOperand::StackPosition(_) => {
+                    (
+                        PreFinalOperand::Pseudo(_) | PreFinalOperand::StackPosition(_),
+                        AssemblyType::Longword,
+                    ) => {
                         /* `pushq` operation always reads and pushes 8 bytes.
                         In case (arg's memory address + (8-1)) lies outside the readable memory, we cannot `pushq` directly. */
                         asm_instrs.push(Instruction::Mov {
+                            asm_type: AssemblyType::Longword,
                             src: arg_operand,
                             dst: Register::AX.into(),
                         });
@@ -108,6 +145,7 @@ impl AsmCodeGenerator {
                 },
                 Some(reg) => {
                     asm_instrs.push(Instruction::Mov {
+                        asm_type: arg_asm_type,
                         src: arg_operand,
                         dst: (*reg).into(),
                     });
@@ -118,15 +156,19 @@ impl AsmCodeGenerator {
         asm_instrs.push(Instruction::Call(ident));
 
         /* Each arg is pushed into the stack as an 8-byte item, b/c the `push` operation reads-and-pushes an 8-byte operand. */
-        let stack_pop_bytelen = 8 * (stack_args_count as isize) + stack_padding_bytelen;
+        let stack_pop_bytelen = 8 * (stack_args_count as i64) + stack_padding_bytelen;
         if stack_pop_bytelen != 0 {
-            asm_instrs.push(Instruction::DeallocateStack(StackPosition(
-                stack_pop_bytelen,
-            )));
+            asm_instrs.push(Instruction::Binary {
+                op: BinaryOperator::Add,
+                asm_type: AssemblyType::Quadword,
+                tgt: Register::SP.into(),
+                arg: PreFinalOperand::ImmediateValue(stack_pop_bytelen),
+            });
         }
 
-        let dst = self.convert_var_operand(dst);
+        let (dst, dst_type) = self.convert_var_operand(dst);
         asm_instrs.push(Instruction::Mov {
+            asm_type: dst_type,
             src: Register::AX.into(),
             dst,
         });
@@ -142,8 +184,8 @@ impl AsmCodeGenerator {
     ) -> impl '_ + Iterator<Item = Instruction<PreFinalOperand>> {
         t_instrs.into_iter().flat_map(|t_instr| match t_instr {
             t::Instruction::Return(t_val) => self.gen_return_instrs(t_val),
-            t::Instruction::SignExtend(_) => todo!(),
-            t::Instruction::Truncate(_) => todo!(),
+            t::Instruction::SignExtend(t_convert) => self.gen_signextend_instrs(t_convert),
+            t::Instruction::Truncate(t_convert) => self.gen_truncate_instrs(t_convert),
             t::Instruction::Unary(t_unary) => self.gen_unary_instrs(t_unary),
             t::Instruction::Binary(t_binary) => self.gen_binary_instrs(t_binary),
             t::Instruction::Copy(t_copy) => self.gen_copy_instrs(t_copy),
@@ -162,15 +204,39 @@ impl AsmCodeGenerator {
     /* Tacky Return */
 
     fn gen_return_instrs(&self, t_val: t::ReadableValue) -> Vec<Instruction<PreFinalOperand>> {
-        let asm_src = self.convert_val_operand(t_val);
+        let (src, asm_type) = self.convert_val_operand(t_val);
         let asm_instr_1 = Instruction::Mov {
-            src: asm_src,
+            asm_type,
+            src,
             dst: Register::AX.into(),
         };
 
         let asm_instr_2 = Instruction::Ret;
 
         vec![asm_instr_1, asm_instr_2]
+    }
+
+    /* Tacky assembly type transformation */
+
+    fn gen_signextend_instrs(
+        &self,
+        t::Convert { src, dst }: t::Convert,
+    ) -> Vec<Instruction<PreFinalOperand>> {
+        let (src, _) = self.convert_val_operand(src);
+        let (dst, _) = self.convert_var_operand(dst);
+        vec![Instruction::Movsx { src, dst }]
+    }
+    fn gen_truncate_instrs(
+        &self,
+        t::Convert { src, dst }: t::Convert,
+    ) -> Vec<Instruction<PreFinalOperand>> {
+        let (src, _) = self.convert_val_operand(src);
+        let (dst, _) = self.convert_var_operand(dst);
+        vec![Instruction::Mov {
+            asm_type: AssemblyType::Longword,
+            src,
+            dst,
+        }]
     }
 
     /* Tacky Unary */
@@ -191,27 +257,30 @@ impl AsmCodeGenerator {
         asm_op: UnaryOperator,
         t::Unary { op: _, src, dst }: t::Unary,
     ) -> Vec<Instruction<PreFinalOperand>> {
-        let asm_src = self.convert_val_operand(src);
-        let asm_dst = self.convert_var_operand(dst);
+        let (asm_src, asm_type) = self.convert_val_operand(src);
+        let (asm_dst, _) = self.convert_var_operand(dst);
 
         let asm_instr_1 = Instruction::Mov {
+            asm_type,
             src: asm_src,
             dst: asm_dst.clone(),
         };
-        let asm_instr_2 = Instruction::Unary(asm_op, asm_dst);
+        let asm_instr_2 = Instruction::Unary(asm_op, asm_type, asm_dst);
         vec![asm_instr_1, asm_instr_2]
     }
     fn gen_unary_comparison_instrs(
         &self,
         t::Unary { op: _, src, dst }: t::Unary,
     ) -> Vec<Instruction<PreFinalOperand>> {
-        let asm_src = self.convert_val_operand(src);
-        let asm_dst = self.convert_var_operand(dst);
+        let (asm_src, asm_src_type) = self.convert_val_operand(src);
+        let (asm_dst, asm_dst_type) = self.convert_var_operand(dst);
 
-        self.gen_comparison_instrs_from_asm(
-            ConditionCode::E,
+        Self::gen_comparison_instrs_from_asm(
+            asm_src_type,
             asm_src,
             PreFinalOperand::ImmediateValue(0),
+            ConditionCode::E,
+            asm_dst_type,
             asm_dst,
         )
     }
@@ -247,15 +316,17 @@ impl AsmCodeGenerator {
             dst,
         }: t::Binary,
     ) -> Vec<Instruction<PreFinalOperand>> {
-        let asm_src1 = self.convert_val_operand(src1);
-        let asm_src2 = self.convert_val_operand(src2);
-        let asm_dst = self.convert_var_operand(dst);
+        let (asm_src1, asm_type) = self.convert_val_operand(src1);
+        let (asm_src2, _) = self.convert_val_operand(src2);
+        let (asm_dst, _) = self.convert_var_operand(dst);
 
         let asm_instr_1 = Instruction::Mov {
+            asm_type,
             src: asm_src1,
             dst: asm_dst.clone(),
         };
         let asm_instr_2 = Instruction::Binary {
+            asm_type,
             op: asm_op,
             tgt: asm_dst,
             arg: asm_src2,
@@ -272,17 +343,19 @@ impl AsmCodeGenerator {
             dst,
         }: t::Binary,
     ) -> Vec<Instruction<PreFinalOperand>> {
-        let asm_src1 = self.convert_val_operand(src1);
-        let asm_src2 = self.convert_val_operand(src2);
-        let asm_dst = self.convert_var_operand(dst);
+        let (asm_src1, asm_type) = self.convert_val_operand(src1);
+        let (asm_src2, _) = self.convert_val_operand(src2);
+        let (asm_dst, _) = self.convert_var_operand(dst);
 
         let asm_instr_1 = Instruction::Mov {
+            asm_type,
             src: asm_src1,
             dst: Register::AX.into(),
         };
-        let asm_instr_2 = Instruction::Cdq;
-        let asm_instr_3 = Instruction::Idiv(asm_src2);
+        let asm_instr_2 = Instruction::Cdq(asm_type);
+        let asm_instr_3 = Instruction::Idiv(asm_type, asm_src2);
         let asm_instr_4 = Instruction::Mov {
+            asm_type,
             src: ans_reg.into(),
             dst: asm_dst,
         };
@@ -298,24 +371,34 @@ impl AsmCodeGenerator {
             dst,
         }: t::Binary,
     ) -> Vec<Instruction<PreFinalOperand>> {
-        let asm_src1 = self.convert_val_operand(src1);
-        let asm_src2 = self.convert_val_operand(src2);
-        let asm_dst = self.convert_var_operand(dst);
+        let (asm_src1, asm_src_type) = self.convert_val_operand(src1);
+        let (asm_src2, _) = self.convert_val_operand(src2);
+        let (asm_dst, asm_dst_type) = self.convert_var_operand(dst);
 
-        self.gen_comparison_instrs_from_asm(cmp_0_cc, asm_src1, asm_src2, asm_dst)
+        Self::gen_comparison_instrs_from_asm(
+            asm_src_type,
+            asm_src1,
+            asm_src2,
+            cmp_0_cc,
+            asm_dst_type,
+            asm_dst,
+        )
     }
     fn gen_comparison_instrs_from_asm(
-        &self,
-        cmp_0_cc: ConditionCode,
+        asm_src_type: AssemblyType,
         asm_src1: PreFinalOperand,
         asm_src2: PreFinalOperand,
+        cmp_0_cc: ConditionCode,
+        asm_dst_type: AssemblyType,
         asm_dst: PreFinalOperand,
     ) -> Vec<Instruction<PreFinalOperand>> {
         let asm_instr_1 = Instruction::Cmp {
+            asm_type: asm_src_type,
             tgt: asm_src1,
             arg: asm_src2,
         };
         let asm_instr_2 = Instruction::Mov {
+            asm_type: asm_dst_type,
             src: PreFinalOperand::ImmediateValue(0),
             dst: asm_dst.clone(),
         };
@@ -326,9 +409,9 @@ impl AsmCodeGenerator {
     /* Tacky Copy */
 
     fn gen_copy_instrs(&self, t_copy: t::Copy) -> Vec<Instruction<PreFinalOperand>> {
-        let src = self.convert_val_operand(t_copy.src);
-        let dst = self.convert_var_operand(t_copy.dst);
-        vec![Instruction::Mov { src, dst }]
+        let (src, asm_type) = self.convert_val_operand(t_copy.src);
+        let (dst, _) = self.convert_var_operand(t_copy.dst);
+        vec![Instruction::Mov { asm_type, src, dst }]
     }
 
     /* Tacky Jump */
@@ -338,8 +421,9 @@ impl AsmCodeGenerator {
         cmp_0_cc: ConditionCode,
         t::JumpIf { condition, tgt }: t::JumpIf,
     ) -> Vec<Instruction<PreFinalOperand>> {
-        let condition = self.convert_val_operand(condition);
+        let (condition, asm_type) = self.convert_val_operand(condition);
         let asm_instr_1 = Instruction::Cmp {
+            asm_type,
             tgt: condition,
             arg: PreFinalOperand::ImmediateValue(0),
         };
@@ -349,16 +433,28 @@ impl AsmCodeGenerator {
 
     /* Tacky Value -> Asm Operand */
 
-    fn convert_var_operand(&self, ident: Rc<ResolvedIdentifier>) -> PreFinalOperand {
+    fn convert_var_operand(
+        &self,
+        ident: Rc<ResolvedIdentifier>,
+    ) -> (PreFinalOperand, AssemblyType) {
         self.convert_val_operand(t::ReadableValue::Variable(ident))
     }
-    fn convert_val_operand(&self, t_val: t::ReadableValue) -> PreFinalOperand {
+    fn convert_val_operand(&self, t_val: t::ReadableValue) -> (PreFinalOperand, AssemblyType) {
         match t_val {
             t::ReadableValue::Constant(konst) => match konst {
-                Const::Int(i) => PreFinalOperand::ImmediateValue(i),
-                Const::Long(_) => todo!(),
+                Const::Int(i) => (
+                    PreFinalOperand::ImmediateValue(i as i64),
+                    AssemblyType::Longword,
+                ),
+                Const::Long(i) => (PreFinalOperand::ImmediateValue(i), AssemblyType::Quadword),
             },
-            t::ReadableValue::Variable(v) => PreFinalOperand::Pseudo(v),
+            t::ReadableValue::Variable(ident) => {
+                let asm_type = match self.symbol_table.use_var(&ident).unwrap() {
+                    VarType::Int => AssemblyType::Longword,
+                    VarType::Long => AssemblyType::Quadword,
+                };
+                (PreFinalOperand::Pseudo(ident), asm_type)
+            }
         }
     }
 }

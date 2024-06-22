@@ -5,6 +5,7 @@ use crate::{
         Program, Register, StaticVariable, UnaryOperator,
     },
     symbol_table::{FunAttrs, ResolvedIdentifier, StaticVisibility, Symbol, SymbolTable},
+    symbol_table_backend::OperandByteLen,
 };
 use regex::Regex;
 use std::fs::{File, OpenOptions};
@@ -13,12 +14,6 @@ use std::mem;
 use std::path::PathBuf;
 
 const TAB: &str = "\t";
-
-enum OperandByteLen {
-    B8,
-    B4,
-    B1,
-}
 
 pub struct AsmCodeEmitter<'slf> {
     label_bad_char: Regex,
@@ -92,14 +87,17 @@ impl<'slf> AsmCodeEmitter<'slf> {
     }
     fn write_instr(&mut self, instr: Instruction<Operand>) -> Result<(), io::Error> {
         match instr {
-            Instruction::Mov { src, dst } => {
+            Instruction::Mov { asm_type, src, dst } => {
+                let _ = asm_type; // TODO
                 write!(&mut self.bw, "{TAB}movl{TAB}")?;
                 self.write_operand(src, OperandByteLen::B4)?;
                 write!(&mut self.bw, ", ")?;
                 self.write_operand(dst, OperandByteLen::B4)?;
                 writeln!(&mut self.bw)?;
             }
-            Instruction::Unary(op, operand) => {
+            Instruction::Movsx { .. } => todo!(),
+            Instruction::Unary(op, asm_type, operand) => {
+                let _ = asm_type; // TODO
                 let op = match op {
                     UnaryOperator::BitwiseComplement => "notl",
                     UnaryOperator::TwosComplement => "negl",
@@ -108,7 +106,13 @@ impl<'slf> AsmCodeEmitter<'slf> {
                 self.write_operand(operand, OperandByteLen::B4)?;
                 writeln!(&mut self.bw)?;
             }
-            Instruction::Binary { op, arg, tgt } => {
+            Instruction::Binary {
+                op,
+                asm_type,
+                arg,
+                tgt,
+            } => {
+                let _ = asm_type; // TODO
                 let op = match op {
                     BinaryOperator::Add => "addl",
                     BinaryOperator::Sub => "subl",
@@ -120,19 +124,22 @@ impl<'slf> AsmCodeEmitter<'slf> {
                 self.write_operand(tgt, OperandByteLen::B4)?;
                 writeln!(&mut self.bw)?;
             }
-            Instruction::Cmp { arg, tgt } => {
+            Instruction::Cmp { asm_type, arg, tgt } => {
+                let _ = asm_type; // TODO
                 write!(&mut self.bw, "{TAB}cmpl{TAB}")?;
                 self.write_operand(arg, OperandByteLen::B4)?;
                 write!(&mut self.bw, ", ")?;
                 self.write_operand(tgt, OperandByteLen::B4)?;
                 writeln!(&mut self.bw)?;
             }
-            Instruction::Idiv(operand) => {
+            Instruction::Idiv(asm_type, operand) => {
+                let _ = asm_type; // TODO
                 write!(&mut self.bw, "{TAB}idivl{TAB}")?;
                 self.write_operand(operand, OperandByteLen::B4)?;
                 writeln!(&mut self.bw)?;
             }
-            Instruction::Cdq => {
+            Instruction::Cdq(asm_type) => {
+                let _ = asm_type; // TODO
                 writeln!(&mut self.bw, "cdq")?;
             }
             Instruction::Jmp(lbl) => {
@@ -155,12 +162,6 @@ impl<'slf> AsmCodeEmitter<'slf> {
             Instruction::Label(lbl) => {
                 self.write_label(&lbl)?;
                 writeln!(&mut self.bw, ":")?;
-            }
-            Instruction::AllocateStack(stkpos) => {
-                writeln!(&mut self.bw, "{TAB}subq{TAB}${}, %rsp", *stkpos)?;
-            }
-            Instruction::DeallocateStack(stkpos) => {
-                writeln!(&mut self.bw, "{TAB}addq{TAB}${}, %rsp", *stkpos)?;
             }
             Instruction::Push(operand) => {
                 write!(&mut self.bw, "{TAB}pushq{TAB}")?;
@@ -215,6 +216,7 @@ impl<'slf> AsmCodeEmitter<'slf> {
                     (Register::R11, OBL::B8) => "%r11",
                     (Register::R11, OBL::B4) => "%r11d",
                     (Register::R11, OBL::B1) => "%r11b",
+                    (Register::SP, _) => todo!(),
                 };
                 write!(&mut self.bw, "{reg_str}")?;
             }
@@ -280,7 +282,7 @@ impl<'slf> AsmCodeEmitter<'slf> {
         StaticVariable {
             ident,
             visibility,
-            typ: _, // TODO
+            alignment: _, // TODO
             init,
         }: StaticVariable,
     ) -> Result<(), io::Error> {

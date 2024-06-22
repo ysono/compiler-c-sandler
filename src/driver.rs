@@ -7,6 +7,7 @@ use crate::{
     stage3_tacky::generate::Tackifier,
     stage4_asm_gen::phase1_generate::AsmCodeGenerator,
     stage5_asm_emit::emit::AsmCodeEmitter,
+    symbol_table_backend::BackendSymbolTable,
 };
 use anyhow::{Context, Result};
 use clap::Parser as ClapParser;
@@ -134,8 +135,10 @@ fn compile(pp_filepath: PreprocessedFilepath, args: &CliArgs) -> Result<Option<A
         return Ok(None);
     }
 
+    let backend_symbol_table = Rc::new(BackendSymbolTable::from(&symbol_table));
     let symbol_table = Rc::new(symbol_table);
-    let asm_gen = AsmCodeGenerator::new(Rc::clone(&symbol_table));
+
+    let asm_gen = AsmCodeGenerator::new(Rc::clone(&symbol_table), Rc::clone(&backend_symbol_table));
     let asm_prog = asm_gen.gen_program(tacky_prog);
     if args.until_asm_codegen {
         println!("asm_prog: {asm_prog:#?}");
