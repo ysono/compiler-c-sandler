@@ -1,23 +1,19 @@
 //! - Identifier resolution
 //! - Loop labelling
 
-use crate::{
-    stage2_parse::{
-        c_ast as p, // "p" for "previous c_ast".
-        c_ast_resolved::*,
-    },
-    symbol_table::ResolvedIdentifier,
+use crate::stage2_parse::{
+    c_ast as p, // "p" for "previous".
+    c_ast_resolved::*,
+    ident_resolver::IdentResolver,
 };
 use anyhow::{anyhow, Context, Result};
-use derive_more::{Deref, DerefMut};
-use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
 #[derive(Default)]
 pub struct CAstValidator {
     ident_resolver: IdentResolver,
 
-    loop_ids_stack: LoopIdsStack,
+    loop_ids_stack: Vec<Rc<LoopId>>,
 }
 impl CAstValidator {
     pub fn resolve_program(&mut self, p::Program { decls }: p::Program) -> Result<Program> {
@@ -70,7 +66,7 @@ impl CAstValidator {
         }: p::VariableDeclaration,
     ) -> Result<VariableDeclaration> {
         let inner = || -> Result<_> {
-            let ident = self.ident_resolver.declare_new_var(ident, &storage_class)?;
+            let ident = self.ident_resolver.declare_var(ident, &storage_class)?;
 
             let init = init.map(|p_exp| self.resolve_exp(p_exp)).transpose()?;
 
@@ -93,7 +89,7 @@ impl CAstValidator {
         }: p::FunctionDeclaration,
     ) -> Result<Declaration> {
         let inner = || -> Result<_> {
-            let ident = self.ident_resolver.declare_new_fun(ident)?;
+            let ident = self.ident_resolver.declare_fun(ident)?;
 
             self.ident_resolver.push_new_scope();
 
@@ -101,7 +97,7 @@ impl CAstValidator {
                 .into_iter()
                 .map(|ident| {
                     let storage_class = None;
-                    self.ident_resolver.declare_new_var(ident, &storage_class)
+                    self.ident_resolver.declare_var(ident, &storage_class)
                 })
                 .collect::<Result<Vec<_>>>()?;
 
@@ -366,113 +362,4 @@ impl CAstValidator {
         };
         inner().context("<exp>")
     }
-}
-
-struct IdentResolver {
-    /// This abstracts a copy-on-write dict.
-    ident_to_resolved_idents: HashMap<Rc<p::Identifier>, Vec<Rc<ResolvedIdentifier>>>,
-
-    /// This tracks each copy-on-write layer's keys.
-    scope_to_idents: Vec<HashSet<Rc<p::Identifier>>>,
-}
-impl Default for IdentResolver {
-    fn default() -> Self {
-        Self {
-            ident_to_resolved_idents: HashMap::new(),
-            scope_to_idents: vec![HashSet::new()], // The one file scope.
-        }
-    }
-}
-impl IdentResolver {
-    fn is_file_scope(&self) -> bool {
-        self.scope_to_idents.len() == 1
-    }
-
-    fn push_new_scope(&mut self) {
-        self.scope_to_idents.push(HashSet::new());
-    }
-    fn pop_scope(&mut self) {
-        let idents = self.scope_to_idents.pop().unwrap();
-        for ident in idents {
-            let resolved_idents = self.ident_to_resolved_idents.get_mut(&ident).unwrap();
-            if resolved_idents.len() > 1 {
-                resolved_idents.pop();
-            } else {
-                self.ident_to_resolved_idents.remove(&ident);
-            }
-        }
-    }
-
-    fn declare_new_var(
-        &mut self,
-        ident: p::Identifier,
-        storage_class: &Option<StorageClassSpecifier>,
-    ) -> Result<Rc<ResolvedIdentifier>> {
-        let has_linkage = self.is_file_scope()
-            || match storage_class {
-                Some(StorageClassSpecifier::Extern) => true,
-                Some(StorageClassSpecifier::Static) | None => false,
-            };
-        self.declare_new(ident, has_linkage)
-    }
-    fn declare_new_fun(&mut self, ident: p::Identifier) -> Result<Rc<ResolvedIdentifier>> {
-        let has_linkage = true;
-        self.declare_new(ident, has_linkage)
-    }
-    fn declare_new(
-        &mut self,
-        ident: p::Identifier,
-        new_has_linkage: bool,
-    ) -> Result<Rc<ResolvedIdentifier>> {
-        let local_scope = self.scope_to_idents.last_mut().unwrap();
-        match local_scope.contains(&ident) {
-            false => {
-                let ident = Rc::new(ident);
-
-                local_scope.insert(Rc::clone(&ident));
-
-                let resolved_ident = if new_has_linkage {
-                    ResolvedIdentifier::SomeLinkage(Rc::clone(&ident))
-                } else {
-                    ResolvedIdentifier::new_no_linkage(Some(Rc::clone(&ident)))
-                };
-                let resolved_ident = Rc::new(resolved_ident);
-
-                self.ident_to_resolved_idents
-                    .entry(ident)
-                    .or_default()
-                    .push(Rc::clone(&resolved_ident));
-
-                Ok(resolved_ident)
-            }
-            true => {
-                let resolved_idents = self.ident_to_resolved_idents.get_mut(&ident).unwrap();
-                let resolved_ident = resolved_idents.last_mut().unwrap();
-
-                let prev_has_linkage = matches!(
-                    resolved_ident.as_ref(),
-                    ResolvedIdentifier::SomeLinkage { .. }
-                );
-                if (prev_has_linkage && new_has_linkage) == false {
-                    Err(anyhow!("In one scope, 2+ declarations of a same identifier must all refer to the same object or function, hence must all have some linkage. {resolved_ident:?} vs {new_has_linkage}"))
-                } else {
-                    Ok(Rc::clone(resolved_ident))
-                }
-            }
-        }
-    }
-
-    fn get(&self, ident: &p::Identifier) -> Result<Rc<ResolvedIdentifier>> {
-        let resolved_idents = self
-            .ident_to_resolved_idents
-            .get(ident)
-            .ok_or_else(|| anyhow!("Identifier wasn't declared in scope. {ident:?}"))?;
-        let resolved_ident = resolved_idents.last().unwrap();
-        Ok(Rc::clone(resolved_ident))
-    }
-}
-
-#[derive(Default, Deref, DerefMut)]
-struct LoopIdsStack {
-    loop_ids_stack: Vec<Rc<LoopId>>,
 }
