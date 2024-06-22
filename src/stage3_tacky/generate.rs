@@ -1,8 +1,8 @@
 use crate::{
-    stage2_parse::c_ast_resolved as c,
+    stage2_parse::{c_ast_resolved as c, phase3_typecheck::TypeCheckedCAst},
     stage3_tacky::tacky_ast::*,
     symbol_table::{
-        FunAttrs, ResolvedIdentifier, StaticInitialValue, Symbol, SymbolTable, VarAttrs,
+        FunAttrs, ResolvedIdentifier, StaticInitialValue, Symbol, SymbolTable, VarAttrs, VarType,
     },
 };
 use derive_more::Display;
@@ -22,7 +22,7 @@ enum ShortCircuitBOT {
 pub struct Tackifier {}
 impl Tackifier {
     pub fn tackify_program(
-        c::Program { decls: c_decls }: c::Program,
+        c::Program { decls: c_decls }: c::Program<TypeCheckedCAst>,
         symbol_table: &SymbolTable,
     ) -> Program {
         use StaticInitialValue as SIV;
@@ -90,9 +90,14 @@ impl<'a> FunInstrsGenerator<'a> {
     fn tackify_fun_defn(
         mut self,
         c::FunctionDefinition {
-            decl: c::FunctionDeclaration { ident, params, .. },
+            decl:
+                c::FunctionDeclaration {
+                    ident,
+                    param_idents,
+                    ..
+                },
             body,
-        }: c::FunctionDefinition,
+        }: c::FunctionDefinition<TypeCheckedCAst>,
     ) -> Function {
         let symbol = self.symbol_table.get(&ident).unwrap();
         let visibility = match symbol {
@@ -107,17 +112,21 @@ impl<'a> FunInstrsGenerator<'a> {
 
         let ret_kon = c::Const::Int(0);
         let ret_exp = c::Expression::Const(ret_kon);
+        let ret_exp = c::TypedExpression {
+            exp: ret_exp,
+            typ: VarType::Int, // TODO
+        };
         let ret_stmt = c::Statement::Return(ret_exp);
         self.gen_stmt(ret_stmt);
 
         Function {
             ident,
             visibility,
-            params,
+            params: param_idents,
             instrs: self.instrs,
         }
     }
-    fn gen_decl_block_scope(&mut self, c_decl: c::BlockScopeDeclaration) {
+    fn gen_decl_block_scope(&mut self, c_decl: c::BlockScopeDeclaration<TypeCheckedCAst>) {
         match c_decl {
             c::BlockScopeDeclaration::VarDecl(c_var_decl) => {
                 self.gen_decl_var_block_scope(c_var_decl)
@@ -130,8 +139,9 @@ impl<'a> FunInstrsGenerator<'a> {
         c::VariableDeclaration {
             ident,
             init,
+            typ: _, // TODO
             storage_class,
-        }: c::VariableDeclaration,
+        }: c::VariableDeclaration<TypeCheckedCAst>,
     ) {
         /* Iff this var has storage_duration=automatic and initializer=some, then initialize.
         As a performance improvement, we infer storage duration from storage class tokens, rather than from the symbol table. */
@@ -145,7 +155,7 @@ impl<'a> FunInstrsGenerator<'a> {
 
     /* Block, Statement, Expression */
 
-    fn gen_block(&mut self, c_block: c::Block) {
+    fn gen_block(&mut self, c_block: c::Block<TypeCheckedCAst>) {
         for c_item in c_block.items {
             match c_item {
                 c::BlockItem::Declaration(c_decl) => self.gen_decl_block_scope(c_decl),
@@ -153,7 +163,7 @@ impl<'a> FunInstrsGenerator<'a> {
             }
         }
     }
-    fn gen_stmt(&mut self, c_stmt: c::Statement) {
+    fn gen_stmt(&mut self, c_stmt: c::Statement<TypeCheckedCAst>) {
         match c_stmt {
             c::Statement::Return(c_root_exp) => {
                 let t_root_val = self.gen_exp(c_root_exp);
@@ -172,11 +182,16 @@ impl<'a> FunInstrsGenerator<'a> {
             c::Statement::Null => { /* No-op. */ }
         }
     }
-    fn gen_exp(&mut self, c_exp: c::Expression) -> ReadableValue {
-        match c_exp {
+    fn gen_exp(
+        &mut self,
+        c::TypedExpression { exp, typ }: c::TypedExpression<TypeCheckedCAst>,
+    ) -> ReadableValue {
+        let _ = typ; // TODO
+        match exp {
             c::Expression::Const(c::Const::Int(i)) => ReadableValue::Constant(i),
             c::Expression::Const(c::Const::Long(_)) => todo!(),
             c::Expression::Var(ident) => ReadableValue::Variable(ident),
+            c::Expression::Cast(_) => todo!(),
             c::Expression::Unary(unary) => self.gen_exp_unary(unary),
             c::Expression::Binary(binary) => self.gen_exp_binary(binary),
             c::Expression::Assignment(c::Assignment { ident, rhs }) => {
@@ -189,7 +204,10 @@ impl<'a> FunInstrsGenerator<'a> {
 
     /* C Unary */
 
-    fn gen_exp_unary(&mut self, c::Unary { op, sub_exp }: c::Unary) -> ReadableValue {
+    fn gen_exp_unary(
+        &mut self,
+        c::Unary { op, sub_exp }: c::Unary<TypeCheckedCAst>,
+    ) -> ReadableValue {
         let op = Self::convert_op_unary(op);
         let src = self.gen_exp(*sub_exp);
         let dst = Rc::new(ResolvedIdentifier::new_no_linkage(None));
@@ -203,7 +221,7 @@ impl<'a> FunInstrsGenerator<'a> {
 
     /* C Binary */
 
-    fn gen_exp_binary(&mut self, c_binary: c::Binary) -> ReadableValue {
+    fn gen_exp_binary(&mut self, c_binary: c::Binary<TypeCheckedCAst>) -> ReadableValue {
         match Self::convert_op_binary(&c_binary.op) {
             BinaryOperatorType::EvaluateBothHands(t_op) => {
                 self.gen_exp_binary_evalboth(t_op, c_binary)
@@ -214,7 +232,7 @@ impl<'a> FunInstrsGenerator<'a> {
     fn gen_exp_binary_evalboth(
         &mut self,
         op: BinaryOperator,
-        c::Binary { op: _, lhs, rhs }: c::Binary,
+        c::Binary { op: _, lhs, rhs }: c::Binary<TypeCheckedCAst>,
     ) -> ReadableValue {
         let src1 = self.gen_exp(*lhs);
         let src2 = self.gen_exp(*rhs);
@@ -230,7 +248,7 @@ impl<'a> FunInstrsGenerator<'a> {
     fn gen_exp_binary_shortcirc(
         &mut self,
         op_type: ShortCircuitBOT,
-        c::Binary { op: _, lhs, rhs }: c::Binary,
+        c::Binary { op: _, lhs, rhs }: c::Binary<TypeCheckedCAst>,
     ) -> ReadableValue {
         let result = Rc::new(ResolvedIdentifier::new_no_linkage(None));
 
@@ -320,7 +338,7 @@ impl<'a> FunInstrsGenerator<'a> {
     fn gen_exp_assignment(
         &mut self,
         ident: Rc<ResolvedIdentifier>,
-        rhs: c::Expression,
+        rhs: c::TypedExpression<TypeCheckedCAst>,
     ) -> ReadableValue {
         let rhs = self.gen_exp(rhs);
 
@@ -340,7 +358,7 @@ impl<'a> FunInstrsGenerator<'a> {
             condition,
             then,
             elze,
-        }: c::If,
+        }: c::If<TypeCheckedCAst>,
     ) {
         match elze {
             None => {
@@ -360,7 +378,7 @@ impl<'a> FunInstrsGenerator<'a> {
                 self.instrs.push(Instruction::Label(label_end));
             }
             Some(elze) => {
-                let name = &*then as *const c::Statement as usize;
+                let name = &*then as *const c::Statement<TypeCheckedCAst> as usize;
                 let label_else = Rc::new(LabelIdentifier::new(format!("stmt_cond.{name:x}.else")));
                 let label_end = Rc::new(LabelIdentifier::new(format!("stmt_cond.{name:x}.end")));
 
@@ -391,7 +409,7 @@ impl<'a> FunInstrsGenerator<'a> {
             condition,
             then,
             elze,
-        }: c::Conditional,
+        }: c::Conditional<TypeCheckedCAst>,
     ) -> ReadableValue {
         let result = Rc::new(ResolvedIdentifier::new_no_linkage(None));
 
@@ -446,7 +464,7 @@ impl<'a> FunInstrsGenerator<'a> {
     fn gen_stmt_while(
         &mut self,
         loop_id: Rc<c::LoopId>,
-        c::CondBody { condition, body }: c::CondBody,
+        c::CondBody { condition, body }: c::CondBody<TypeCheckedCAst>,
     ) {
         let lbls = self.loop_id_to_labels.get_or_insert(loop_id);
         let lbl_cont = Rc::clone(&lbls.lbl_cont);
@@ -472,7 +490,7 @@ impl<'a> FunInstrsGenerator<'a> {
     fn gen_stmt_dowhile(
         &mut self,
         loop_id: Rc<c::LoopId>,
-        c::CondBody { body, condition }: c::CondBody,
+        c::CondBody { body, condition }: c::CondBody<TypeCheckedCAst>,
     ) {
         let lbl_start = Rc::new(LoopIdToLabels::get_lbl_start(&loop_id));
         let lbls = self.loop_id_to_labels.get_or_insert(loop_id);
@@ -504,7 +522,7 @@ impl<'a> FunInstrsGenerator<'a> {
             condition,
             post,
             body,
-        }: c::For,
+        }: c::For<TypeCheckedCAst>,
     ) {
         let lbl_start = Rc::new(LoopIdToLabels::get_lbl_start(&loop_id));
         let lbls = self.loop_id_to_labels.get_or_insert(loop_id);
@@ -549,7 +567,7 @@ impl<'a> FunInstrsGenerator<'a> {
 
     fn gen_exp_fun_call(
         &mut self,
-        c::FunctionCall { ident, args }: c::FunctionCall,
+        c::FunctionCall { ident, args }: c::FunctionCall<TypeCheckedCAst>,
     ) -> ReadableValue {
         let result = Rc::new(ResolvedIdentifier::new_no_linkage(None));
 

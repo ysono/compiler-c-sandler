@@ -1,8 +1,10 @@
 use crate::stage2_parse::{
     c_ast::Identifier,
     c_ast_resolved::{
-        Block, Const, Expression, FunctionDeclaration, StorageClassSpecifier, VariableDeclaration,
+        Block, Const, Expression, FunctionCall, FunctionDeclaration, StorageClassSpecifier,
+        VariableDeclaration,
     },
+    phase2_resolve::ResolvedCAst,
 };
 use anyhow::{anyhow, Context, Result};
 use derivative::Derivative;
@@ -76,7 +78,7 @@ impl IdentifierId {
 #[derive(Debug)]
 pub enum Symbol {
     Var { typ: VarType, attrs: VarAttrs },
-    Fun { typ: FunType, attrs: FunAttrs },
+    Fun { typ: Rc<FunType>, attrs: FunAttrs },
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -129,8 +131,9 @@ impl SymbolTable {
         new_decl @ VariableDeclaration {
             ident,
             init: new_init,
+            typ: new_typ,
             storage_class: new_sc,
-        }: &VariableDeclaration,
+        }: &VariableDeclaration<ResolvedCAst>,
     ) -> Result<()> {
         use StaticInitialValue as SIV;
         use StorageClassSpecifier as SCS;
@@ -151,10 +154,21 @@ impl SymbolTable {
             PrevOrGlobal,
         }
 
-        let init_const = |init: &Expression| -> Result<SIV> {
-            match init {
-                Expression::Const(konst) => Ok(SIV::Initial(*konst)),
-                _ => Err(anyhow!("On type=var w/ storage_duration=static, initializer, if present, must be constexpr, but found {init:?}"))
+        let init_cast_const = |konst: &Const| -> Const {
+            match (konst, new_typ) {
+                (k @ Const::Int(_), VarType::Int) => *k,
+                (Const::Int(i), VarType::Long) => Const::Long(*i as i64),
+                (Const::Long(i), VarType::Int) => Const::Int(*i as i32), // Truncate most significant bytes.
+                (k @ Const::Long(_), VarType::Long) => *k,
+            }
+        };
+        let init_const = |exp: &Expression<ResolvedCAst>| -> Result<SIV> {
+            match exp {
+                Expression::Const(konst) => {
+                    let konst = init_cast_const(konst);
+                    Ok(SIV::Initial(konst))
+                }
+                _ => Err(anyhow!("On type=var w/ storage_duration=static, initializer, if present, must be constexpr, but found {new_init:?}"))
             }
         };
         #[rustfmt::skip]
@@ -167,7 +181,7 @@ impl SymbolTable {
             (DS::File, Some(SCS::Extern), None)       => Decl::StaticStorDur(LViz::PrevOrGlobal.into(), SIV::NoInitializer),
             (DS::Block, None, _)                       => Decl::AutoStorDur,
             (DS::Block, Some(SCS::Static), Some(init)) => Decl::StaticStorDur(Viz::Block, init_const(init)?),
-            (DS::Block, Some(SCS::Static), None)       => Decl::StaticStorDur(Viz::Block, SIV::Initial(Const::Int(0))),
+            (DS::Block, Some(SCS::Static), None)       => Decl::StaticStorDur(Viz::Block, SIV::Initial(init_cast_const(&Const::Int(0)))),
             (DS::Block, Some(SCS::Extern), Some(_)) => return Err(anyhow!(
                 "At scope=block, on type=var w/ `extern`, we cannot have an initializer. {new_decl:?}")),
             (DS::Block, Some(SCS::Extern), None) => {
@@ -185,7 +199,7 @@ impl SymbolTable {
         let entry = self.symbol_table.entry(Rc::clone(ident));
         match (entry, new_decl_summary) {
             (Entry::Vacant(entry), new_decl_summary) => {
-                let typ = VarType::Int; // TODO
+                let typ = *new_typ;
                 let attrs = match new_decl_summary {
                     Decl::AutoStorDur => VarAttrs::AutomaticStorageDuration,
                     Decl::StaticStorDur(viz, initial_value) => {
@@ -211,30 +225,36 @@ impl SymbolTable {
                 let prev_symbol = entry.get_mut();
                 let inner = || {
                     match prev_symbol {
-                        // TODO typ
-                        Symbol::Var { attrs, .. } => match attrs {
-                            #[rustfmt::skip]
-                            VarAttrs::StaticStorageDuration { visibility, initial_value } => {
-                                match (visibility, new_viz) {
-                                    (StaticVisibility::NonGlobal, LViz::TranslUnit | LViz::PrevOrGlobal) => { /* No-op. */ }
-                                    (StaticVisibility::NonGlobal, LViz::Global) => return Err(anyhow!("Cannot declare with 2+ visibilities.")),
-                                    (StaticVisibility::Global, LViz::Global | LViz::PrevOrGlobal) => { /* No-op. */ }
-                                    (StaticVisibility::Global, LViz::TranslUnit) => return Err(anyhow!("Cannot declare with 2+ visibilities.")),
+                        Symbol::Var { typ, attrs } => {
+                            if typ != new_typ {
+                                return Err(anyhow!("Cannot declare with 2+ types."));
+                            }
+                            match attrs {
+                                #[rustfmt::skip]
+                                VarAttrs::StaticStorageDuration { visibility, initial_value } => {
+                                    match (visibility, new_viz) {
+                                        (StaticVisibility::NonGlobal, LViz::TranslUnit | LViz::PrevOrGlobal) => { /* No-op. */ }
+                                        (StaticVisibility::NonGlobal, LViz::Global) => return Err(anyhow!("Cannot declare with 2+ visibilities.")),
+                                        (StaticVisibility::Global, LViz::Global | LViz::PrevOrGlobal) => { /* No-op. */ }
+                                        (StaticVisibility::Global, LViz::TranslUnit) => return Err(anyhow!("Cannot declare with 2+ visibilities.")),
+                                    }
+                                    match (&initial_value, &new_init_val) {
+                                        (SIV::NoInitializer, SIV::NoInitializer) => { /* No-op. */ }
+                                        (SIV::NoInitializer, SIV::Tentative | SIV::Initial(_)) => { *initial_value = new_init_val }
+                                        (SIV::Tentative, SIV::NoInitializer | SIV::Tentative) => { /* No-op. */ }
+                                        (SIV::Tentative, SIV::Initial(_)) => { *initial_value = new_init_val }
+                                        (SIV::Initial(_), SIV::NoInitializer | SIV::Tentative) => { /* No-op. */ }
+                                        (SIV::Initial(_), SIV::Initial(_)) => return Err(anyhow!("Cannot initialize 2+ times.")),
+                                    };
                                 }
-                                match (&initial_value, &new_init_val) {
-                                    (SIV::NoInitializer, SIV::NoInitializer) => { /* No-op. */ }
-                                    (SIV::NoInitializer, SIV::Tentative | SIV::Initial(_)) => { *initial_value = new_init_val }
-                                    (SIV::Tentative, SIV::NoInitializer | SIV::Tentative) => { /* No-op. */ }
-                                    (SIV::Tentative, SIV::Initial(_)) => { *initial_value = new_init_val }
-                                    (SIV::Initial(_), SIV::NoInitializer | SIV::Tentative) => { /* No-op. */ }
-                                    (SIV::Initial(_), SIV::Initial(_)) => return Err(anyhow!("Cannot initialize 2+ times.")),
-                                };
-                                Ok(())
+                                VarAttrs::AutomaticStorageDuration { .. } => {
+                                    return Err(anyhow!(
+                                        "Cannot declare with 2+ storage durations."
+                                    ))
+                                }
                             }
-                            VarAttrs::AutomaticStorageDuration { .. } => {
-                                return Err(anyhow!("Cannot declare with 2+ storage durations."))
-                            }
-                        },
+                            Ok(())
+                        }
                         _ => return Err(anyhow!("Cannot declare with 2+ types.")),
                     }
                 };
@@ -242,13 +262,13 @@ impl SymbolTable {
             }
         }
     }
-    pub fn use_var(&self, ident: &ResolvedIdentifier) -> Result<()> {
+    pub fn use_var(&self, ident: &ResolvedIdentifier) -> Result<VarType> {
         let prev_symbol = self
             .symbol_table
             .get(ident)
             .ok_or_else(|| anyhow!("Cannot use non-declared {ident:?}."))?;
         match prev_symbol {
-            Symbol::Var { .. } => Ok(()),
+            Symbol::Var { typ, .. } => Ok(*typ),
             Symbol::Fun { .. } => Err(anyhow!(
                 "Cannot use {ident:?} typed {prev_symbol:?} as var."
             )),
@@ -260,10 +280,11 @@ impl SymbolTable {
         new_scope: FunDeclScope,
         new_decl @ FunctionDeclaration {
             ident,
-            params: new_params,
+            param_idents: _,
+            typ: new_typ,
             storage_class: new_sc,
         }: &FunctionDeclaration,
-        new_body: Option<&Block>,
+        new_body: Option<&Block<ResolvedCAst>>,
     ) -> Result<()> {
         use FunDeclScope as DS;
         use StorageClassSpecifier as SCS;
@@ -288,12 +309,6 @@ impl SymbolTable {
             }
         };
 
-        let new_typ = FunType {
-            // TODO types
-            params: vec![VarType::Int; new_params.len()],
-            ret: VarType::Int,
-        };
-
         let newly_defined = new_body.is_some();
 
         match self.symbol_table.entry(Rc::clone(ident)) {
@@ -303,7 +318,7 @@ impl SymbolTable {
                     Viz::TranslUnit => StaticVisibility::NonGlobal,
                 };
                 entry.insert(Symbol::Fun {
-                    typ: new_typ,
+                    typ: Rc::clone(new_typ),
                     attrs: FunAttrs {
                         visibility,
                         is_defined: newly_defined,
@@ -323,7 +338,7 @@ impl SymbolTable {
                                     is_defined,
                                 },
                         } => {
-                            if typ != &new_typ {
+                            if typ != new_typ {
                                 return Err(anyhow!("Cannot declare with 2+ types."));
                             }
                             match (visibility, new_viz) {
@@ -348,22 +363,21 @@ impl SymbolTable {
             }
         }
     }
-    pub fn call_fun(&self, ident: &ResolvedIdentifier, args: &[Expression]) -> Result<()> {
-        let new_typ = FunType {
-            // TODO types
-            params: vec![VarType::Int; args.len()],
-            ret: VarType::Int,
-        };
+    pub fn call_fun(
+        &self,
+        FunctionCall { ident, args }: &FunctionCall<ResolvedCAst>,
+    ) -> Result<&Rc<FunType>> {
         let prev_symbol = self
             .symbol_table
             .get(ident)
             .ok_or_else(|| anyhow!("Cannot call non-declared {ident:?}."))?;
         match prev_symbol {
             Symbol::Fun { typ, .. } => {
-                if typ != &new_typ {
-                    return Err(anyhow!("Cannot call {ident:?} using mismatched signature. {prev_symbol:?} vs {new_typ:?}"));
+                if typ.params.len() != args.len() {
+                    return Err(anyhow!("Cannot call {ident:?} using mismatched signature. {prev_symbol:?} vs {args:?}"));
                 }
-                Ok(())
+                /* We don't compare arg or ret types, b/c all var types are convertible into one another. */
+                Ok(typ)
             }
             _ => Err(anyhow!("Cannot call {ident:?}. {prev_symbol:?}")),
         }

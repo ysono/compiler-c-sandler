@@ -2,151 +2,170 @@ pub use self::declaration::*;
 pub use self::expression::*;
 pub use self::statement::*;
 pub use crate::stage2_parse::c_ast::{BinaryOperator, Const, StorageClassSpecifier, UnaryOperator};
-use crate::symbol_table::ResolvedIdentifier;
+use crate::symbol_table::{FunType, ResolvedIdentifier, VarType};
 use derivative::Derivative;
 use getset::Getters;
+use std::fmt::Debug;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-#[derive(Debug)]
-pub struct Program {
-    pub decls: Vec<Declaration>,
+pub trait CAstVariant {
+    type Expression: Debug;
 }
 
 #[derive(Debug)]
-pub enum Declaration {
-    VarDecl(VariableDeclaration),
+pub struct Program<T: CAstVariant> {
+    pub decls: Vec<Declaration<T>>,
+}
+
+#[derive(Debug)]
+pub enum Declaration<T: CAstVariant> {
+    VarDecl(VariableDeclaration<T>),
     FunDecl(FunctionDeclaration),
-    FunDefn(FunctionDefinition),
+    FunDefn(FunctionDefinition<T>),
 }
 #[derive(Debug)]
-pub enum BlockScopeDeclaration {
-    VarDecl(VariableDeclaration),
+pub enum BlockScopeDeclaration<T: CAstVariant> {
+    VarDecl(VariableDeclaration<T>),
     FunDecl(FunctionDeclaration),
 }
 mod declaration {
     use super::*;
 
     #[derive(Debug)]
-    pub struct VariableDeclaration {
+    pub struct VariableDeclaration<T: CAstVariant> {
         pub ident: Rc<ResolvedIdentifier>,
-        pub init: Option<Expression>,
+        pub init: Option<T::Expression>,
+        pub typ: VarType,
         pub storage_class: Option<StorageClassSpecifier>,
     }
 
     #[derive(Debug)]
     pub struct FunctionDeclaration {
         pub ident: Rc<ResolvedIdentifier>,
-        pub params: Vec<Rc<ResolvedIdentifier>>,
+        pub param_idents: Vec<Rc<ResolvedIdentifier>>,
+        pub typ: Rc<FunType>,
         pub storage_class: Option<StorageClassSpecifier>,
     }
 
     #[derive(Debug)]
-    pub struct FunctionDefinition {
+    pub struct FunctionDefinition<T: CAstVariant> {
         pub decl: FunctionDeclaration,
-        pub body: Block,
+        pub body: Block<T>,
     }
 }
 
 #[derive(Debug)]
-pub struct Block {
-    pub items: Vec<BlockItem>,
+pub struct Block<T: CAstVariant> {
+    pub items: Vec<BlockItem<T>>,
 }
 
 #[derive(Debug)]
-pub enum BlockItem {
-    Declaration(BlockScopeDeclaration),
-    Statement(Statement),
+pub enum BlockItem<T: CAstVariant> {
+    Declaration(BlockScopeDeclaration<T>),
+    Statement(Statement<T>),
 }
 
 #[derive(Debug)]
-pub enum Statement {
-    Return(Expression),
-    Expression(Expression),
-    If(If),
-    Compound(Block),
+pub enum Statement<T: CAstVariant> {
+    Return(T::Expression),
+    Expression(T::Expression),
+    If(If<T>),
+    Compound(Block<T>),
     Break(Rc<LoopId>),
     Continue(Rc<LoopId>),
-    While(Rc<LoopId>, CondBody),
-    DoWhile(Rc<LoopId>, CondBody),
-    For(Rc<LoopId>, For),
+    While(Rc<LoopId>, CondBody<T>),
+    DoWhile(Rc<LoopId>, CondBody<T>),
+    For(Rc<LoopId>, For<T>),
     Null,
 }
 mod statement {
     use super::*;
 
     #[derive(Debug)]
-    pub struct If {
-        pub condition: Expression,
-        pub then: Box<Statement>,
-        pub elze: Option<Box<Statement>>,
+    pub struct If<T: CAstVariant> {
+        pub condition: T::Expression,
+        pub then: Box<Statement<T>>,
+        pub elze: Option<Box<Statement<T>>>,
     }
 
     #[derive(Debug)]
-    pub struct CondBody {
-        pub condition: Expression,
-        pub body: Box<Statement>,
+    pub struct CondBody<T: CAstVariant> {
+        pub condition: T::Expression,
+        pub body: Box<Statement<T>>,
     }
 
     #[derive(Debug)]
-    pub struct For {
-        pub init: ForInit,
-        pub condition: Option<Expression>,
-        pub post: Option<Expression>,
-        pub body: Box<Statement>,
+    pub struct For<T: CAstVariant> {
+        pub init: ForInit<T>,
+        pub condition: Option<T::Expression>,
+        pub post: Option<T::Expression>,
+        pub body: Box<Statement<T>>,
     }
 
     #[derive(Debug)]
-    pub enum ForInit {
-        Decl(VariableDeclaration),
-        Exp(Expression),
+    pub enum ForInit<T: CAstVariant> {
+        Decl(VariableDeclaration<T>),
+        Exp(T::Expression),
         None,
     }
 }
 
 #[derive(Debug)]
-pub enum Expression {
+pub struct TypedExpression<T: CAstVariant> {
+    pub exp: Expression<T>,
+    pub typ: VarType,
+}
+#[derive(Debug)]
+pub enum Expression<T: CAstVariant> {
     Const(Const),
     Var(Rc<ResolvedIdentifier>),
-    Unary(Unary),
-    Binary(Binary),
-    Assignment(Assignment),
-    Conditional(Conditional),
-    FunctionCall(FunctionCall),
+    Cast(Cast<T>),
+    Unary(Unary<T>),
+    Binary(Binary<T>),
+    Assignment(Assignment<T>),
+    Conditional(Conditional<T>),
+    FunctionCall(FunctionCall<T>),
 }
 mod expression {
     use super::*;
 
     #[derive(Debug)]
-    pub struct Unary {
+    pub struct Cast<T: CAstVariant> {
+        pub typ: VarType,
+        pub sub_exp: Box<T::Expression>,
+    }
+
+    #[derive(Debug)]
+    pub struct Unary<T: CAstVariant> {
         pub op: UnaryOperator,
-        pub sub_exp: Box<Expression>,
+        pub sub_exp: Box<T::Expression>,
     }
 
     #[derive(Debug)]
-    pub struct Binary {
+    pub struct Binary<T: CAstVariant> {
         pub op: BinaryOperator,
-        pub lhs: Box<Expression>,
-        pub rhs: Box<Expression>,
+        pub lhs: Box<T::Expression>,
+        pub rhs: Box<T::Expression>,
     }
 
     #[derive(Debug)]
-    pub struct Assignment {
+    pub struct Assignment<T: CAstVariant> {
         pub ident: Rc<ResolvedIdentifier>,
-        pub rhs: Box<Expression>,
+        pub rhs: Box<T::Expression>,
     }
 
     #[derive(Debug)]
-    pub struct Conditional {
-        pub condition: Box<Expression>,
-        pub then: Box<Expression>,
-        pub elze: Box<Expression>,
+    pub struct Conditional<T: CAstVariant> {
+        pub condition: Box<T::Expression>,
+        pub then: Box<T::Expression>,
+        pub elze: Box<T::Expression>,
     }
 
     #[derive(Debug)]
-    pub struct FunctionCall {
+    pub struct FunctionCall<T: CAstVariant> {
         pub ident: Rc<ResolvedIdentifier>,
-        pub args: Vec<Expression>,
+        pub args: Vec<T::Expression>,
     }
 }
 

@@ -9,6 +9,12 @@ use crate::stage2_parse::{
 use anyhow::{anyhow, Context, Result};
 use std::rc::Rc;
 
+#[derive(Debug)]
+pub struct ResolvedCAst(());
+impl CAstVariant for ResolvedCAst {
+    type Expression = Expression<ResolvedCAst>;
+}
+
 #[derive(Default)]
 pub struct CAstValidator {
     ident_resolver: IdentResolver,
@@ -16,7 +22,10 @@ pub struct CAstValidator {
     loop_ids_stack: Vec<Rc<LoopId>>,
 }
 impl CAstValidator {
-    pub fn resolve_program(&mut self, p::Program { decls }: p::Program) -> Result<Program> {
+    pub fn resolve_program(
+        &mut self,
+        p::Program { decls }: p::Program,
+    ) -> Result<Program<ResolvedCAst>> {
         let inner = || -> Result<_> {
             let decls = decls
                 .into_iter()
@@ -29,7 +38,7 @@ impl CAstValidator {
 
     /* Declaration */
 
-    fn resolve_decl(&mut self, p_decl: p::Declaration) -> Result<Declaration> {
+    fn resolve_decl(&mut self, p_decl: p::Declaration) -> Result<Declaration<ResolvedCAst>> {
         let inner = || -> Result<_> {
             match p_decl {
                 p::Declaration::VarDecl(p_var_decl) => {
@@ -43,7 +52,7 @@ impl CAstValidator {
     fn resolve_decl_block_scope(
         &mut self,
         p_decl: p::Declaration,
-    ) -> Result<BlockScopeDeclaration> {
+    ) -> Result<BlockScopeDeclaration<ResolvedCAst>> {
         let inner = || -> Result<_> {
             let decl = match self.resolve_decl(p_decl)? {
                 Declaration::VarDecl(vd) => BlockScopeDeclaration::VarDecl(vd),
@@ -61,10 +70,10 @@ impl CAstValidator {
         p::VariableDeclaration {
             ident,
             init,
-            typ: _, // TODO
+            typ,
             storage_class,
         }: p::VariableDeclaration,
-    ) -> Result<VariableDeclaration> {
+    ) -> Result<VariableDeclaration<ResolvedCAst>> {
         let inner = || -> Result<_> {
             let ident = self.ident_resolver.declare_var(ident, &storage_class)?;
 
@@ -73,6 +82,7 @@ impl CAstValidator {
             Ok(VariableDeclaration {
                 ident,
                 init,
+                typ,
                 storage_class,
             })
         };
@@ -84,16 +94,16 @@ impl CAstValidator {
             ident,
             param_idents,
             body,
-            typ: _, // TODO
+            typ,
             storage_class,
         }: p::FunctionDeclaration,
-    ) -> Result<Declaration> {
+    ) -> Result<Declaration<ResolvedCAst>> {
         let inner = || -> Result<_> {
             let ident = self.ident_resolver.declare_fun(ident)?;
 
             self.ident_resolver.push_new_scope();
 
-            let params = param_idents
+            let param_idents = param_idents
                 .into_iter()
                 .map(|ident| {
                     let storage_class = None;
@@ -103,7 +113,8 @@ impl CAstValidator {
 
             let fun_decl = FunctionDeclaration {
                 ident,
-                params,
+                param_idents,
+                typ: Rc::new(typ),
                 storage_class,
             };
 
@@ -131,7 +142,7 @@ impl CAstValidator {
         &mut self,
         p::Block { items }: p::Block,
         need_new_ident_scope: bool,
-    ) -> Result<Block> {
+    ) -> Result<Block<ResolvedCAst>> {
         let inner = || -> Result<_> {
             if need_new_ident_scope {
                 self.ident_resolver.push_new_scope();
@@ -150,7 +161,7 @@ impl CAstValidator {
         };
         inner().context("<block>")
     }
-    fn resolve_block_item(&mut self, p_item: p::BlockItem) -> Result<BlockItem> {
+    fn resolve_block_item(&mut self, p_item: p::BlockItem) -> Result<BlockItem<ResolvedCAst>> {
         let inner = || -> Result<_> {
             match p_item {
                 p::BlockItem::Declaration(p_decl) => {
@@ -168,7 +179,7 @@ impl CAstValidator {
 
     /* Statement */
 
-    fn resolve_stmt(&mut self, p_stmt: p::Statement) -> Result<Statement> {
+    fn resolve_stmt(&mut self, p_stmt: p::Statement) -> Result<Statement<ResolvedCAst>> {
         let inner = || -> Result<_> {
             match p_stmt {
                 p::Statement::Return(p_exp) => {
@@ -222,14 +233,14 @@ impl CAstValidator {
         };
         inner().context("<statement>")
     }
-    fn resolve_stmt_while(&mut self, p_condbody: p::CondBody) -> Result<Statement> {
+    fn resolve_stmt_while(&mut self, p_condbody: p::CondBody) -> Result<Statement<ResolvedCAst>> {
         let inner = || -> Result<_> {
             let (loop_id, condbody) = self.resolve_stmt_condbody("while", p_condbody)?;
             Ok(Statement::While(loop_id, condbody))
         };
         inner().context("<statement> while")
     }
-    fn resolve_stmt_dowhile(&mut self, p_condbody: p::CondBody) -> Result<Statement> {
+    fn resolve_stmt_dowhile(&mut self, p_condbody: p::CondBody) -> Result<Statement<ResolvedCAst>> {
         let inner = || -> Result<_> {
             let (loop_id, condbody) = self.resolve_stmt_condbody("dowhile", p_condbody)?;
             Ok(Statement::DoWhile(loop_id, condbody))
@@ -240,7 +251,7 @@ impl CAstValidator {
         &mut self,
         descr: &'static str,
         p::CondBody { condition, body }: p::CondBody,
-    ) -> Result<(Rc<LoopId>, CondBody)> {
+    ) -> Result<(Rc<LoopId>, CondBody<ResolvedCAst>)> {
         let inner = || -> Result<_> {
             let condition = self.resolve_exp(condition)?;
 
@@ -263,7 +274,7 @@ impl CAstValidator {
             post,
             body,
         }: p::For,
-    ) -> Result<Statement> {
+    ) -> Result<Statement<ResolvedCAst>> {
         let inner = || -> Result<_> {
             self.ident_resolver.push_new_scope();
 
@@ -299,7 +310,7 @@ impl CAstValidator {
 
     /* Expression */
 
-    fn resolve_exp(&mut self, p_exp: p::Expression) -> Result<Expression> {
+    fn resolve_exp(&mut self, p_exp: p::Expression) -> Result<Expression<ResolvedCAst>> {
         let inner = || -> Result<_> {
             let exp = match p_exp {
                 p::Expression::Const(konst) => Expression::Const(konst),
@@ -307,7 +318,10 @@ impl CAstValidator {
                     let ident = self.ident_resolver.get(&ident)?;
                     Expression::Var(ident)
                 }
-                p::Expression::Cast(_) => todo!(),
+                p::Expression::Cast(p::Cast { typ, sub_exp }) => {
+                    let sub_exp = Box::new(self.resolve_exp(*sub_exp)?);
+                    Expression::Cast(Cast { typ, sub_exp })
+                }
                 p::Expression::Unary(p::Unary { op, sub_exp }) => {
                     let sub_exp = Box::new(self.resolve_exp(*sub_exp)?);
                     Expression::Unary(Unary { op, sub_exp })
