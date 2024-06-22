@@ -136,9 +136,8 @@ fn compile(pp_filepath: PreprocessedFilepath, args: &CliArgs) -> Result<Option<A
     }
 
     let backend_symbol_table = Rc::new(BackendSymbolTable::from(&symbol_table));
-    let symbol_table = Rc::new(symbol_table);
 
-    let asm_gen = AsmCodeGenerator::new(Rc::clone(&symbol_table), Rc::clone(&backend_symbol_table));
+    let asm_gen = AsmCodeGenerator::new(symbol_table, Rc::clone(&backend_symbol_table));
     let asm_prog = asm_gen.gen_program(tacky_prog);
     if args.until_asm_codegen {
         println!("asm_prog: {asm_prog:#?}");
@@ -146,7 +145,7 @@ fn compile(pp_filepath: PreprocessedFilepath, args: &CliArgs) -> Result<Option<A
     }
 
     let asm_filepath = AsmFilepath::from(&pp_filepath);
-    let asm_emitter = AsmCodeEmitter::new(&asm_filepath, &symbol_table)?;
+    let asm_emitter = AsmCodeEmitter::new(&asm_filepath, &backend_symbol_table)?;
     asm_emitter.emit_program(asm_prog)?;
     if args.until_asm_emission {
         println!("asm file: {asm_filepath:?}");

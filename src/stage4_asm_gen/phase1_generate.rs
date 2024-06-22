@@ -8,14 +8,11 @@ use std::cmp;
 use std::rc::Rc;
 
 pub struct AsmCodeGenerator {
-    symbol_table: Rc<SymbolTable>,
+    symbol_table: SymbolTable,
     backend_symbol_table: Rc<BackendSymbolTable>,
 }
 impl AsmCodeGenerator {
-    pub fn new(
-        symbol_table: Rc<SymbolTable>,
-        backend_symbol_table: Rc<BackendSymbolTable>,
-    ) -> Self {
+    pub fn new(symbol_table: SymbolTable, backend_symbol_table: Rc<BackendSymbolTable>) -> Self {
         Self {
             symbol_table,
             backend_symbol_table,

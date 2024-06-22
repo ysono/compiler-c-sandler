@@ -4,13 +4,12 @@ use crate::{
         BinaryOperator, ConditionCode, Const, Function, Instruction, LabelIdentifier, Operand,
         Program, Register, StaticVariable, UnaryOperator,
     },
-    symbol_table::{FunAttrs, ResolvedIdentifier, StaticVisibility, Symbol, SymbolTable},
-    symbol_table_backend::OperandByteLen,
+    symbol_table::{ResolvedIdentifier, StaticVisibility},
+    symbol_table_backend::{AsmEntry, AssemblyType, BackendSymbolTable, OperandByteLen},
 };
 use regex::Regex;
 use std::fs::{File, OpenOptions};
 use std::io::{self, BufWriter, Write};
-use std::mem;
 use std::path::PathBuf;
 
 const TAB: &str = "\t";
@@ -20,12 +19,12 @@ pub struct AsmCodeEmitter<'slf> {
 
     bw: BufWriter<File>,
 
-    symbol_table: &'slf SymbolTable,
+    backend_symbol_table: &'slf BackendSymbolTable,
 }
 impl<'slf> AsmCodeEmitter<'slf> {
     pub fn new<'a>(
         asm_filepath: &'a AsmFilepath,
-        symbol_table: &'slf SymbolTable,
+        backend_symbol_table: &'slf BackendSymbolTable,
     ) -> Result<Self, io::Error> {
         let label_bad_char = Regex::new(r"[^a-zA-Z0-9._]").unwrap();
 
@@ -39,7 +38,7 @@ impl<'slf> AsmCodeEmitter<'slf> {
         Ok(Self {
             label_bad_char,
             bw,
-            symbol_table,
+            backend_symbol_table,
         })
     }
 
@@ -88,22 +87,34 @@ impl<'slf> AsmCodeEmitter<'slf> {
     fn write_instr(&mut self, instr: Instruction<Operand>) -> Result<(), io::Error> {
         match instr {
             Instruction::Mov { asm_type, src, dst } => {
-                let _ = asm_type; // TODO
-                write!(&mut self.bw, "{TAB}movl{TAB}")?;
-                self.write_operand(src, OperandByteLen::B4)?;
+                let instr_sfx = Self::get_instr_sfx_wordlen(asm_type);
+                let bytelen = OperandByteLen::from(asm_type);
+
+                write!(&mut self.bw, "{TAB}mov{instr_sfx}{TAB}")?;
+                self.write_operand(src, bytelen)?;
                 write!(&mut self.bw, ", ")?;
-                self.write_operand(dst, OperandByteLen::B4)?;
+                self.write_operand(dst, bytelen)?;
                 writeln!(&mut self.bw)?;
             }
-            Instruction::Movsx { .. } => todo!(),
+            Instruction::Movsx { src, dst } => {
+                let instr_sfx = "lq";
+
+                write!(&mut self.bw, "{TAB}movs{instr_sfx}{TAB}")?;
+                self.write_operand(src, OperandByteLen::B4)?;
+                write!(&mut self.bw, ", ")?;
+                self.write_operand(dst, OperandByteLen::B8)?;
+                writeln!(&mut self.bw)?;
+            }
             Instruction::Unary(op, asm_type, operand) => {
-                let _ = asm_type; // TODO
-                let op = match op {
-                    UnaryOperator::BitwiseComplement => "notl",
-                    UnaryOperator::TwosComplement => "negl",
+                let instr = match op {
+                    UnaryOperator::BitwiseComplement => "not",
+                    UnaryOperator::TwosComplement => "neg",
                 };
-                write!(&mut self.bw, "{TAB}{op}{TAB}")?;
-                self.write_operand(operand, OperandByteLen::B4)?;
+                let instr_sfx = Self::get_instr_sfx_wordlen(asm_type);
+                let bytelen = OperandByteLen::from(asm_type);
+
+                write!(&mut self.bw, "{TAB}{instr}{instr_sfx}{TAB}")?;
+                self.write_operand(operand, bytelen)?;
                 writeln!(&mut self.bw)?;
             }
             Instruction::Binary {
@@ -112,35 +123,45 @@ impl<'slf> AsmCodeEmitter<'slf> {
                 arg,
                 tgt,
             } => {
-                let _ = asm_type; // TODO
-                let op = match op {
-                    BinaryOperator::Add => "addl",
-                    BinaryOperator::Sub => "subl",
-                    BinaryOperator::Mul => "imull",
+                let instr = match op {
+                    BinaryOperator::Add => "add",
+                    BinaryOperator::Sub => "sub",
+                    BinaryOperator::Mul => "imul",
                 };
-                write!(&mut self.bw, "{TAB}{op}{TAB}")?;
-                self.write_operand(arg, OperandByteLen::B4)?;
+                let instr_sfx = Self::get_instr_sfx_wordlen(asm_type);
+                let bytelen = OperandByteLen::from(asm_type);
+
+                write!(&mut self.bw, "{TAB}{instr}{instr_sfx}{TAB}")?;
+                self.write_operand(arg, bytelen)?;
                 write!(&mut self.bw, ", ")?;
-                self.write_operand(tgt, OperandByteLen::B4)?;
+                self.write_operand(tgt, bytelen)?;
                 writeln!(&mut self.bw)?;
             }
             Instruction::Cmp { asm_type, arg, tgt } => {
-                let _ = asm_type; // TODO
-                write!(&mut self.bw, "{TAB}cmpl{TAB}")?;
-                self.write_operand(arg, OperandByteLen::B4)?;
+                let instr_sfx = Self::get_instr_sfx_wordlen(asm_type);
+                let bytelen = OperandByteLen::from(asm_type);
+
+                write!(&mut self.bw, "{TAB}cmp{instr_sfx}{TAB}")?;
+                self.write_operand(arg, bytelen)?;
                 write!(&mut self.bw, ", ")?;
-                self.write_operand(tgt, OperandByteLen::B4)?;
+                self.write_operand(tgt, bytelen)?;
                 writeln!(&mut self.bw)?;
             }
             Instruction::Idiv(asm_type, operand) => {
-                let _ = asm_type; // TODO
-                write!(&mut self.bw, "{TAB}idivl{TAB}")?;
-                self.write_operand(operand, OperandByteLen::B4)?;
+                let instr_sfx = Self::get_instr_sfx_wordlen(asm_type);
+                let bytelen = OperandByteLen::from(asm_type);
+
+                write!(&mut self.bw, "{TAB}idiv{instr_sfx}{TAB}")?;
+                self.write_operand(operand, bytelen)?;
                 writeln!(&mut self.bw)?;
             }
             Instruction::Cdq(asm_type) => {
-                let _ = asm_type; // TODO
-                writeln!(&mut self.bw, "cdq")?;
+                let instr = match asm_type {
+                    AssemblyType::Longword => "cdq",
+                    AssemblyType::Quadword => "cqo",
+                };
+
+                writeln!(&mut self.bw, "{TAB}{instr}")?;
             }
             Instruction::Jmp(lbl) => {
                 write!(&mut self.bw, "{TAB}jmp{TAB}")?;
@@ -148,14 +169,14 @@ impl<'slf> AsmCodeEmitter<'slf> {
                 writeln!(&mut self.bw)?;
             }
             Instruction::JmpCC(cc, lbl) => {
-                let cmd_sfx = Self::get_condition_sfx(cc);
-                write!(&mut self.bw, "{TAB}j{cmd_sfx}{TAB}")?;
+                let instr_sfx = Self::get_instr_sfx_condition(cc);
+                write!(&mut self.bw, "{TAB}j{instr_sfx}{TAB}")?;
                 self.write_label(&lbl)?;
                 writeln!(&mut self.bw)?;
             }
             Instruction::SetCC(cc, operand) => {
-                let cmd_sfx = Self::get_condition_sfx(cc);
-                write!(&mut self.bw, "{TAB}set{cmd_sfx}{TAB}")?;
+                let instr_sfx = Self::get_instr_sfx_condition(cc);
+                write!(&mut self.bw, "{TAB}set{instr_sfx}{TAB}")?;
                 self.write_operand(operand, OperandByteLen::B1)?;
                 writeln!(&mut self.bw)?;
             }
@@ -180,6 +201,22 @@ impl<'slf> AsmCodeEmitter<'slf> {
             }
         }
         Ok(())
+    }
+    fn get_instr_sfx_wordlen(asm_type: AssemblyType) -> char {
+        match asm_type {
+            AssemblyType::Longword => 'l',
+            AssemblyType::Quadword => 'q',
+        }
+    }
+    fn get_instr_sfx_condition(cc: ConditionCode) -> &'static str {
+        match cc {
+            ConditionCode::E => "e",
+            ConditionCode::Ne => "ne",
+            ConditionCode::L => "l",
+            ConditionCode::Le => "le",
+            ConditionCode::G => "g",
+            ConditionCode::Ge => "ge",
+        }
     }
     fn write_operand(&mut self, operand: Operand, obl: OperandByteLen) -> Result<(), io::Error> {
         use OperandByteLen as OBL;
@@ -216,7 +253,7 @@ impl<'slf> AsmCodeEmitter<'slf> {
                     (Register::R11, OBL::B8) => "%r11",
                     (Register::R11, OBL::B4) => "%r11d",
                     (Register::R11, OBL::B1) => "%r11b",
-                    (Register::SP, _) => todo!(),
+                    (Register::SP, _) => "%rsp",
                 };
                 write!(&mut self.bw, "{reg_str}")?;
             }
@@ -250,12 +287,9 @@ impl<'slf> AsmCodeEmitter<'slf> {
         write!(&mut self.bw, "{IDENT_PFX}{ident}")?;
 
         if cfg!(target_os = "linux") {
-            match self.symbol_table.get(ident).unwrap() {
-                Symbol::Var { .. } => { /* No-op. */ }
-                Symbol::Fun {
-                    attrs: FunAttrs { is_defined, .. },
-                    ..
-                } => {
+            match self.backend_symbol_table.get(ident).unwrap() {
+                AsmEntry::Obj { .. } => { /* No-op. */ }
+                AsmEntry::Fun { is_defined } => {
                     if *is_defined == false {
                         /* This is required iff the identifier will be lazily bound by a dynamic linker.
                         It doesn't hurt to specify even if the identifier's address offset will become statically known at link-time. */
@@ -267,32 +301,22 @@ impl<'slf> AsmCodeEmitter<'slf> {
 
         Ok(())
     }
-    fn get_condition_sfx(cc: ConditionCode) -> &'static str {
-        match cc {
-            ConditionCode::E => "e",
-            ConditionCode::Ne => "ne",
-            ConditionCode::L => "l",
-            ConditionCode::Le => "le",
-            ConditionCode::G => "g",
-            ConditionCode::Ge => "ge",
-        }
-    }
     fn write_static_var(
         &mut self,
         StaticVariable {
             ident,
             visibility,
-            alignment: _, // TODO
+            alignment,
             init,
         }: StaticVariable,
     ) -> Result<(), io::Error> {
         const IDENT_PFX: &str = if cfg!(target_os = "macos") { "_" } else { "" };
-        const BYTELEN: usize = mem::size_of::<i32>();
-
+        let alignment = alignment as u8;
         let section = match init {
             Const::Int(0) => ".bss",
             Const::Int(_) => ".data",
-            Const::Long(_) => todo!(),
+            Const::Long(0) => ".bss",
+            Const::Long(_) => ".data",
         };
 
         match visibility {
@@ -302,16 +326,21 @@ impl<'slf> AsmCodeEmitter<'slf> {
             StaticVisibility::NonGlobal => { /* No-op. */ }
         }
         writeln!(&mut self.bw, "{TAB}{section}")?;
-        writeln!(&mut self.bw, "{TAB}.balign {BYTELEN}")?;
+        writeln!(&mut self.bw, "{TAB}.balign {alignment}")?;
         writeln!(&mut self.bw, "{IDENT_PFX}{ident}:")?;
         match init {
             Const::Int(0) => {
-                writeln!(&mut self.bw, "{TAB}.zero {BYTELEN}")?;
+                writeln!(&mut self.bw, "{TAB}.zero 4")?;
             }
             Const::Int(i) => {
                 writeln!(&mut self.bw, "{TAB}.long {i}")?;
             }
-            Const::Long(_) => todo!(),
+            Const::Long(0) => {
+                writeln!(&mut self.bw, "{TAB}.zero 8")?;
+            }
+            Const::Long(i) => {
+                writeln!(&mut self.bw, "{TAB}.quad {i}")?;
+            }
         };
         Ok(())
     }
