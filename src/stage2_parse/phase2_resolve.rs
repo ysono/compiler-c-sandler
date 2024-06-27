@@ -6,7 +6,7 @@ mod ident_resolver;
 use self::ident_resolver::IdentResolver;
 use crate::{
     stage2_parse::{c_ast::*, phase1_parse::ParsedCAst},
-    symbol_table::ResolvedIdentifier,
+    symbol_table_frontend::ResolvedIdentifier,
 };
 use anyhow::{anyhow, Context, Result};
 use std::rc::Rc;

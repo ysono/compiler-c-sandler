@@ -1,11 +1,13 @@
 use crate::{
     files::AsmFilepath,
     stage4_asm_gen::asm_ast::{
-        BinaryOperator, ConditionCode, Const, Function, Instruction, LabelIdentifier, Operand,
-        Program, Register, StaticVariable, UnaryOperator,
+        BinaryOperator, ConditionCode, Function, Instruction, LabelIdentifier, Operand, Program,
+        Register, StaticVariable, UnaryOperator,
     },
-    symbol_table::{ResolvedIdentifier, StaticVisibility},
-    symbol_table_backend::{AsmEntry, AssemblyType, BackendSymbolTable, OperandByteLen},
+    symbol_table_backend::{AsmEntry, BackendSymbolTable},
+    symbol_table_frontend::{ResolvedIdentifier, StaticVisibility},
+    types_backend::{AssemblyType, OperandByteLen},
+    types_frontend::Const,
 };
 use regex::Regex;
 use std::fs::{File, OpenOptions};

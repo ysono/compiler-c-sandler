@@ -1,3 +1,4 @@
+use crate::types_frontend::Const;
 use derive_more::{Deref, From};
 
 #[derive(From, PartialEq, Eq, Debug)]
@@ -79,13 +80,6 @@ pub enum Loop {
     For,
     Break,
     Continue,
-}
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum Const {
-    Int(i32),
-    Long(i64),
-    UInt(u32),
-    ULong(u64),
 }
 #[derive(Deref, PartialEq, Eq, Hash, Debug)]
 pub struct Identifier(pub(super) String);

@@ -1,9 +1,8 @@
 use crate::{
     stage4_asm_gen::{asm_ast::*, phase3_fix::OperandFixer},
-    symbol_table::ResolvedIdentifier,
-    symbol_table_backend::{
-        Alignment, AsmEntry, AssemblyType, BackendSymbolTable, OperandByteLen, StorageDuration,
-    },
+    symbol_table_backend::{AsmEntry, BackendSymbolTable, StorageDuration},
+    symbol_table_frontend::ResolvedIdentifier,
+    types_backend::{Alignment, AssemblyType, OperandByteLen},
 };
 use std::collections::{HashMap, VecDeque};
 use std::rc::Rc;

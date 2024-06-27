@@ -1,7 +1,8 @@
-pub use crate::stage3_tacky::tacky_ast::{Const, LabelIdentifier};
+pub use crate::stage3_tacky::tacky_ast::LabelIdentifier;
 use crate::{
-    symbol_table::{ResolvedIdentifier, StaticVisibility},
-    symbol_table_backend::{Alignment, AssemblyType},
+    symbol_table_frontend::{ResolvedIdentifier, StaticVisibility},
+    types_backend::{Alignment, AssemblyType},
+    types_frontend::Const,
 };
 use derive_more::{Deref, DerefMut, From};
 use std::collections::VecDeque;

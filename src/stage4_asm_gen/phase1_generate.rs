@@ -1,8 +1,9 @@
 use crate::{
     stage3_tacky::tacky_ast as t,
     stage4_asm_gen::{asm_ast::*, phase2_finalize::InstrsFinalizer},
-    symbol_table::{ResolvedIdentifier, SymbolTable, VarType},
-    symbol_table_backend::{Alignment, AssemblyType, BackendSymbolTable},
+    symbol_table_backend::BackendSymbolTable,
+    symbol_table_frontend::{ResolvedIdentifier, SymbolTable},
+    types_backend::{Alignment, AssemblyType},
 };
 use std::cmp;
 use std::rc::Rc;
@@ -416,21 +417,18 @@ impl AsmCodeGenerator {
     }
     fn convert_val_operand(&self, t_val: t::ReadableValue) -> (PreFinalOperand, AssemblyType) {
         match t_val {
-            t::ReadableValue::Constant(konst) => match konst {
-                Const::Int(i) => (
-                    PreFinalOperand::ImmediateValue(i as i64),
-                    AssemblyType::Longword,
-                ),
-                Const::Long(i) => (PreFinalOperand::ImmediateValue(i), AssemblyType::Quadword),
-                _ => todo!(),
-            },
+            t::ReadableValue::Constant(konst) => {
+                let operand = PreFinalOperand::ImmediateValue(konst.as_raw());
+                let asm_type = AssemblyType::from(konst.var_type());
+                (operand, asm_type)
+            }
             t::ReadableValue::Variable(ident) => {
-                let asm_type = match self.symbol_table.use_var(&ident).unwrap() {
-                    VarType::Int => AssemblyType::Longword,
-                    VarType::Long => AssemblyType::Quadword,
-                    _ => todo!(),
-                };
-                (PreFinalOperand::Pseudo(ident), asm_type)
+                let var_type = self.symbol_table.use_var(&ident).unwrap();
+                let asm_type = AssemblyType::from(var_type);
+
+                let operand = PreFinalOperand::Pseudo(ident);
+
+                (operand, asm_type)
             }
         }
     }

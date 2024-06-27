@@ -3,11 +3,12 @@ use crate::{
     stage1_lex::tokens::Identifier,
     stage2_parse::{
         c_ast::{
-            Block, Const, Expression, FunctionCall, FunctionDeclaration, StorageClassSpecifier,
+            Block, Expression, FunctionCall, FunctionDeclaration, StorageClassSpecifier,
             VariableDeclaration,
         },
         phase2_resolve::ResolvedCAst,
     },
+    types_frontend::{Const, FunType, VarType},
 };
 use anyhow::{anyhow, Context, Result};
 use derivative::Derivative;
@@ -85,14 +86,6 @@ pub enum Symbol {
     Fun { typ: Rc<FunType>, attrs: FunAttrs },
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum VarType {
-    Int,
-    Long,
-    UInt,
-    ULong,
-}
-
 #[derive(Debug)]
 pub enum VarAttrs {
     AutomaticStorageDuration,
@@ -106,12 +99,6 @@ pub enum StaticInitialValue {
     Initial(Const),
     Tentative,
     NoInitializer,
-}
-
-#[derive(PartialEq, Eq, Debug)]
-pub struct FunType {
-    pub params: Vec<VarType>,
-    pub ret: VarType,
 }
 
 #[derive(Debug)]
@@ -179,12 +166,16 @@ impl SymbolTable {
         use StorageClassSpecifier as SCS;
         use VarDeclScope as DS;
 
-        let siv =
-            |init_exp: &Expression<ResolvedCAst>| Self::derive_static_init_value(init_exp, new_typ);
-        let siv_zero = || {
-            let mock_exp = Expression::Const(Const::Int(0));
-            siv(&mock_exp).unwrap()
+        let siv = |init_exp: &Expression<ResolvedCAst>| {
+            match init_exp {
+                Expression::Const(konst) => {
+                    let konst = konst.cast_to(new_typ);
+                    Ok(StaticInitialValue::Initial(konst))
+                }
+                _ => Err(anyhow!("On type=var w/ storage_duration=static, initializer, if present, must be constexpr. Only a simple const is supported."))
+            }
         };
+        let siv_zero = || StaticInitialValue::Initial(Const::new(0, new_typ));
 
         #[rustfmt::skip]
         let new_decl_summary = match (new_scope, new_sc, new_init) {
@@ -211,24 +202,6 @@ impl SymbolTable {
                 "Inside parens, type=var must not have any storage class specifier.")),
         };
         Ok(new_decl_summary)
-    }
-    fn derive_static_init_value(
-        init_exp: &Expression<ResolvedCAst>,
-        new_typ: VarType,
-    ) -> Result<StaticInitialValue> {
-        match init_exp {
-            Expression::Const(konst) => {
-                let konst = match (konst, new_typ) {
-                    (k @ Const::Int(_), VarType::Int) => *k,
-                    (Const::Int(i), VarType::Long) => Const::Long(*i as i64),
-                    (Const::Long(i), VarType::Int) => Const::Int(*i as i32), // Truncate most significant bytes.
-                    (k @ Const::Long(_), VarType::Long) => *k,
-                    _ => todo!(),
-                };
-                Ok(StaticInitialValue::Initial(konst))
-            }
-            _ => Err(anyhow!("On type=var w/ storage_duration=static, initializer, if present, must be constexpr."))
-        }
     }
     fn insert_var_decl(
         &mut self,

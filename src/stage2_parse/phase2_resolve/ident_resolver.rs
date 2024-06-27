@@ -1,6 +1,6 @@
 use crate::{
     stage1_lex::tokens::Identifier, stage2_parse::c_ast::StorageClassSpecifier,
-    symbol_table::ResolvedIdentifier,
+    symbol_table_frontend::ResolvedIdentifier,
 };
 use anyhow::{anyhow, Result};
 use std::collections::{HashMap, HashSet};

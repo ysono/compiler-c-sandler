@@ -1,6 +1,7 @@
 use crate::{
     stage2_parse::{c_ast::*, phase2_resolve::ResolvedCAst},
-    symbol_table::{FunDeclScope, FunType, ResolvedIdentifier, SymbolTable, VarDeclScope, VarType},
+    symbol_table_frontend::{FunDeclScope, ResolvedIdentifier, SymbolTable, VarDeclScope},
+    types_frontend::{FunType, VarType},
 };
 use anyhow::Result;
 use std::rc::Rc;
@@ -220,11 +221,7 @@ impl TypeChecker {
     ) -> Result<TypedExpression<TypeCheckedCAst>> {
         let exp = match exp {
             Expression::Const(konst) => {
-                let typ = match konst {
-                    Const::Int(_) => VarType::Int,
-                    Const::Long(_) => VarType::Long,
-                    _ => todo!(),
-                };
+                let typ = konst.var_type();
                 let exp = Expression::Const(konst);
                 TypedExpression { typ, exp }
             }
@@ -253,7 +250,7 @@ impl TypeChecker {
                 let lhs = self.typecheck_exp(*lhs)?;
                 let rhs = self.typecheck_exp(*rhs)?;
 
-                let common_typ = Self::derive_common_type(lhs.typ, rhs.typ);
+                let common_typ = VarType::derive_common_type(lhs.typ, rhs.typ);
                 let cast_exp =
                     |exp: TypedExpression<TypeCheckedCAst>| Self::maybe_cast_exp(exp, common_typ);
 
@@ -285,7 +282,7 @@ impl TypeChecker {
                 let then = self.typecheck_exp(*then)?;
                 let elze = self.typecheck_exp(*elze)?;
 
-                let typ = Self::derive_common_type(then.typ, elze.typ);
+                let typ = VarType::derive_common_type(then.typ, elze.typ);
                 let then = Self::maybe_cast_exp(then, typ);
                 let elze = Self::maybe_cast_exp(elze, typ);
 
@@ -313,15 +310,6 @@ impl TypeChecker {
             }
         };
         Ok(exp)
-    }
-    fn derive_common_type(typ1: VarType, typ2: VarType) -> VarType {
-        match (typ1, typ2) {
-            (VarType::Int, VarType::Int) => VarType::Int,
-            (VarType::Int, VarType::Long) => VarType::Long,
-            (VarType::Long, VarType::Int) => VarType::Long,
-            (VarType::Long, VarType::Long) => VarType::Long,
-            _ => todo!(),
-        }
     }
     fn maybe_cast_exp(
         exp: TypedExpression<TypeCheckedCAst>,

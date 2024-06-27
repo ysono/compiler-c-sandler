@@ -1,4 +1,4 @@
-use crate::{stage4_asm_gen::asm_ast::*, symbol_table_backend::AssemblyType};
+use crate::{stage4_asm_gen::asm_ast::*, types_backend::AssemblyType};
 
 pub struct OperandFixer {}
 impl OperandFixer {

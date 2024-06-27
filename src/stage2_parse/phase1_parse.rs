@@ -6,7 +6,7 @@ use self::binary_operator::{BinaryOperatorInfo, BinaryOperatorPrecedence};
 use crate::{
     stage1_lex::tokens as t,
     stage2_parse::c_ast::*,
-    symbol_table::{FunType, VarType},
+    types_frontend::{FunType, VarType},
 };
 use anyhow::{anyhow, Context, Result};
 use std::cmp;

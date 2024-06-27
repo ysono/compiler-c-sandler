@@ -4,9 +4,10 @@ use self::helpers::{BinaryOperatorType, LoopIdToLabels, ShortCircuitBOT};
 use crate::{
     stage2_parse::{c_ast as c, phase3_typecheck::TypeCheckedCAst},
     stage3_tacky::tacky_ast::*,
-    symbol_table::{
-        FunAttrs, ResolvedIdentifier, StaticInitialValue, Symbol, SymbolTable, VarAttrs, VarType,
+    symbol_table_frontend::{
+        FunAttrs, ResolvedIdentifier, StaticInitialValue, Symbol, SymbolTable, VarAttrs,
     },
+    types_frontend::{Const, VarType},
 };
 use std::rc::Rc;
 
@@ -40,11 +41,7 @@ impl Tackifier {
             {
                 let konst = match initial_value {
                     SIV::Initial(konst) => *konst,
-                    SIV::Tentative => match typ {
-                        VarType::Int => Const::Int(0),
-                        VarType::Long => Const::Long(0),
-                        _ => todo!(),
-                    },
+                    SIV::Tentative => Const::new(0, *typ),
                     SIV::NoInitializer => continue,
                 };
                 let var = StaticVariable {
@@ -108,9 +105,10 @@ impl<'a> FunInstrsGenerator<'a> {
         The return type of the `main` function must be `int`.
         The return type of any non-`main` function that lacks a `return` statement is undefined.
         Therefore, it's correct to always return `int`. */
+        let konst = Const::Int(0);
         let ret_stmt = c::Statement::Return(c::TypedExpression {
-            exp: c::Expression::Const(c::Const::Int(0)),
-            typ: VarType::Int,
+            exp: c::Expression::Const(konst),
+            typ: konst.var_type(),
         });
         self.gen_stmt(ret_stmt);
 
@@ -292,11 +290,7 @@ impl<'a> FunInstrsGenerator<'a> {
             }
         };
 
-        let new_out_const = |i: i32| match out_typ {
-            VarType::Int => Const::Int(i),
-            VarType::Long => Const::Long(i as i64),
-            _ => todo!(),
-        };
+        let new_out_const = |i: i32| Const::new(i, out_typ);
         let (shortcirc_val, fully_evald_val) = match op_type {
             ShortCircuitBOT::And => (new_out_const(0), new_out_const(1)),
             ShortCircuitBOT::Or => (new_out_const(1), new_out_const(0)),
