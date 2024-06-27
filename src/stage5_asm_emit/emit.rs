@@ -29,13 +29,13 @@ impl<'slf, W: Write> AsmCodeEmitter<'slf, W> {
         })
     }
 
-    pub fn emit_program(mut self, Program { funs, vars }: Program) -> Result<(), io::Error> {
+    pub fn emit_program(mut self, Program { static_vars, funs }: Program) -> Result<(), io::Error> {
         for fun in funs {
             self.write_fun(fun)?;
         }
 
-        for var in vars {
-            self.write_static_var(var)?;
+        for static_var in static_vars {
+            self.write_static_var(static_var)?;
         }
 
         if cfg!(target_os = "linux") {

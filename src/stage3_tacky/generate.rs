@@ -19,8 +19,40 @@ impl Tackifier {
         c::Program { decls: c_decls }: c::Program<TypeCheckedCAst>,
         symbol_table: &mut SymbolTable,
     ) -> Program {
-        use StaticInitialValue as SIV;
+        let funs = Self::tackify_decls(c_decls, symbol_table);
 
+        let static_vars = Self::tackify_static_vars(symbol_table);
+
+        Program { static_vars, funs }
+    }
+    fn tackify_static_vars(symbol_table: &SymbolTable) -> Vec<StaticVariable> {
+        let mut static_vars = vec![];
+        for (ident, symbol) in symbol_table.iter() {
+            if let Symbol::Var {
+                typ,
+                attrs: VarAttrs::StaticStorageDuration { visibility, initial_value },
+            } = symbol
+            {
+                let konst = match initial_value {
+                    StaticInitialValue::Initial(konst) => *konst,
+                    StaticInitialValue::Tentative => Const::new(0, *typ),
+                    StaticInitialValue::NoInitializer => continue,
+                };
+                let static_var = StaticVariable {
+                    ident: Rc::clone(ident),
+                    visibility: *visibility,
+                    typ: *typ,
+                    init: konst,
+                };
+                static_vars.push(static_var);
+            }
+        }
+        static_vars
+    }
+    fn tackify_decls(
+        c_decls: Vec<c::Declaration<TypeCheckedCAst>>,
+        symbol_table: &mut SymbolTable,
+    ) -> Vec<Function> {
         let mut funs = vec![];
         for c_decl in c_decls {
             match c_decl {
@@ -33,30 +65,7 @@ impl Tackifier {
                 }
             }
         }
-
-        let mut vars = vec![];
-        for (ident, symbol) in symbol_table.iter() {
-            if let Symbol::Var {
-                typ,
-                attrs: VarAttrs::StaticStorageDuration { visibility, initial_value },
-            } = symbol
-            {
-                let konst = match initial_value {
-                    SIV::Initial(konst) => *konst,
-                    SIV::Tentative => Const::new(0, *typ),
-                    SIV::NoInitializer => continue,
-                };
-                let var = StaticVariable {
-                    ident: Rc::clone(ident),
-                    visibility: *visibility,
-                    typ: *typ,
-                    init: konst,
-                };
-                vars.push(var);
-            }
-        }
-
-        Program { funs, vars }
+        funs
     }
 }
 
