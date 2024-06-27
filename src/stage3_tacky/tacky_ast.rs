@@ -92,15 +92,25 @@ pub enum UnaryOperator {
     Not,
 }
 
-#[derive(Debug)]
+#[derive(From, Debug)]
 pub enum BinaryOperator {
-    /* -> int */
+    Arithmetic(ArithmeticBinaryOperator),
+    DivRem(DivRemBinaryOperator),
+    Comparison(ComparisonBinaryOperator),
+}
+#[derive(Clone, Copy, Debug)]
+pub enum ArithmeticBinaryOperator {
     Sub,
     Add,
     Mul,
+}
+#[derive(Clone, Copy, Debug)]
+pub enum DivRemBinaryOperator {
     Div,
     Rem,
-    /* -(compare)-> bool */
+}
+#[derive(Clone, Copy, Debug)]
+pub enum ComparisonBinaryOperator {
     Eq,
     Neq,
     Lt,

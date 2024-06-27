@@ -282,27 +282,22 @@ impl AsmCodeGenerator {
     fn gen_binary_instrs(&self, t_binary: t::Binary) -> Vec<Instruction<PreFinalOperand>> {
         use t::BinaryOperator as TBO;
 
-        match t_binary.op {
-            TBO::Add => self.gen_arithmetic_instrs(BinaryOperator::Add, t_binary),
-            TBO::Sub => self.gen_arithmetic_instrs(BinaryOperator::Sub, t_binary),
-            TBO::Mul => self.gen_arithmetic_instrs(BinaryOperator::Mul, t_binary),
-
-            TBO::Div => self.gen_divrem_instrs(Register::AX, t_binary),
-            TBO::Rem => self.gen_divrem_instrs(Register::DX, t_binary),
-
-            TBO::Eq => self.gen_comparison_instrs(ConditionCode::E, t_binary),
-            TBO::Neq => self.gen_comparison_instrs(ConditionCode::Ne, t_binary),
-            TBO::Lt => self.gen_comparison_instrs(ConditionCode::L, t_binary),
-            TBO::Lte => self.gen_comparison_instrs(ConditionCode::Le, t_binary),
-            TBO::Gt => self.gen_comparison_instrs(ConditionCode::G, t_binary),
-            TBO::Gte => self.gen_comparison_instrs(ConditionCode::Ge, t_binary),
+        match &t_binary.op {
+            TBO::Arithmetic(t_op) => self.gen_arithmetic_instrs(*t_op, t_binary),
+            TBO::DivRem(t_op) => self.gen_divrem_instrs(*t_op, t_binary),
+            TBO::Comparison(t_op) => self.gen_comparison_instrs(*t_op, t_binary),
         }
     }
     fn gen_arithmetic_instrs(
         &self,
-        asm_op: BinaryOperator,
+        t_op: t::ArithmeticBinaryOperator,
         t::Binary { op: _, src1, src2, dst }: t::Binary,
     ) -> Vec<Instruction<PreFinalOperand>> {
+        let asm_op = match t_op {
+            t::ArithmeticBinaryOperator::Sub => BinaryOperator::Sub,
+            t::ArithmeticBinaryOperator::Add => BinaryOperator::Add,
+            t::ArithmeticBinaryOperator::Mul => BinaryOperator::Mul,
+        };
         let (asm_src1, asm_type, _) = self.convert_value(src1);
         let (asm_src2, _, _) = self.convert_value(src2);
         let (asm_dst, _, _) = self.convert_value(dst);
@@ -322,9 +317,13 @@ impl AsmCodeGenerator {
     }
     fn gen_divrem_instrs(
         &self,
-        ans_reg: Register,
+        t_op: t::DivRemBinaryOperator,
         t::Binary { op: _, src1, src2, dst }: t::Binary,
     ) -> Vec<Instruction<PreFinalOperand>> {
+        let ans_reg = match t_op {
+            t::DivRemBinaryOperator::Div => Register::AX,
+            t::DivRemBinaryOperator::Rem => Register::DX,
+        };
         let (asm_src1, asm_type, _) = self.convert_value(src1);
         let (asm_src2, _, _) = self.convert_value(src2);
         let (asm_dst, _, _) = self.convert_value(dst);
@@ -345,12 +344,23 @@ impl AsmCodeGenerator {
     }
     fn gen_comparison_instrs(
         &self,
-        cmp_0_cc: ConditionCode,
+        t_op: t::ComparisonBinaryOperator,
         t::Binary { op: _, src1, src2, dst }: t::Binary,
     ) -> Vec<Instruction<PreFinalOperand>> {
+        use t::ComparisonBinaryOperator as TBOC;
+        use ConditionCode as CC;
+
         let (asm_src1, asm_src_type, _) = self.convert_value(src1);
         let (asm_src2, _, _) = self.convert_value(src2);
         let (asm_dst, asm_dst_type, _) = self.convert_value(dst);
+        let cmp_0_cc = match t_op {
+            TBOC::Eq => CC::E,
+            TBOC::Neq => CC::Ne,
+            TBOC::Lt => CC::L,
+            TBOC::Lte => CC::Le,
+            TBOC::Gt => CC::G,
+            TBOC::Gte => CC::Ge,
+        };
 
         Self::gen_comparison_instrs_from_asm(
             asm_src_type,

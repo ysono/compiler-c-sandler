@@ -23,23 +23,25 @@ pub fn convert_op_unary(c_unary_op: c::UnaryOperator) -> UnaryOperator {
 }
 pub fn convert_op_binary(c_binary_op: &c::BinaryOperator) -> BinaryOperatorType {
     use c::BinaryOperator as CBO;
-    use BinaryOperator as TBO;
+    use ArithmeticBinaryOperator as TBOA;
     use BinaryOperatorType as BOT;
+    use ComparisonBinaryOperator as TBOC;
+    use DivRemBinaryOperator as TBOD;
     use ShortCircuitBOT as SBOT;
     match c_binary_op {
         CBO::And => BOT::ShortCircuit(SBOT::And),
         CBO::Or => BOT::ShortCircuit(SBOT::Or),
-        CBO::Sub => BOT::EvaluateBothHands(TBO::Sub),
-        CBO::Add => BOT::EvaluateBothHands(TBO::Add),
-        CBO::Mul => BOT::EvaluateBothHands(TBO::Mul),
-        CBO::Div => BOT::EvaluateBothHands(TBO::Div),
-        CBO::Rem => BOT::EvaluateBothHands(TBO::Rem),
-        CBO::Eq => BOT::EvaluateBothHands(TBO::Eq),
-        CBO::Neq => BOT::EvaluateBothHands(TBO::Neq),
-        CBO::Lt => BOT::EvaluateBothHands(TBO::Lt),
-        CBO::Lte => BOT::EvaluateBothHands(TBO::Lte),
-        CBO::Gt => BOT::EvaluateBothHands(TBO::Gt),
-        CBO::Gte => BOT::EvaluateBothHands(TBO::Gte),
+        CBO::Sub => BOT::EvaluateBothHands(TBOA::Sub.into()),
+        CBO::Add => BOT::EvaluateBothHands(TBOA::Add.into()),
+        CBO::Mul => BOT::EvaluateBothHands(TBOA::Mul.into()),
+        CBO::Div => BOT::EvaluateBothHands(TBOD::Div.into()),
+        CBO::Rem => BOT::EvaluateBothHands(TBOD::Rem.into()),
+        CBO::Eq => BOT::EvaluateBothHands(TBOC::Eq.into()),
+        CBO::Neq => BOT::EvaluateBothHands(TBOC::Neq.into()),
+        CBO::Lt => BOT::EvaluateBothHands(TBOC::Lt.into()),
+        CBO::Lte => BOT::EvaluateBothHands(TBOC::Lte.into()),
+        CBO::Gt => BOT::EvaluateBothHands(TBOC::Gt.into()),
+        CBO::Gte => BOT::EvaluateBothHands(TBOC::Gte.into()),
     }
 }
 
