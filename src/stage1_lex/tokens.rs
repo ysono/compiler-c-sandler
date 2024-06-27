@@ -25,11 +25,13 @@ pub enum Demarcator {
 pub enum Keyword {
     Return,
 }
-#[derive(PartialEq, Eq, Debug)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub enum Type {
-    Void,
-    Int,
-    Long,
+    Void = 0,
+    Int = 1,
+    Long = 2,
+    Signed = 3,
+    Unsigned = 4,
 }
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum StorageClassSpecifier {
@@ -82,6 +84,8 @@ pub enum Loop {
 pub enum Const {
     Int(i32),
     Long(i64),
+    UInt(u32),
+    ULong(u64),
 }
 #[derive(Deref, PartialEq, Eq, Hash, Debug)]
 pub struct Identifier(pub(super) String);

@@ -37,6 +37,7 @@ impl<'a> From<&'a SymbolTable> for BackendSymbolTable {
                     let asm_type = match typ {
                         VarType::Int => AssemblyType::Longword,
                         VarType::Long => AssemblyType::Quadword,
+                        _ => todo!(),
                     };
                     let storage_duration = match attrs {
                         VarAttrs::AutomaticStorageDuration => StorageDuration::Automatic,
@@ -65,6 +66,7 @@ impl From<VarType> for Alignment {
         match var_type {
             VarType::Int => Self::B4,
             VarType::Long => Self::B8,
+            _ => todo!(),
         }
     }
 }

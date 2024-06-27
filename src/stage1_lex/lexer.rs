@@ -119,13 +119,35 @@ impl Lexer {
             b if b.is_ascii_digit() => {
                 if let Some(caps) = self.matchers.decimals.captures(sfx) {
                     let (literal, [digits, type_marker]) = caps.extract();
-                    let i = digits.parse::<i64>()?;
-                    let token = match (type_marker, i >> 31) {
-                        ("l" | "L", _) => Const::Long(i).into(),
-                        (_, 0 | -1) => Const::Int(i as i32).into(), // Note, there is no need to match (i >> 31) with -1.
-                        (_, _) => Const::Long(i).into(),
+
+                    let mut markers = Vec::with_capacity(2);
+                    markers.extend(
+                        type_marker
+                            .as_bytes()
+                            .iter()
+                            .take(2)
+                            .map(|b| b.to_ascii_lowercase()),
+                    );
+
+                    let konst = match &markers[..] {
+                        b"ul" | b"lu" => digits.parse::<u64>().map(Const::ULong)?,
+                        b"l" => digits.parse::<i64>().map(Const::Long)?,
+                        b"u" => {
+                            let i_wide = digits.parse::<u64>()?;
+                            u32::try_from(i_wide)
+                                .map(Const::UInt)
+                                .unwrap_or_else(|_| Const::ULong(i_wide))
+                        }
+                        b"" => {
+                            let i_wide = digits.parse::<i64>()?;
+                            i32::try_from(i_wide)
+                                .map(Const::Int)
+                                .unwrap_or_else(|_| Const::Long(i_wide))
+                        }
+                        actual => return Err(anyhow!("{actual:?}")),
                     };
-                    return Ok((literal.len(), token));
+
+                    return Ok((literal.len(), konst.into()));
                 }
                 return Err(anyhow!("{sfx}"));
             }
@@ -134,9 +156,11 @@ impl Lexer {
                     #[rustfmt::skip]
                     let token = match mach.as_str() {
                         "return" => Keyword::Return.into(),
-                        "void"   => Type::Void.into(),
-                        "int"    => Type::Int.into(),
-                        "long"   => Type::Long.into(),
+                        "void"     => Type::Void.into(),
+                        "int"      => Type::Int.into(),
+                        "long"     => Type::Long.into(),
+                        "signed"   => Type::Signed.into(),
+                        "unsigned" => Type::Unsigned.into(),
                         "static" => StorageClassSpecifier::Static.into(),
                         "extern" => StorageClassSpecifier::Extern.into(),
                         "if"     => Control::If.into(),
@@ -168,7 +192,7 @@ struct TokenMatchers {
 }
 impl TokenMatchers {
     fn new() -> Result<Self> {
-        let decimals = Regex::new(r"^([0-9]+)([lL]?)\b")?;
+        let decimals = Regex::new(r"^([0-9]+)([lLuU]{0,2})\b")?;
         let wordlike = Regex::new(r"^[a-zA-Z_]\w*\b")?;
         Ok(Self { decimals, wordlike })
     }

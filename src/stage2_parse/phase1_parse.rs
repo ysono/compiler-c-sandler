@@ -9,6 +9,7 @@ use crate::{
     symbol_table::{FunType, VarType},
 };
 use anyhow::{anyhow, Context, Result};
+use std::cmp;
 use std::iter::Peekable;
 use std::rc::Rc;
 
@@ -121,42 +122,50 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
         &mut self,
     ) -> Result<Option<(VarType, Option<StorageClassSpecifier>)>> {
         let mut inner = || -> Result<_> {
-            let mut t_typs = vec![];
-            let mut scss = vec![];
+            match self.tokens.peek() {
+                Some(Ok(t::Token::Type(_) | t::Token::StorageClassSpecifier(_))) => { /* No-op. */ }
+                _ => return Ok(None),
+            }
 
+            let mut typs = vec![];
+            let mut scss = vec![];
             while let Some(Ok(t::Token::Type(_) | t::Token::StorageClassSpecifier(_))) =
                 self.tokens.peek()
             {
                 match self.tokens.next().unwrap().unwrap() {
-                    t::Token::Type(t_typ) => t_typs.push(t_typ),
+                    t::Token::Type(t_typ) => typs.push(t_typ),
                     t::Token::StorageClassSpecifier(scs) => scss.push(scs),
                     _ => { /* Impossible. */ }
                 }
             }
 
-            match (&t_typs[..], &scss[..]) {
-                ([], []) => Ok(None),
-                (t_typs, scss) => {
-                    let typ = match t_typs {
-                        [t::Type::Int] => VarType::Int,
-                        [t::Type::Long]
-                        | [t::Type::Int, t::Type::Long]
-                        | [t::Type::Long, t::Type::Int] => VarType::Long,
-                        actual => return Err(anyhow!("Invalid types. {actual:?}")),
-                        /* Void is not supported yet. */
-                    };
+            let expected_max_len = cmp::min(3, typs.len());
+            typs[..expected_max_len].sort();
 
-                    let scs = match scss {
-                        [] => None,
-                        [one] => Some(*one),
-                        actual => {
-                            return Err(anyhow!("Invalid storage class specifiers. {actual:?}"))
-                        }
-                    };
+            let var_type = match &typs[..] {
+                /* In each pattern below, items must be sorted by the `t::Type` enum type's discriminants. */
+                [t::Type::Int] => VarType::Int,
+                [t::Type::Int, t::Type::Long] => VarType::Long,
+                [t::Type::Int, t::Type::Long, t::Type::Signed] => VarType::Long,
+                [t::Type::Int, t::Type::Long, t::Type::Unsigned] => VarType::ULong,
+                [t::Type::Int, t::Type::Signed] => VarType::Int,
+                [t::Type::Int, t::Type::Unsigned] => VarType::UInt,
+                [t::Type::Long] => VarType::Long,
+                [t::Type::Long, t::Type::Signed] => VarType::Long,
+                [t::Type::Long, t::Type::Unsigned] => VarType::ULong,
+                [t::Type::Signed] => VarType::Int,
+                [t::Type::Unsigned] => VarType::UInt,
+                actual => return Err(anyhow!("Invalid types. {actual:?}")),
+                /* Void is not supported yet. */
+            };
 
-                    Ok(Some((typ, scs)))
-                }
-            }
+            let scs = match &scss[..] {
+                [] => None,
+                [scs] => Some(*scs),
+                actual => return Err(anyhow!("Invalid storage class specifiers. {actual:?}")),
+            };
+
+            Ok(Some((var_type, scs)))
         };
         inner().context("<declaration> specifiers")
     }

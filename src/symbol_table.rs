@@ -89,6 +89,8 @@ pub enum Symbol {
 pub enum VarType {
     Int,
     Long,
+    UInt,
+    ULong,
 }
 
 #[derive(Debug)]
@@ -221,6 +223,7 @@ impl SymbolTable {
                     (Const::Int(i), VarType::Long) => Const::Long(*i as i64),
                     (Const::Long(i), VarType::Int) => Const::Int(*i as i32), // Truncate most significant bytes.
                     (k @ Const::Long(_), VarType::Long) => *k,
+                    _ => todo!(),
                 };
                 Ok(StaticInitialValue::Initial(konst))
             }

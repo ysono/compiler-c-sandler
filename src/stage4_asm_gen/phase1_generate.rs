@@ -422,11 +422,13 @@ impl AsmCodeGenerator {
                     AssemblyType::Longword,
                 ),
                 Const::Long(i) => (PreFinalOperand::ImmediateValue(i), AssemblyType::Quadword),
+                _ => todo!(),
             },
             t::ReadableValue::Variable(ident) => {
                 let asm_type = match self.symbol_table.use_var(&ident).unwrap() {
                     VarType::Int => AssemblyType::Longword,
                     VarType::Long => AssemblyType::Quadword,
+                    _ => todo!(),
                 };
                 (PreFinalOperand::Pseudo(ident), asm_type)
             }

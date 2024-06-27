@@ -223,6 +223,7 @@ impl TypeChecker {
                 let typ = match konst {
                     Const::Int(_) => VarType::Int,
                     Const::Long(_) => VarType::Long,
+                    _ => todo!(),
                 };
                 let exp = Expression::Const(konst);
                 TypedExpression { typ, exp }
@@ -319,6 +320,7 @@ impl TypeChecker {
             (VarType::Int, VarType::Long) => VarType::Long,
             (VarType::Long, VarType::Int) => VarType::Long,
             (VarType::Long, VarType::Long) => VarType::Long,
+            _ => todo!(),
         }
     }
     fn maybe_cast_exp(

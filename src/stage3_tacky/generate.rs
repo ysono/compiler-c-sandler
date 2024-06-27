@@ -43,6 +43,7 @@ impl Tackifier {
                     SIV::Tentative => match typ {
                         VarType::Int => Const::Int(0),
                         VarType::Long => Const::Long(0),
+                        _ => todo!(),
                     },
                     SIV::NoInitializer => continue,
                 };
@@ -215,6 +216,7 @@ impl<'a> FunInstrsGenerator<'a> {
             let instr = match typ {
                 VarType::Long => Instruction::SignExtend(convert),
                 VarType::Int => Instruction::Truncate(convert),
+                _ => todo!(),
             };
             self.instrs.push(instr);
             ReadableValue::Variable(dst)
@@ -293,6 +295,7 @@ impl<'a> FunInstrsGenerator<'a> {
         let new_out_const = |i: i32| match out_typ {
             VarType::Int => Const::Int(i),
             VarType::Long => Const::Long(i as i64),
+            _ => todo!(),
         };
         let (shortcirc_val, fully_evald_val) = match op_type {
             ShortCircuitBOT::And => (new_out_const(0), new_out_const(1)),

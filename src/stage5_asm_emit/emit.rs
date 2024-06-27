@@ -308,6 +308,7 @@ impl<'slf> AsmCodeEmitter<'slf> {
             Const::Int(_) => ".data",
             Const::Long(0) => ".bss",
             Const::Long(_) => ".data",
+            _ => todo!(),
         };
 
         match visibility {
@@ -332,6 +333,7 @@ impl<'slf> AsmCodeEmitter<'slf> {
             Const::Long(i) => {
                 writeln!(&mut self.bw, "{TAB}.quad {i}")?;
             }
+            _ => todo!(),
         };
         Ok(())
     }
