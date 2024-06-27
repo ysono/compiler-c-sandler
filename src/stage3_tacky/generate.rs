@@ -1,5 +1,5 @@
 use crate::{
-    stage2_parse::{c_ast_resolved as c, phase3_typecheck::TypeCheckedCAst},
+    stage2_parse::{c_ast as c, phase3_typecheck::TypeCheckedCAst},
     stage3_tacky::tacky_ast::*,
     symbol_table::{
         FunAttrs, ResolvedIdentifier, StaticInitialValue, Symbol, SymbolTable, VarAttrs, VarType,
@@ -201,8 +201,8 @@ impl<'a> FunInstrsGenerator<'a> {
             c::Expression::Cast(c_cast) => self.gen_exp_cast(c_cast),
             c::Expression::Unary(c_unary) => self.gen_exp_unary(c_unary, typ),
             c::Expression::Binary(c_binary) => self.gen_exp_binary(c_binary, typ),
-            c::Expression::Assignment(c::Assignment { ident, rhs }) => {
-                self.gen_exp_assignment(ident, *rhs)
+            c::Expression::Assignment(c::Assignment { lhs, rhs }) => {
+                self.gen_exp_assignment(lhs, *rhs)
             }
             c::Expression::Conditional(c_cond) => self.gen_exp_conditional(c_cond, typ),
             c::Expression::FunctionCall(c_fun_call) => self.gen_exp_fun_call(c_fun_call, typ),

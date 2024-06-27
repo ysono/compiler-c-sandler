@@ -1,6 +1,6 @@
 use crate::{
-    stage2_parse::{c_ast_resolved::*, phase2_resolve::ResolvedCAst},
-    symbol_table::{FunDeclScope, FunType, SymbolTable, VarDeclScope, VarType},
+    stage2_parse::{c_ast::*, phase2_resolve::ResolvedCAst},
+    symbol_table::{FunDeclScope, FunType, ResolvedIdentifier, SymbolTable, VarDeclScope, VarType},
 };
 use anyhow::Result;
 use std::rc::Rc;
@@ -8,7 +8,11 @@ use std::rc::Rc;
 #[derive(Debug)]
 pub struct TypeCheckedCAst(());
 impl CAstVariant for TypeCheckedCAst {
+    type Identifier = Rc<ResolvedIdentifier>;
+    type BlockScopeDeclaration = BlockScopeDeclaration<TypeCheckedCAst>;
+    type LoopId = Rc<LoopId>;
     type Expression = TypedExpression<TypeCheckedCAst>;
+    type Lvalue = Rc<ResolvedIdentifier>;
 }
 
 #[derive(Default)]
@@ -73,10 +77,24 @@ impl TypeChecker {
     }
     fn typecheck_decl_fundecl(
         &mut self,
-        decl: FunctionDeclaration,
+        decl: FunctionDeclaration<ResolvedCAst>,
         scope: FunDeclScope,
-    ) -> Result<FunctionDeclaration> {
+    ) -> Result<FunctionDeclaration<TypeCheckedCAst>> {
         self.symbol_table.declare_fun(scope, &decl, None)?;
+
+        let FunctionDeclaration {
+            ident,
+            param_idents,
+            typ,
+            storage_class,
+        } = decl;
+        let decl = FunctionDeclaration {
+            ident,
+            param_idents,
+            typ,
+            storage_class,
+        };
+
         Ok(decl)
     }
     fn typecheck_decl_fundefn(
@@ -86,7 +104,14 @@ impl TypeChecker {
     ) -> Result<FunctionDefinition<TypeCheckedCAst>> {
         self.symbol_table.declare_fun(scope, &decl, Some(&body))?;
 
-        for (ident, typ) in decl.param_idents.iter().zip(decl.typ.params.iter()) {
+        let FunctionDeclaration {
+            ident,
+            param_idents,
+            typ,
+            storage_class,
+        } = decl;
+
+        for (ident, typ) in param_idents.iter().zip(typ.params.iter()) {
             let mock_var_decl = VariableDeclaration {
                 ident: Rc::clone(ident),
                 init: None,
@@ -97,10 +122,16 @@ impl TypeChecker {
                 .declare_var(VarDeclScope::Block, &mock_var_decl)?;
         }
 
-        self.curr_fun_type = Some(Rc::clone(&decl.typ));
+        self.curr_fun_type = Some(Rc::clone(&typ));
         let body = self.typecheck_block(body)?;
         self.curr_fun_type = None;
 
+        let decl = FunctionDeclaration {
+            ident,
+            param_idents,
+            typ,
+            storage_class,
+        };
         Ok(FunctionDefinition { decl, body })
     }
 
@@ -278,12 +309,12 @@ impl TypeChecker {
                     exp: out_exp,
                 }
             }
-            Expression::Assignment(Assignment { ident, rhs }) => {
-                let typ = self.symbol_table.use_var(&ident)?;
+            Expression::Assignment(Assignment { lhs, rhs }) => {
+                let typ = self.symbol_table.use_var(&lhs)?;
                 let rhs = self.typecheck_exp(*rhs)?;
                 let rhs = Self::maybe_cast_exp(rhs, typ);
                 let exp = Expression::Assignment(Assignment {
-                    ident,
+                    lhs,
                     rhs: Box::new(rhs),
                 });
                 TypedExpression { typ, exp }

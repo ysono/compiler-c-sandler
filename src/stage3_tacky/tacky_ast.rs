@@ -1,5 +1,5 @@
 pub use self::instruction::*;
-pub use crate::stage2_parse::c_ast_resolved::Const;
+pub use crate::stage2_parse::c_ast::Const;
 use crate::symbol_table::{ResolvedIdentifier, StaticVisibility, VarType};
 use getset::Getters;
 use std::rc::Rc;

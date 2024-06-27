@@ -1,10 +1,12 @@
-use crate::stage2_parse::{
-    c_ast::Identifier,
-    c_ast_resolved::{
-        Block, Const, Expression, FunctionCall, FunctionDeclaration, StorageClassSpecifier,
-        VariableDeclaration,
+use crate::{
+    stage1_lex::tokens::Identifier,
+    stage2_parse::{
+        c_ast::{
+            Block, Const, Expression, FunctionCall, FunctionDeclaration, StorageClassSpecifier,
+            VariableDeclaration,
+        },
+        phase2_resolve::ResolvedCAst,
     },
-    phase2_resolve::ResolvedCAst,
 };
 use anyhow::{anyhow, Context, Result};
 use derivative::Derivative;
@@ -298,7 +300,7 @@ impl SymbolTable {
             param_idents: _,
             typ: new_typ,
             storage_class: new_sc,
-        }: &FunctionDeclaration,
+        }: &FunctionDeclaration<ResolvedCAst>,
         new_body: Option<&Block<ResolvedCAst>>,
     ) -> Result<()> {
         use FunDeclScope as DS;

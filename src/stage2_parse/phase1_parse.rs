@@ -7,6 +7,17 @@ use crate::{
 };
 use anyhow::{anyhow, Context, Result};
 use std::iter::Peekable;
+use std::rc::Rc;
+
+#[derive(Debug)]
+pub struct ParsedCAst(());
+impl CAstVariant for ParsedCAst {
+    type Identifier = t::Identifier;
+    type BlockScopeDeclaration = Declaration<ParsedCAst>;
+    type LoopId = ();
+    type Expression = Expression<ParsedCAst>;
+    type Lvalue = Box<Expression<ParsedCAst>>;
+}
 
 enum BinaryOperatorInfo {
     Generic(BinaryOperator),
@@ -76,7 +87,7 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
         }
     }
 
-    pub fn parse_program(&mut self) -> Result<Program> {
+    pub fn parse_program(&mut self) -> Result<Program<ParsedCAst>> {
         let mut inner = || -> Result<_> {
             let mut decls = vec![];
             loop {
@@ -98,7 +109,7 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
 
     /* Declaration */
 
-    fn maybe_parse_decl(&mut self) -> Result<Option<Declaration>> {
+    fn maybe_parse_decl(&mut self) -> Result<Option<Declaration<ParsedCAst>>> {
         let mut inner = || -> Result<_> {
             let (typ, storage_class) = match self.maybe_parse_specifiers()? {
                 None => return Ok(None),
@@ -136,29 +147,30 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
 
                     self.expect_exact(&[t::Demarcator::ParenClose.into()])?;
 
-                    let body = match self.tokens.peek() {
+                    let decl = FunctionDeclaration {
+                        ident,
+                        param_idents,
+                        typ: Rc::new(FunType {
+                            params: param_typs,
+                            ret: typ,
+                        }),
+                        storage_class,
+                    };
+
+                    let decl = match self.tokens.peek() {
                         Some(Ok(t::Token::Demarcator(t::Demarcator::Semicolon))) => {
                             self.tokens.next();
-                            None
+
+                            Declaration::FunDecl(decl)
                         }
                         _ => {
                             let body = self.parse_block()?;
-                            Some(body)
+
+                            Declaration::FunDefn(FunctionDefinition { decl, body })
                         }
                     };
 
-                    let fun_type = FunType {
-                        params: param_typs,
-                        ret: typ,
-                    };
-
-                    Ok(Some(Declaration::FunDecl(FunctionDeclaration {
-                        ident,
-                        param_idents,
-                        body,
-                        typ: fun_type,
-                        storage_class,
-                    })))
+                    Ok(Some(decl))
                 }
                 actual => Err(anyhow!("{actual:?}")),
             }
@@ -208,7 +220,7 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
         };
         inner().context("<declaration> specifiers")
     }
-    fn parse_param_list(&mut self) -> Result<(Vec<VarType>, Vec<Identifier>)> {
+    fn parse_param_list(&mut self) -> Result<(Vec<VarType>, Vec<t::Identifier>)> {
         let mut inner = || -> Result<_> {
             match self.tokens.peek() {
                 Some(Ok(t::Token::Type(t::Type::Void))) => {
@@ -249,7 +261,7 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
 
     /* Block */
 
-    fn parse_block(&mut self) -> Result<Block> {
+    fn parse_block(&mut self) -> Result<Block<ParsedCAst>> {
         let mut inner = || -> Result<_> {
             self.expect_exact(&[t::Demarcator::BraceOpen.into()])?;
 
@@ -271,7 +283,7 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
         };
         inner().context("<block>")
     }
-    fn parse_block_item(&mut self) -> Result<BlockItem> {
+    fn parse_block_item(&mut self) -> Result<BlockItem<ParsedCAst>> {
         let mut inner = || -> Result<_> {
             match self.maybe_parse_decl()? {
                 Some(decl) => Ok(BlockItem::Declaration(decl)),
@@ -283,7 +295,7 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
 
     /* Statement */
 
-    fn parse_stmt(&mut self) -> Result<Statement> {
+    fn parse_stmt(&mut self) -> Result<Statement<ParsedCAst>> {
         let mut inner = || -> Result<_> {
             match self.tokens.peek() {
                 Some(Ok(t::Token::Demarcator(t::Demarcator::Semicolon))) => {
@@ -310,14 +322,14 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
 
                     self.expect_exact(&[t::Demarcator::Semicolon.into()])?;
 
-                    Ok(Statement::Break)
+                    Ok(Statement::Break(()))
                 }
                 Some(Ok(t::Token::Loop(t::Loop::Continue))) => {
                     self.tokens.next();
 
                     self.expect_exact(&[t::Demarcator::Semicolon.into()])?;
 
-                    Ok(Statement::Continue)
+                    Ok(Statement::Continue(()))
                 }
                 Some(Ok(t::Token::Loop(t::Loop::While))) => self.parse_stmt_while(),
                 Some(Ok(t::Token::Loop(t::Loop::Do))) => self.parse_stmt_dowhile(),
@@ -333,7 +345,7 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
         };
         inner().context("<statement>")
     }
-    fn parse_stmt_if(&mut self) -> Result<Statement> {
+    fn parse_stmt_if(&mut self) -> Result<Statement<ParsedCAst>> {
         let mut inner = || -> Result<_> {
             self.expect_exact(&[t::Control::If.into(), t::Demarcator::ParenOpen.into()])?;
 
@@ -361,7 +373,7 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
         };
         inner().context("<statement> if")
     }
-    fn parse_stmt_while(&mut self) -> Result<Statement> {
+    fn parse_stmt_while(&mut self) -> Result<Statement<ParsedCAst>> {
         let mut inner = || -> Result<_> {
             self.expect_exact(&[t::Loop::While.into(), t::Demarcator::ParenOpen.into()])?;
 
@@ -371,14 +383,17 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
 
             let body = self.parse_stmt()?;
 
-            Ok(Statement::While(CondBody {
-                condition,
-                body: Box::new(body),
-            }))
+            Ok(Statement::While(
+                (),
+                CondBody {
+                    condition,
+                    body: Box::new(body),
+                },
+            ))
         };
         inner().context("<statement> while")
     }
-    fn parse_stmt_dowhile(&mut self) -> Result<Statement> {
+    fn parse_stmt_dowhile(&mut self) -> Result<Statement<ParsedCAst>> {
         let mut inner = || -> Result<_> {
             self.expect_exact(&[t::Loop::Do.into()])?;
 
@@ -393,20 +408,24 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
                 t::Demarcator::Semicolon.into(),
             ])?;
 
-            Ok(Statement::DoWhile(CondBody {
-                body: Box::new(body),
-                condition,
-            }))
+            Ok(Statement::DoWhile(
+                (),
+                CondBody {
+                    body: Box::new(body),
+                    condition,
+                },
+            ))
         };
         inner().context("<statement> dowhile")
     }
-    fn parse_stmt_for(&mut self) -> Result<Statement> {
+    fn parse_stmt_for(&mut self) -> Result<Statement<ParsedCAst>> {
         let mut inner = || -> Result<_> {
             self.expect_exact(&[t::Loop::For.into(), t::Demarcator::ParenOpen.into()])?;
 
             let init = match self.maybe_parse_decl()? {
-                Some(Declaration::VarDecl(var_decl)) => ForInit::Decl(var_decl),
-                Some(Declaration::FunDecl(fun_decl)) => return Err(anyhow!("{fun_decl:?}")),
+                Some(Declaration::VarDecl(vd)) => ForInit::Decl(vd),
+                Some(Declaration::FunDecl(fd)) => return Err(anyhow!("{fd:?}")),
+                Some(Declaration::FunDefn(fd)) => return Err(anyhow!("{fd:?}")),
                 None => match self.tokens.peek() {
                     Some(Ok(t::Token::Demarcator(t::Demarcator::Semicolon))) => {
                         self.tokens.next();
@@ -445,19 +464,22 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
 
             let body = self.parse_stmt()?;
 
-            Ok(Statement::For(For {
-                init,
-                condition,
-                post,
-                body: Box::new(body),
-            }))
+            Ok(Statement::For(
+                (),
+                For {
+                    init,
+                    condition,
+                    post,
+                    body: Box::new(body),
+                },
+            ))
         };
         inner().context("<statement> for")
     }
 
     /* Expression */
 
-    fn parse_exp(&mut self, min_prec: BinaryOperatorPrecedence) -> Result<Expression> {
+    fn parse_exp(&mut self, min_prec: BinaryOperatorPrecedence) -> Result<Expression<ParsedCAst>> {
         let mut inner = || -> Result<_> {
             let mut lhs = self.parse_factor()?;
 
@@ -517,7 +539,7 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
         };
         inner().context("<exp>")
     }
-    fn parse_factor(&mut self) -> Result<Expression> {
+    fn parse_factor(&mut self) -> Result<Expression<ParsedCAst>> {
         let mut inner = || -> Result<_> {
             match self.tokens.next() {
                 Some(Ok(t::Token::Const(konst))) => return Ok(Expression::Const(konst)),
@@ -567,7 +589,7 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
         };
         inner().context("<factor>")
     }
-    fn parse_arg_list(&mut self) -> Result<Vec<Expression>> {
+    fn parse_arg_list(&mut self) -> Result<Vec<Expression<ParsedCAst>>> {
         let mut inner = || -> Result<_> {
             self.expect_exact(&[t::Demarcator::ParenOpen.into()])?;
 
