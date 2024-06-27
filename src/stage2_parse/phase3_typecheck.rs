@@ -109,7 +109,7 @@ impl TypeChecker {
                 storage_class: None,
             };
             self.symbol_table
-                .declare_var(VarDeclScope::Block, &mock_var_decl)?;
+                .declare_var(VarDeclScope::Paren, &mock_var_decl)?;
         }
 
         self.curr_fun_type = Some(Rc::clone(&typ));
@@ -198,7 +198,7 @@ impl TypeChecker {
             Statement::For(loop_id, For { init, condition, post, body }) => {
                 let init = match init {
                     ForInit::Decl(var_decl) => self
-                        .typecheck_decl_var(var_decl, VarDeclScope::ForInit)
+                        .typecheck_decl_var(var_decl, VarDeclScope::Paren)
                         .map(ForInit::Decl)?,
                     ForInit::Exp(exp) => self.typecheck_exp(exp).map(ForInit::Exp)?,
                     ForInit::None => ForInit::None,

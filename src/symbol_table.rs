@@ -1,3 +1,4 @@
+pub use self::{fun::FunDeclScope, var::VarDeclScope};
 use crate::{
     stage1_lex::tokens::Identifier,
     stage2_parse::{
@@ -10,7 +11,7 @@ use crate::{
 };
 use anyhow::{anyhow, Context, Result};
 use derivative::Derivative;
-use derive_more::{Deref, DerefMut, From};
+use derive_more::{Deref, DerefMut};
 use std::collections::{hash_map::Entry, HashMap};
 use std::fmt::Display;
 use std::rc::Rc;
@@ -142,6 +143,7 @@ impl SymbolTable {
         );
         ident
     }
+
     pub fn declare_var(
         &mut self,
         new_scope: VarDeclScope,
@@ -152,55 +154,49 @@ impl SymbolTable {
             storage_class: new_sc,
         }: &VariableDeclaration<ResolvedCAst>,
     ) -> Result<()> {
+        let mut inner = || {
+            let new_decl_summary = Self::derive_var_decl_summary(
+                new_scope,
+                new_sc.as_ref(),
+                new_init.as_ref(),
+                *new_typ,
+            )?;
+
+            self.insert_var_decl(Rc::clone(ident), new_decl_summary, *new_typ)
+        };
+        inner().with_context(|| anyhow!("{new_scope:?}, {new_decl:?}"))
+    }
+    fn derive_var_decl_summary(
+        new_scope: VarDeclScope,
+        new_sc: Option<&StorageClassSpecifier>,
+        new_init: Option<&Expression<ResolvedCAst>>,
+        new_typ: VarType,
+    ) -> Result<self::var::Decl> {
+        use self::var::{Decl, LViz, Viz};
         use StaticInitialValue as SIV;
         use StorageClassSpecifier as SCS;
         use VarDeclScope as DS;
 
-        enum Decl {
-            AutoStorDur,
-            StaticStorDur(Viz, SIV),
-        }
-        #[derive(From)]
-        enum Viz {
-            Block,   // No linkage
-            L(LViz), // Some linkage
-        }
-        enum LViz {
-            TranslUnit,
-            Global,
-            PrevOrGlobal,
-        }
+        let siv =
+            |init_exp: &Expression<ResolvedCAst>| Self::derive_static_init_value(init_exp, new_typ);
+        let siv_zero = || {
+            let mock_exp = Expression::Const(Const::Int(0));
+            siv(&mock_exp).unwrap()
+        };
 
-        let init_cast_const = |konst: &Const| -> Const {
-            match (konst, new_typ) {
-                (k @ Const::Int(_), VarType::Int) => *k,
-                (Const::Int(i), VarType::Long) => Const::Long(*i as i64),
-                (Const::Long(i), VarType::Int) => Const::Int(*i as i32), // Truncate most significant bytes.
-                (k @ Const::Long(_), VarType::Long) => *k,
-            }
-        };
-        let init_const = |exp: &Expression<ResolvedCAst>| -> Result<SIV> {
-            match exp {
-                Expression::Const(konst) => {
-                    let konst = init_cast_const(konst);
-                    Ok(SIV::Initial(konst))
-                }
-                _ => Err(anyhow!("On type=var w/ storage_duration=static, initializer, if present, must be constexpr, but found {new_init:?}"))
-            }
-        };
         #[rustfmt::skip]
         let new_decl_summary = match (new_scope, new_sc, new_init) {
-            (DS::File, None, Some(init))              => Decl::StaticStorDur(LViz::Global.into(), init_const(init)?),
+            (DS::File, None, Some(init))              => Decl::StaticStorDur(LViz::Global.into(), siv(init)?),
             (DS::File, None, None)                    => Decl::StaticStorDur(LViz::Global.into(), SIV::Tentative),
-            (DS::File, Some(SCS::Static), Some(init)) => Decl::StaticStorDur(LViz::TranslUnit.into(), init_const(init)?),
+            (DS::File, Some(SCS::Static), Some(init)) => Decl::StaticStorDur(LViz::TranslUnit.into(), siv(init)?),
             (DS::File, Some(SCS::Static), None)       => Decl::StaticStorDur(LViz::TranslUnit.into(), SIV::Tentative),
-            (DS::File, Some(SCS::Extern), Some(init)) => Decl::StaticStorDur(LViz::PrevOrGlobal.into(), init_const(init)?),
+            (DS::File, Some(SCS::Extern), Some(init)) => Decl::StaticStorDur(LViz::PrevOrGlobal.into(), siv(init)?),
             (DS::File, Some(SCS::Extern), None)       => Decl::StaticStorDur(LViz::PrevOrGlobal.into(), SIV::NoInitializer),
             (DS::Block, None, _)                       => Decl::AutoStorDur,
-            (DS::Block, Some(SCS::Static), Some(init)) => Decl::StaticStorDur(Viz::Block, init_const(init)?),
-            (DS::Block, Some(SCS::Static), None)       => Decl::StaticStorDur(Viz::Block, SIV::Initial(init_cast_const(&Const::Int(0)))),
+            (DS::Block, Some(SCS::Static), Some(init)) => Decl::StaticStorDur(Viz::Local, siv(init)?),
+            (DS::Block, Some(SCS::Static), None)       => Decl::StaticStorDur(Viz::Local, siv_zero()),
             (DS::Block, Some(SCS::Extern), Some(_)) => return Err(anyhow!(
-                "At scope=block, on type=var w/ `extern`, we cannot have an initializer. {new_decl:?}")),
+                "At scope=block, type=var w/ `extern` cannot have an initializer.")),
             (DS::Block, Some(SCS::Extern), None) => {
                 /* Technically, the way we will determine this declaration's visibility is non-conformant to the C standard.
                 For explanation, see the book page 218 and https://gcc.gnu.org/bugzilla/show_bug.cgi?id=90472#c3
@@ -208,15 +204,42 @@ impl SymbolTable {
                     hence our overall resolution of this identifier's declaration is conformant to the C standard. */
                 Decl::StaticStorDur(LViz::PrevOrGlobal.into(), SIV::NoInitializer)
             }
-            (DS::ForInit, None, _) => Decl::AutoStorDur,
-            (DS::ForInit, Some(_), _) => return Err(anyhow!(
-                "For-loop init declaration must not have any storage class specifier. {new_decl:?}")),
+            (DS::Paren, None, _) => Decl::AutoStorDur,
+            (DS::Paren, Some(_), _) => return Err(anyhow!(
+                "Inside parens, type=var must not have any storage class specifier.")),
         };
+        Ok(new_decl_summary)
+    }
+    fn derive_static_init_value(
+        init_exp: &Expression<ResolvedCAst>,
+        new_typ: VarType,
+    ) -> Result<StaticInitialValue> {
+        match init_exp {
+            Expression::Const(konst) => {
+                let konst = match (konst, new_typ) {
+                    (k @ Const::Int(_), VarType::Int) => *k,
+                    (Const::Int(i), VarType::Long) => Const::Long(*i as i64),
+                    (Const::Long(i), VarType::Int) => Const::Int(*i as i32), // Truncate most significant bytes.
+                    (k @ Const::Long(_), VarType::Long) => *k,
+                };
+                Ok(StaticInitialValue::Initial(konst))
+            }
+            _ => Err(anyhow!("On type=var w/ storage_duration=static, initializer, if present, must be constexpr."))
+        }
+    }
+    fn insert_var_decl(
+        &mut self,
+        ident: Rc<ResolvedIdentifier>,
+        new_decl_summary: self::var::Decl,
+        new_typ: VarType,
+    ) -> Result<()> {
+        use self::var::{Decl, LViz, Viz};
+        use StaticInitialValue as SIV;
 
-        let entry = self.symbol_table.entry(Rc::clone(ident));
+        let entry = self.symbol_table.entry(ident);
         match (entry, new_decl_summary) {
             (Entry::Vacant(entry), new_decl_summary) => {
-                let typ = *new_typ;
+                let typ = new_typ;
                 let attrs = match new_decl_summary {
                     Decl::AutoStorDur => VarAttrs::AutomaticStorageDuration,
                     Decl::StaticStorDur(viz, initial_value) => {
@@ -224,7 +247,7 @@ impl SymbolTable {
                             Viz::L(LViz::Global) | Viz::L(LViz::PrevOrGlobal) => {
                                 StaticVisibility::Global
                             }
-                            Viz::L(LViz::TranslUnit) | Viz::Block => StaticVisibility::NonGlobal,
+                            Viz::L(LViz::TranslUnit) | Viz::Local => StaticVisibility::NonGlobal,
                         };
                         VarAttrs::StaticStorageDuration { visibility, initial_value }
                     }
@@ -232,15 +255,15 @@ impl SymbolTable {
                 entry.insert(Symbol::Var { typ, attrs });
                 Ok(())
             }
-            (Entry::Occupied(_), Decl::AutoStorDur | Decl::StaticStorDur(Viz::Block, _)) => {
-                Err(anyhow!("Cannot declare {ident:?} 2+ times."))
+            (Entry::Occupied(_), Decl::AutoStorDur | Decl::StaticStorDur(Viz::Local, _)) => {
+                Err(anyhow!("Cannot declare same ident 2+ times."))
             }
             (Entry::Occupied(mut entry), Decl::StaticStorDur(Viz::L(new_viz), new_init_val)) => {
                 let prev_symbol = entry.get_mut();
                 let inner = || {
                     match prev_symbol {
                         Symbol::Var { typ, attrs } => {
-                            if typ != new_typ {
+                            if typ != &new_typ {
                                 return Err(anyhow!("Cannot declare with 2+ types."));
                             }
                             match attrs {
@@ -272,10 +295,11 @@ impl SymbolTable {
                         _ => return Err(anyhow!("Cannot declare with 2+ types.")),
                     }
                 };
-                inner().with_context(|| anyhow!("{ident:?}: {prev_symbol:?} vs {new_decl:?}"))
+                inner().with_context(|| anyhow!("prev_symbol = {prev_symbol:?}"))
             }
         }
     }
+
     pub fn use_var(&self, ident: &ResolvedIdentifier) -> Result<VarType> {
         let prev_symbol = self
             .symbol_table
@@ -294,38 +318,57 @@ impl SymbolTable {
         new_scope: FunDeclScope,
         new_decl @ FunctionDeclaration {
             ident,
-            param_idents: _,
+            param_idents: _, // Params are not handled by this API.
             typ: new_typ,
             storage_class: new_sc,
         }: &FunctionDeclaration<ResolvedCAst>,
         new_body: Option<&Block<ResolvedCAst>>,
     ) -> Result<()> {
+        let mut inner = || {
+            let new_viz = Self::derive_fun_decl_visibility(new_scope, new_sc.as_ref(), new_body)?;
+
+            let newly_defined = new_body.is_some();
+
+            self.insert_fun_decl(Rc::clone(ident), new_viz, newly_defined, new_typ)
+        };
+        inner().with_context(|| anyhow!("{new_scope:?}, {new_decl:?}, {new_body:?}"))
+    }
+    fn derive_fun_decl_visibility(
+        new_scope: FunDeclScope,
+        new_sc: Option<&StorageClassSpecifier>,
+        new_body: Option<&Block<ResolvedCAst>>,
+    ) -> Result<self::fun::Viz> {
+        use self::fun::Viz;
         use FunDeclScope as DS;
         use StorageClassSpecifier as SCS;
-        enum Viz {
-            PrevOrGlobal,
-            TranslUnit,
-        }
 
         let new_viz = match (new_scope, new_sc, new_body) {
-            (DS::File, None | Some(SCS::Extern), _) =>  Viz::PrevOrGlobal,
-            (DS::File, Some(SCS::Static), _) =>  Viz::TranslUnit,
-            (DS::Block, None | Some(SCS::Extern), None) =>  Viz::PrevOrGlobal,
+            (DS::File, None | Some(SCS::Extern), _) => Viz::PrevOrGlobal,
+            (DS::File, Some(SCS::Static), _) => Viz::TranslUnit,
+            (DS::Block, None | Some(SCS::Extern), None) => Viz::PrevOrGlobal,
             (DS::Block, None | Some(SCS::Extern), Some(_)) => {
                 return Err(anyhow!(
-                    "At scope=block, on type=fun, we cannot have a definition. {new_decl:?}"
+                    "At scope=block, type=fun cannot have a definition."
                 ))
             }
             (DS::Block, Some(SCS::Static), _) => {
                 return Err(anyhow!(
-                    "At scope=block, on type=fun, we cannot specify storage duration `static`. {new_decl:?}"
+                    "At scope=block, type=fun cannot specify storage duration `static`."
                 ))
             }
         };
+        Ok(new_viz)
+    }
+    fn insert_fun_decl(
+        &mut self,
+        ident: Rc<ResolvedIdentifier>,
+        new_viz: self::fun::Viz,
+        newly_defined: bool,
+        new_typ: &Rc<FunType>,
+    ) -> Result<()> {
+        use self::fun::Viz;
 
-        let newly_defined = new_body.is_some();
-
-        match self.symbol_table.entry(Rc::clone(ident)) {
+        match self.symbol_table.entry(ident) {
             Entry::Vacant(entry) => {
                 let visibility = match new_viz {
                     Viz::PrevOrGlobal => StaticVisibility::Global,
@@ -369,10 +412,11 @@ impl SymbolTable {
                         _ => return Err(anyhow!("Cannot declare with 2+ types.")),
                     }
                 };
-                inner().with_context(|| anyhow!("{ident:?}: {prev_symbol:?} vs {new_decl:?}"))
+                inner().with_context(|| anyhow!("prev_symbol = {prev_symbol:?}"))
             }
         }
     }
+
     pub fn call_fun(
         &self,
         FunctionCall { ident, args }: &FunctionCall<ResolvedCAst>,
@@ -394,12 +438,50 @@ impl SymbolTable {
     }
 }
 
-pub enum VarDeclScope {
-    File,
-    Block,
-    ForInit,
+mod var {
+    use super::StaticInitialValue;
+    use derive_more::From;
+
+    /* Public API */
+
+    #[derive(Clone, Copy, Debug)]
+    pub enum VarDeclScope {
+        File,
+        Block,
+        Paren,
+    }
+
+    /* Internal API */
+
+    pub enum Decl {
+        AutoStorDur,
+        StaticStorDur(Viz, StaticInitialValue),
+    }
+    #[derive(From)]
+    pub enum Viz {
+        Local,   // No linkage
+        L(LViz), // Some linkage
+    }
+    pub enum LViz {
+        TranslUnit,
+        Global,
+        PrevOrGlobal,
+    }
 }
-pub enum FunDeclScope {
-    File,
-    Block,
+
+mod fun {
+    /* Public API */
+
+    #[derive(Clone, Copy, Debug)]
+    pub enum FunDeclScope {
+        File,
+        Block,
+    }
+
+    /* Internal API */
+
+    pub enum Viz {
+        PrevOrGlobal,
+        TranslUnit,
+    }
 }
