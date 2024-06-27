@@ -34,6 +34,7 @@ pub enum Instruction {
     Return(ReadableValue),
     SignExtend(SrcDst),
     Truncate(SrcDst),
+    ZeroExtend(SrcDst),
     Unary(Unary),
     Binary(Binary),
     Copy(SrcDst),

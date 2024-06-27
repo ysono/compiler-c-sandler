@@ -7,8 +7,10 @@ use crate::{
     symbol_table_frontend::{
         FunAttrs, ResolvedIdentifier, StaticInitialValue, Symbol, SymbolTable, VarAttrs,
     },
+    types_backend::OperandByteLen,
     types_frontend::{Const, VarType},
 };
+use std::cmp::Ordering;
 use std::rc::Rc;
 
 pub struct Tackifier {}
@@ -211,11 +213,21 @@ impl<'a> FunInstrsGenerator<'a> {
                 src: sub_val,
                 dst: Rc::clone(&dst),
             };
-            let instr = match typ {
-                VarType::Long => Instruction::SignExtend(srcdst),
-                VarType::Int => Instruction::Truncate(srcdst),
-                _ => todo!(),
+
+            let out_bytelen = OperandByteLen::from(typ);
+            let sub_bytelen = OperandByteLen::from(sub_typ);
+            let instr = match out_bytelen.cmp(&sub_bytelen) {
+                Ordering::Equal => Instruction::Copy(srcdst),
+                Ordering::Less => Instruction::Truncate(srcdst),
+                Ordering::Greater => {
+                    if sub_typ.is_signed() {
+                        Instruction::SignExtend(srcdst)
+                    } else {
+                        Instruction::ZeroExtend(srcdst)
+                    }
+                }
             };
+
             self.instrs.push(instr);
             ReadableValue::Variable(dst)
         }

@@ -177,6 +177,7 @@ impl AsmCodeGenerator {
             t::Instruction::Return(t_val) => self.gen_return_instrs(t_val),
             t::Instruction::SignExtend(t_srcdst) => self.gen_signextend_instrs(t_srcdst),
             t::Instruction::Truncate(t_srcdst) => self.gen_truncate_instrs(t_srcdst),
+            t::Instruction::ZeroExtend(_) => todo!(),
             t::Instruction::Unary(t_unary) => self.gen_unary_instrs(t_unary),
             t::Instruction::Binary(t_binary) => self.gen_binary_instrs(t_binary),
             t::Instruction::Copy(t_srcdst) => self.gen_copy_instrs(t_srcdst),
