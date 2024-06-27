@@ -10,8 +10,8 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 #[derive(Debug)]
 pub struct Program {
+    pub static_vars: Vec<StaticVariable>,
     pub funs: Vec<Function>,
-    pub vars: Vec<StaticVariable>,
 }
 
 #[derive(Debug)]

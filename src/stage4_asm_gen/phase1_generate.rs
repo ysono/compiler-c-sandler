@@ -20,26 +20,32 @@ impl AsmCodeGenerator {
         }
     }
 
-    pub fn gen_program(&self, t::Program { funs, vars }: t::Program) -> Program {
+    pub fn gen_program(&self, t::Program { static_vars, funs }: t::Program) -> Program {
+        let static_vars = static_vars
+            .into_iter()
+            .map(Self::convert_static_var)
+            .collect::<Vec<_>>();
+
         let funs = funs
             .into_iter()
-            .map(|fun| self.gen_fun(fun))
+            .map(|fun| self.convert_fun(fun))
             .collect::<Vec<_>>();
 
-        let vars = vars
-            .into_iter()
-            .map(|t::StaticVariable { ident, visibility, typ, init }| {
-                let alignment = Alignment::from(typ);
-                StaticVariable {
-                    ident,
-                    visibility,
-                    alignment,
-                    init,
-                }
-            })
-            .collect::<Vec<_>>();
+        Program { static_vars, funs }
+    }
 
-        Program { funs, vars }
+    /* Tacky StaticVariable */
+
+    fn convert_static_var(
+        t::StaticVariable { ident, visibility, typ, init }: t::StaticVariable,
+    ) -> StaticVariable {
+        let alignment = Alignment::from(typ);
+        StaticVariable {
+            ident,
+            visibility,
+            alignment,
+            init,
+        }
     }
 
     /* Tacky Function */
@@ -53,7 +59,7 @@ impl AsmCodeGenerator {
         Register::R9,
     ];
     /// See documentation at [`crate::stage4_asm_gen`].
-    fn gen_fun(
+    fn convert_fun(
         &self,
         t::Function {
             ident,

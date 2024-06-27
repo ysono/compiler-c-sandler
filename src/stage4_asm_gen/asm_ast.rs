@@ -10,15 +10,8 @@ use std::rc::Rc;
 
 #[derive(Debug)]
 pub struct Program {
+    pub static_vars: Vec<StaticVariable>,
     pub funs: Vec<Function>,
-    pub vars: Vec<StaticVariable>,
-}
-
-#[derive(Debug)]
-pub struct Function {
-    pub ident: Rc<ResolvedIdentifier>,
-    pub visibility: StaticVisibility,
-    pub instrs: VecDeque<Instruction<Operand>>,
 }
 
 #[derive(Debug)]
@@ -27,6 +20,13 @@ pub struct StaticVariable {
     pub visibility: StaticVisibility,
     pub alignment: Alignment,
     pub init: Const,
+}
+
+#[derive(Debug)]
+pub struct Function {
+    pub ident: Rc<ResolvedIdentifier>,
+    pub visibility: StaticVisibility,
+    pub instrs: VecDeque<Instruction<Operand>>,
 }
 
 #[derive(Debug)]

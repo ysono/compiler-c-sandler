@@ -19,8 +19,20 @@ impl Tackifier {
         c::Program { decls: c_decls }: c::Program<TypeCheckedCAst>,
         symbol_table: &mut SymbolTable,
     ) -> Program {
-        use StaticInitialValue as SIV;
+        let funs = Self::tackify_decls(c_decls, symbol_table);
 
+        /* Book ch10 Tacky page 235:
+        ```
+        Right now, it doesn’t matter whether we process the AST or the symbol table first. Starting in Chapter 16, it will be important that we process the AST first and the symbol table second.
+        ``` */
+        let static_vars = Self::tackify_static_vars(symbol_table);
+
+        Program { static_vars, funs }
+    }
+    fn tackify_decls(
+        c_decls: Vec<c::Declaration<TypeCheckedCAst>>,
+        symbol_table: &mut SymbolTable,
+    ) -> Vec<Function> {
         let mut funs = vec![];
         for c_decl in c_decls {
             match c_decl {
@@ -33,8 +45,10 @@ impl Tackifier {
                 }
             }
         }
-
-        let mut vars = vec![];
+        funs
+    }
+    fn tackify_static_vars(symbol_table: &SymbolTable) -> Vec<StaticVariable> {
+        let mut static_vars = vec![];
         for (ident, symbol) in symbol_table.iter() {
             if let Symbol::Var {
                 typ,
@@ -42,21 +56,20 @@ impl Tackifier {
             } = symbol
             {
                 let konst = match initial_value {
-                    SIV::Initial(konst) => *konst,
-                    SIV::Tentative => Const::new(0, *typ),
-                    SIV::NoInitializer => continue,
+                    StaticInitialValue::Initial(konst) => *konst,
+                    StaticInitialValue::Tentative => Const::new(0, *typ),
+                    StaticInitialValue::NoInitializer => continue,
                 };
-                let var = StaticVariable {
+                let static_var = StaticVariable {
                     ident: Rc::clone(ident),
                     visibility: *visibility,
                     typ: *typ,
                     init: konst,
                 };
-                vars.push(var);
+                static_vars.push(static_var);
             }
         }
-
-        Program { funs, vars }
+        static_vars
     }
 }
 
