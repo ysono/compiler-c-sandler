@@ -1,8 +1,11 @@
 //! - Identifier resolution
 //! - Loop labelling
 
+mod ident_resolver;
+
+use self::ident_resolver::IdentResolver;
 use crate::{
-    stage2_parse::{c_ast::*, ident_resolver::IdentResolver, phase1_parse::ParsedCAst},
+    stage2_parse::{c_ast::*, phase1_parse::ParsedCAst},
     symbol_table::ResolvedIdentifier,
 };
 use anyhow::{anyhow, Context, Result};

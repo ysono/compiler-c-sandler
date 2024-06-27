@@ -1,3 +1,6 @@
+mod helpers;
+
+use self::helpers::{BinaryOperatorType, LoopIdToLabels, ShortCircuitBOT};
 use crate::{
     stage2_parse::{c_ast as c, phase3_typecheck::TypeCheckedCAst},
     stage3_tacky::tacky_ast::*,
@@ -5,19 +8,7 @@ use crate::{
         FunAttrs, ResolvedIdentifier, StaticInitialValue, Symbol, SymbolTable, VarAttrs, VarType,
     },
 };
-use derive_more::Display;
-use std::collections::HashMap;
 use std::rc::Rc;
-
-enum BinaryOperatorType {
-    EvaluateBothHands(BinaryOperator),
-    ShortCircuit(ShortCircuitBOT),
-}
-#[derive(Display)]
-enum ShortCircuitBOT {
-    And,
-    Or,
-}
 
 pub struct Tackifier {}
 impl Tackifier {
@@ -239,7 +230,7 @@ impl<'a> FunInstrsGenerator<'a> {
         c::Unary { op, sub_exp }: c::Unary<TypeCheckedCAst>,
         out_typ: VarType,
     ) -> ReadableValue {
-        let op = Self::convert_op_unary(op);
+        let op = helpers::convert_op_unary(op);
         let src = self.gen_exp(*sub_exp);
         let dst = self.symbol_table.declare_var_anon(out_typ);
         self.instrs.push(Instruction::Unary(Unary {
@@ -257,7 +248,7 @@ impl<'a> FunInstrsGenerator<'a> {
         c_binary: c::Binary<TypeCheckedCAst>,
         out_typ: VarType,
     ) -> ReadableValue {
-        match Self::convert_op_binary(&c_binary.op) {
+        match helpers::convert_op_binary(&c_binary.op) {
             BinaryOperatorType::EvaluateBothHands(t_op) => {
                 self.gen_exp_binary_evalboth(t_op, c_binary, out_typ)
             }
@@ -342,38 +333,6 @@ impl<'a> FunInstrsGenerator<'a> {
         self.instrs.push(Instruction::Label(label_end));
 
         ReadableValue::Variable(result)
-    }
-
-    /* C Operator */
-
-    fn convert_op_unary(c_unary_op: c::UnaryOperator) -> UnaryOperator {
-        use c::UnaryOperator as CUO;
-        match c_unary_op {
-            CUO::Complement => UnaryOperator::Complement,
-            CUO::Negate => UnaryOperator::Negate,
-            CUO::Not => UnaryOperator::Not,
-        }
-    }
-    fn convert_op_binary(c_binary_op: &c::BinaryOperator) -> BinaryOperatorType {
-        use c::BinaryOperator as CBO;
-        use BinaryOperator as TBO;
-        use BinaryOperatorType as BOT;
-        use ShortCircuitBOT as SBOT;
-        match c_binary_op {
-            CBO::And => BOT::ShortCircuit(SBOT::And),
-            CBO::Or => BOT::ShortCircuit(SBOT::Or),
-            CBO::Sub => BOT::EvaluateBothHands(TBO::Sub),
-            CBO::Add => BOT::EvaluateBothHands(TBO::Add),
-            CBO::Mul => BOT::EvaluateBothHands(TBO::Mul),
-            CBO::Div => BOT::EvaluateBothHands(TBO::Div),
-            CBO::Rem => BOT::EvaluateBothHands(TBO::Rem),
-            CBO::Eq => BOT::EvaluateBothHands(TBO::Eq),
-            CBO::Neq => BOT::EvaluateBothHands(TBO::Neq),
-            CBO::Lt => BOT::EvaluateBothHands(TBO::Lt),
-            CBO::Lte => BOT::EvaluateBothHands(TBO::Lte),
-            CBO::Gt => BOT::EvaluateBothHands(TBO::Gt),
-            CBO::Gte => BOT::EvaluateBothHands(TBO::Gte),
-        }
     }
 
     /* C Assignment */
@@ -631,34 +590,4 @@ impl<'a> FunInstrsGenerator<'a> {
 
         ReadableValue::Variable(result)
     }
-}
-
-#[derive(Default)]
-struct LoopIdToLabels {
-    loop_id_to_labels: HashMap<Rc<c::LoopId>, Labels>,
-}
-impl LoopIdToLabels {
-    fn get_lbl_start(loop_id: &c::LoopId) -> LabelIdentifier {
-        let name_start = format!("{}.{}.start", loop_id.descr(), loop_id.id());
-        LabelIdentifier::new(name_start)
-    }
-    fn get_or_insert(&mut self, loop_id: Rc<c::LoopId>) -> &Labels {
-        self.loop_id_to_labels
-            .entry(loop_id)
-            .or_insert_with_key(|loop_id| {
-                let name_break = format!("{}.{}.break", loop_id.descr(), loop_id.id());
-                let name_cont = format!("{}.{}.cont", loop_id.descr(), loop_id.id());
-                let lbl_break = Rc::new(LabelIdentifier::new(name_break));
-                let lbl_cont = Rc::new(LabelIdentifier::new(name_cont));
-                Labels {
-                    lbl_break,
-                    lbl_cont,
-                }
-            })
-    }
-}
-
-struct Labels {
-    lbl_break: Rc<LabelIdentifier>,
-    lbl_cont: Rc<LabelIdentifier>,
 }
