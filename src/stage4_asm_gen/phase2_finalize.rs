@@ -76,20 +76,10 @@ impl InstrsFinalizer {
                 let operand = self.convert_operand(operand);
                 Instruction::Unary(op, asm_type, operand)
             }
-            Instruction::Binary {
-                op,
-                asm_type,
-                arg,
-                tgt,
-            } => {
+            Instruction::Binary { op, asm_type, arg, tgt } => {
                 let arg = self.convert_operand(arg);
                 let tgt = self.convert_operand(tgt);
-                Instruction::Binary {
-                    op,
-                    asm_type,
-                    arg,
-                    tgt,
-                }
+                Instruction::Binary { op, asm_type, arg, tgt }
             }
             Instruction::Cmp { asm_type, arg, tgt } => {
                 let arg = self.convert_operand(arg);
@@ -124,10 +114,7 @@ impl InstrsFinalizer {
             PFO::StackPosition(s) => Operand::StackPosition(s),
             PFO::Pseudo(ident) => match self.backend_symbol_table.get(&ident) {
                 None => panic!("All pseudos are expected to have been added to the symbol table."),
-                Some(AsmEntry::Obj {
-                    asm_type,
-                    storage_duration,
-                }) => match storage_duration {
+                Some(AsmEntry::Obj { asm_type, storage_duration }) => match storage_duration {
                     StorageDuration::Automatic => self.var_to_stack_pos(ident, *asm_type).into(),
                     StorageDuration::Static => Operand::Data(ident),
                 },

@@ -27,22 +27,15 @@ impl AsmCodeGenerator {
 
         let vars = vars
             .into_iter()
-            .map(
-                |t::StaticVariable {
-                     ident,
-                     visibility,
-                     typ,
-                     init,
-                 }| {
-                    let alignment = Alignment::from(typ);
-                    StaticVariable {
-                        ident,
-                        visibility,
-                        alignment,
-                        init,
-                    }
-                },
-            )
+            .map(|t::StaticVariable { ident, visibility, typ, init }| {
+                let alignment = Alignment::from(typ);
+                StaticVariable {
+                    ident,
+                    visibility,
+                    alignment,
+                    init,
+                }
+            })
             .collect::<Vec<_>>();
 
         Program { funs, vars }
@@ -306,12 +299,7 @@ impl AsmCodeGenerator {
     fn gen_arithmetic_instrs(
         &self,
         asm_op: BinaryOperator,
-        t::Binary {
-            op: _,
-            src1,
-            src2,
-            dst,
-        }: t::Binary,
+        t::Binary { op: _, src1, src2, dst }: t::Binary,
     ) -> Vec<Instruction<PreFinalOperand>> {
         let (asm_src1, asm_type) = self.convert_val_operand(src1);
         let (asm_src2, _) = self.convert_val_operand(src2);
@@ -333,12 +321,7 @@ impl AsmCodeGenerator {
     fn gen_divrem_instrs(
         &self,
         ans_reg: Register,
-        t::Binary {
-            op: _,
-            src1,
-            src2,
-            dst,
-        }: t::Binary,
+        t::Binary { op: _, src1, src2, dst }: t::Binary,
     ) -> Vec<Instruction<PreFinalOperand>> {
         let (asm_src1, asm_type) = self.convert_val_operand(src1);
         let (asm_src2, _) = self.convert_val_operand(src2);
@@ -361,12 +344,7 @@ impl AsmCodeGenerator {
     fn gen_comparison_instrs(
         &self,
         cmp_0_cc: ConditionCode,
-        t::Binary {
-            op: _,
-            src1,
-            src2,
-            dst,
-        }: t::Binary,
+        t::Binary { op: _, src1, src2, dst }: t::Binary,
     ) -> Vec<Instruction<PreFinalOperand>> {
         let (asm_src1, asm_src_type) = self.convert_val_operand(src1);
         let (asm_src2, _) = self.convert_val_operand(src2);

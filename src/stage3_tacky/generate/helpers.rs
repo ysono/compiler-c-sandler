@@ -60,10 +60,7 @@ impl LoopIdToLabels {
                 let name_cont = format!("{}.{}.cont", loop_id.descr(), loop_id.id());
                 let lbl_break = Rc::new(LabelIdentifier::new(name_break));
                 let lbl_cont = Rc::new(LabelIdentifier::new(name_cont));
-                Labels {
-                    lbl_break,
-                    lbl_cont,
-                }
+                Labels { lbl_break, lbl_cont }
             })
     }
 }

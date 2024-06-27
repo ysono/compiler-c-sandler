@@ -27,9 +27,7 @@ pub struct Parser<T: Iterator<Item = Result<t::Token>>> {
 }
 impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
     pub fn new(tokens: T) -> Self {
-        Self {
-            tokens: tokens.peekable(),
-        }
+        Self { tokens: tokens.peekable() }
     }
 
     pub fn parse_program(&mut self) -> Result<Program<ParsedCAst>> {
@@ -95,10 +93,7 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
                     let decl = FunctionDeclaration {
                         ident,
                         param_idents,
-                        typ: Rc::new(FunType {
-                            params: param_typs,
-                            ret: typ,
-                        }),
+                        typ: Rc::new(FunType { params: param_typs, ret: typ }),
                         storage_class,
                     };
 
@@ -330,10 +325,7 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
 
             Ok(Statement::While(
                 (),
-                CondBody {
-                    condition,
-                    body: Box::new(body),
-                },
+                CondBody { condition, body: Box::new(body) },
             ))
         };
         inner().context("<statement> while")
@@ -355,10 +347,7 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
 
             Ok(Statement::DoWhile(
                 (),
-                CondBody {
-                    body: Box::new(body),
-                    condition,
-                },
+                CondBody { body: Box::new(body), condition },
             ))
         };
         inner().context("<statement> dowhile")

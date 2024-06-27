@@ -226,10 +226,7 @@ impl SymbolTable {
                             }
                             Viz::L(LViz::TranslUnit) | Viz::Block => StaticVisibility::NonGlobal,
                         };
-                        VarAttrs::StaticStorageDuration {
-                            visibility,
-                            initial_value,
-                        }
+                        VarAttrs::StaticStorageDuration { visibility, initial_value }
                     }
                 };
                 entry.insert(Symbol::Var { typ, attrs });
@@ -349,11 +346,7 @@ impl SymbolTable {
                     match prev_symbol {
                         Symbol::Fun {
                             typ,
-                            attrs:
-                                FunAttrs {
-                                    visibility,
-                                    is_defined,
-                                },
+                            attrs: FunAttrs { visibility, is_defined },
                         } => {
                             if typ != new_typ {
                                 return Err(anyhow!("Cannot declare with 2+ types."));

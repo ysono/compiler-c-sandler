@@ -60,11 +60,7 @@ impl<'slf> AsmCodeEmitter<'slf> {
     }
     fn write_fun(
         &mut self,
-        Function {
-            ident,
-            visibility,
-            instrs,
-        }: Function,
+        Function { ident, visibility, instrs }: Function,
     ) -> Result<(), io::Error> {
         match visibility {
             StaticVisibility::Global => {
@@ -117,12 +113,7 @@ impl<'slf> AsmCodeEmitter<'slf> {
                 self.write_operand(operand, bytelen)?;
                 writeln!(&mut self.bw)?;
             }
-            Instruction::Binary {
-                op,
-                asm_type,
-                arg,
-                tgt,
-            } => {
+            Instruction::Binary { op, asm_type, arg, tgt } => {
                 let instr = match op {
                     BinaryOperator::Add => "add",
                     BinaryOperator::Sub => "sub",

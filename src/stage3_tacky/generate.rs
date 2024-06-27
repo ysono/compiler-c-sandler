@@ -35,11 +35,7 @@ impl Tackifier {
         for (ident, symbol) in symbol_table.iter() {
             if let Symbol::Var {
                 typ,
-                attrs:
-                    VarAttrs::StaticStorageDuration {
-                        visibility,
-                        initial_value,
-                    },
+                attrs: VarAttrs::StaticStorageDuration { visibility, initial_value },
             } = symbol
             {
                 let konst = match initial_value {
@@ -233,11 +229,8 @@ impl<'a> FunInstrsGenerator<'a> {
         let op = helpers::convert_op_unary(op);
         let src = self.gen_exp(*sub_exp);
         let dst = self.symbol_table.declare_var_anon(out_typ);
-        self.instrs.push(Instruction::Unary(Unary {
-            op,
-            src,
-            dst: Rc::clone(&dst),
-        }));
+        self.instrs
+            .push(Instruction::Unary(Unary { op, src, dst: Rc::clone(&dst) }));
         ReadableValue::Variable(dst)
     }
 
@@ -344,24 +337,15 @@ impl<'a> FunInstrsGenerator<'a> {
     ) -> ReadableValue {
         let rhs = self.gen_exp(rhs);
 
-        self.instrs.push(Instruction::Copy(Copy {
-            src: rhs,
-            dst: Rc::clone(&ident),
-        }));
+        self.instrs
+            .push(Instruction::Copy(Copy { src: rhs, dst: Rc::clone(&ident) }));
 
         ReadableValue::Variable(ident)
     }
 
     /* Conditional */
 
-    fn gen_stmt_conditional(
-        &mut self,
-        c::If {
-            condition,
-            then,
-            elze,
-        }: c::If<TypeCheckedCAst>,
-    ) {
+    fn gen_stmt_conditional(&mut self, c::If { condition, then, elze }: c::If<TypeCheckedCAst>) {
         match elze {
             None => {
                 let label_end = Rc::new(LabelIdentifier::new("stmt_cond_end".to_string()));
@@ -407,11 +391,7 @@ impl<'a> FunInstrsGenerator<'a> {
     }
     fn gen_exp_conditional(
         &mut self,
-        c::Conditional {
-            condition,
-            then,
-            elze,
-        }: c::Conditional<TypeCheckedCAst>,
+        c::Conditional { condition, then, elze }: c::Conditional<TypeCheckedCAst>,
         out_typ: VarType,
     ) -> ReadableValue {
         let result = self.symbol_table.declare_var_anon(out_typ);
@@ -520,12 +500,7 @@ impl<'a> FunInstrsGenerator<'a> {
     fn gen_stmt_for(
         &mut self,
         loop_id: Rc<c::LoopId>,
-        c::For {
-            init,
-            condition,
-            post,
-            body,
-        }: c::For<TypeCheckedCAst>,
+        c::For { init, condition, post, body }: c::For<TypeCheckedCAst>,
     ) {
         let lbl_start = Rc::new(LoopIdToLabels::get_lbl_start(&loop_id));
         let lbls = self.loop_id_to_labels.get_or_insert(loop_id);

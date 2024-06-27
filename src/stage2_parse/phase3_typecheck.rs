@@ -53,12 +53,7 @@ impl TypeChecker {
     ) -> Result<VariableDeclaration<TypeCheckedCAst>> {
         self.symbol_table.declare_var(scope, &decl)?;
 
-        let VariableDeclaration {
-            ident,
-            init,
-            typ,
-            storage_class,
-        } = decl;
+        let VariableDeclaration { ident, init, typ, storage_class } = decl;
 
         let init = init
             .map(|exp| -> Result<_> {
@@ -68,12 +63,7 @@ impl TypeChecker {
             })
             .transpose()?;
 
-        Ok(VariableDeclaration {
-            ident,
-            init,
-            typ,
-            storage_class,
-        })
+        Ok(VariableDeclaration { ident, init, typ, storage_class })
     }
     fn typecheck_decl_fundecl(
         &mut self,
@@ -183,22 +173,14 @@ impl TypeChecker {
                 Ok(Statement::Return(exp))
             }
             Statement::Expression(exp) => self.typecheck_exp(exp).map(Statement::Expression),
-            Statement::If(If {
-                condition,
-                then,
-                elze,
-            }) => {
+            Statement::If(If { condition, then, elze }) => {
                 let condition = self.typecheck_exp(condition)?;
                 let then = Box::new(self.typecheck_stmt(*then)?);
                 let elze = elze
                     .map(|elze| self.typecheck_stmt(*elze))
                     .transpose()?
                     .map(Box::new);
-                Ok(Statement::If(If {
-                    condition,
-                    then,
-                    elze,
-                }))
+                Ok(Statement::If(If { condition, then, elze }))
             }
             Statement::Compound(block) => self.typecheck_block(block).map(Statement::Compound),
             Statement::Break(loop_id) => Ok(Statement::Break(loop_id)),
@@ -213,15 +195,7 @@ impl TypeChecker {
                 let condition = self.typecheck_exp(condition)?;
                 Ok(Statement::DoWhile(loop_id, CondBody { body, condition }))
             }
-            Statement::For(
-                loop_id,
-                For {
-                    init,
-                    condition,
-                    post,
-                    body,
-                },
-            ) => {
+            Statement::For(loop_id, For { init, condition, post, body }) => {
                 let init = match init {
                     ForInit::Decl(var_decl) => self
                         .typecheck_decl_var(var_decl, VarDeclScope::ForInit)
@@ -232,15 +206,7 @@ impl TypeChecker {
                 let condition = condition.map(|cond| self.typecheck_exp(cond)).transpose()?;
                 let post = post.map(|post| self.typecheck_exp(post)).transpose()?;
                 let body = Box::new(self.typecheck_stmt(*body)?);
-                Ok(Statement::For(
-                    loop_id,
-                    For {
-                        init,
-                        condition,
-                        post,
-                        body,
-                    },
-                ))
+                Ok(Statement::For(loop_id, For { init, condition, post, body }))
             }
             Statement::Null => Ok(Statement::Null),
         }
@@ -304,26 +270,16 @@ impl TypeChecker {
                     lhs: Box::new(lhs),
                     rhs: Box::new(rhs),
                 });
-                TypedExpression {
-                    typ: out_typ,
-                    exp: out_exp,
-                }
+                TypedExpression { typ: out_typ, exp: out_exp }
             }
             Expression::Assignment(Assignment { lhs, rhs }) => {
                 let typ = self.symbol_table.use_var(&lhs)?;
                 let rhs = self.typecheck_exp(*rhs)?;
                 let rhs = Self::maybe_cast_exp(rhs, typ);
-                let exp = Expression::Assignment(Assignment {
-                    lhs,
-                    rhs: Box::new(rhs),
-                });
+                let exp = Expression::Assignment(Assignment { lhs, rhs: Box::new(rhs) });
                 TypedExpression { typ, exp }
             }
-            Expression::Conditional(Conditional {
-                condition,
-                then,
-                elze,
-            }) => {
+            Expression::Conditional(Conditional { condition, then, elze }) => {
                 let condition = self.typecheck_exp(*condition)?;
                 let then = self.typecheck_exp(*then)?;
                 let elze = self.typecheck_exp(*elze)?;
@@ -351,14 +307,8 @@ impl TypeChecker {
                     let arg_exp = Self::maybe_cast_exp(arg_exp, param_typ);
                     out_args.push(arg_exp);
                 }
-                let exp = Expression::FunctionCall(FunctionCall {
-                    ident,
-                    args: out_args,
-                });
-                TypedExpression {
-                    typ: fun_typ.ret,
-                    exp,
-                }
+                let exp = Expression::FunctionCall(FunctionCall { ident, args: out_args });
+                TypedExpression { typ: fun_typ.ret, exp }
             }
         };
         Ok(exp)
@@ -378,10 +328,7 @@ impl TypeChecker {
         if exp.typ == typ {
             exp
         } else {
-            let exp = Expression::Cast(Cast {
-                typ,
-                sub_exp: Box::new(exp),
-            });
+            let exp = Expression::Cast(Cast { typ, sub_exp: Box::new(exp) });
             TypedExpression { typ, exp }
         }
     }

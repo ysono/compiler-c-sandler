@@ -42,10 +42,7 @@ impl<'a> From<&'a SymbolTable> for BackendSymbolTable {
                         VarAttrs::AutomaticStorageDuration => StorageDuration::Automatic,
                         VarAttrs::StaticStorageDuration { .. } => StorageDuration::Static,
                     };
-                    AsmEntry::Obj {
-                        asm_type,
-                        storage_duration,
-                    }
+                    AsmEntry::Obj { asm_type, storage_duration }
                 }
                 Symbol::Fun { typ: _, attrs } => {
                     let is_defined = attrs.is_defined;
@@ -54,9 +51,7 @@ impl<'a> From<&'a SymbolTable> for BackendSymbolTable {
             };
             asm_table.insert(Rc::clone(ident), asm_entry);
         }
-        Self {
-            symbol_table: asm_table,
-        }
+        Self { symbol_table: asm_table }
     }
 }
 

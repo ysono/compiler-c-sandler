@@ -76,24 +76,14 @@ impl CAstValidator {
     }
     fn resolve_decl_var(
         &mut self,
-        VariableDeclaration {
-            ident,
-            init,
-            typ,
-            storage_class,
-        }: VariableDeclaration<ParsedCAst>,
+        VariableDeclaration { ident, init, typ, storage_class }: VariableDeclaration<ParsedCAst>,
     ) -> Result<VariableDeclaration<ResolvedCAst>> {
         let inner = || -> Result<_> {
             let ident = self.ident_resolver.declare_var(ident, &storage_class)?;
 
             let init = init.map(|exp| self.resolve_exp(exp)).transpose()?;
 
-            Ok(VariableDeclaration {
-                ident,
-                init,
-                typ,
-                storage_class,
-            })
+            Ok(VariableDeclaration { ident, init, typ, storage_class })
         };
         inner().context("<variable-declaration>")
     }
@@ -131,10 +121,7 @@ impl CAstValidator {
                 None => Declaration::FunDecl(fun_decl),
                 Some(body) => {
                     let body = self.resolve_block(body, false)?;
-                    Declaration::FunDefn(FunctionDefinition {
-                        decl: fun_decl,
-                        body,
-                    })
+                    Declaration::FunDefn(FunctionDefinition { decl: fun_decl, body })
                 }
             };
 
@@ -202,22 +189,14 @@ impl CAstValidator {
                     let exp = self.resolve_exp(exp)?;
                     Ok(Statement::Expression(exp))
                 }
-                Statement::If(If {
-                    condition,
-                    then,
-                    elze,
-                }) => {
+                Statement::If(If { condition, then, elze }) => {
                     let condition = self.resolve_exp(condition)?;
                     let then = Box::new(self.resolve_stmt(*then)?);
                     let elze = elze
                         .map(|elze| self.resolve_stmt(*elze))
                         .transpose()?
                         .map(Box::new);
-                    return Ok(Statement::If(If {
-                        condition,
-                        then,
-                        elze,
-                    }));
+                    return Ok(Statement::If(If { condition, then, elze }));
                 }
                 Statement::Compound(block) => {
                     let block = self.resolve_block(block, true)?;
@@ -286,12 +265,7 @@ impl CAstValidator {
     }
     fn resolve_stmt_for(
         &mut self,
-        For {
-            init,
-            condition,
-            post,
-            body,
-        }: For<ParsedCAst>,
+        For { init, condition, post, body }: For<ParsedCAst>,
     ) -> Result<Statement<ResolvedCAst>> {
         let inner = || -> Result<_> {
             self.ident_resolver.push_new_scope();
@@ -315,12 +289,7 @@ impl CAstValidator {
 
             self.ident_resolver.pop_scope();
 
-            let foor = For {
-                init,
-                condition,
-                post,
-                body,
-            };
+            let foor = For { init, condition, post, body };
             Ok(Statement::For(loop_id, foor))
         };
         inner().context("<statement> for")
@@ -361,19 +330,11 @@ impl CAstValidator {
                         ))
                     }
                 },
-                Expression::Conditional(Conditional {
-                    condition,
-                    then,
-                    elze,
-                }) => {
+                Expression::Conditional(Conditional { condition, then, elze }) => {
                     let condition = Box::new(self.resolve_exp(*condition)?);
                     let then = Box::new(self.resolve_exp(*then)?);
                     let elze = Box::new(self.resolve_exp(*elze)?);
-                    Expression::Conditional(Conditional {
-                        condition,
-                        then,
-                        elze,
-                    })
+                    Expression::Conditional(Conditional { condition, then, elze })
                 }
                 Expression::FunctionCall(FunctionCall { ident, args }) => {
                     let ident = self.ident_resolver.get(&ident)?;
