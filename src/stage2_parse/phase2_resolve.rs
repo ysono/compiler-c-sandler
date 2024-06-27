@@ -79,7 +79,9 @@ impl CAstValidator {
         VariableDeclaration { ident, init, typ, storage_class }: VariableDeclaration<ParsedCAst>,
     ) -> Result<VariableDeclaration<ResolvedCAst>> {
         let inner = || -> Result<_> {
-            let ident = self.ident_resolver.declare_var(ident, &storage_class)?;
+            let ident = self
+                .ident_resolver
+                .declare_var(ident, storage_class.as_ref())?;
 
             let init = init.map(|exp| self.resolve_exp(exp)).transpose()?;
 
@@ -106,7 +108,7 @@ impl CAstValidator {
                 .into_iter()
                 .map(|ident| {
                     let storage_class = None;
-                    self.ident_resolver.declare_var(ident, &storage_class)
+                    self.ident_resolver.declare_var(ident, storage_class)
                 })
                 .collect::<Result<Vec<_>>>()?;
 
@@ -163,14 +165,10 @@ impl CAstValidator {
     ) -> Result<BlockItem<ResolvedCAst>> {
         let inner = || -> Result<_> {
             match item {
-                BlockItem::Declaration(decl) => {
-                    let decl = self.resolve_decl_block_scope(decl)?;
-                    Ok(BlockItem::Declaration(decl))
-                }
-                BlockItem::Statement(stmt) => {
-                    let stmt = self.resolve_stmt(stmt)?;
-                    Ok(BlockItem::Statement(stmt))
-                }
+                BlockItem::Declaration(decl) => self
+                    .resolve_decl_block_scope(decl)
+                    .map(BlockItem::Declaration),
+                BlockItem::Statement(stmt) => self.resolve_stmt(stmt).map(BlockItem::Statement),
             }
         };
         inner().context("<block-item>")
@@ -181,14 +179,8 @@ impl CAstValidator {
     fn resolve_stmt(&mut self, stmt: Statement<ParsedCAst>) -> Result<Statement<ResolvedCAst>> {
         let inner = || -> Result<_> {
             match stmt {
-                Statement::Return(exp) => {
-                    let exp = self.resolve_exp(exp)?;
-                    Ok(Statement::Return(exp))
-                }
-                Statement::Expression(exp) => {
-                    let exp = self.resolve_exp(exp)?;
-                    Ok(Statement::Expression(exp))
-                }
+                Statement::Return(exp) => self.resolve_exp(exp).map(Statement::Return),
+                Statement::Expression(exp) => self.resolve_exp(exp).map(Statement::Expression),
                 Statement::If(If { condition, then, elze }) => {
                     let condition = self.resolve_exp(condition)?;
                     let then = Box::new(self.resolve_stmt(*then)?);
@@ -199,8 +191,7 @@ impl CAstValidator {
                     return Ok(Statement::If(If { condition, then, elze }));
                 }
                 Statement::Compound(block) => {
-                    let block = self.resolve_block(block, true)?;
-                    Ok(Statement::Compound(block))
+                    self.resolve_block(block, true).map(Statement::Compound)
                 }
                 Statement::Break(()) => {
                     let loop_id = self
