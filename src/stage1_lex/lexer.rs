@@ -1,55 +1,42 @@
-use crate::{files::PreprocessedFilepath, stage1_lex::tokens::*, types_frontend::Const};
+use crate::{stage1_lex::tokens::*, types_frontend::Const};
 use anyhow::{anyhow, Context, Result};
 use regex::Regex;
 use std::collections::VecDeque;
-use std::fs::File;
-use std::io::{BufRead, BufReader, Seek};
-use std::path::PathBuf;
+use std::io::{BufRead, Read};
 
-pub struct Lexer {
+pub struct Lexer<R> {
     matchers: TokenMatchers,
 
-    br: BufReader<File>,
+    r: R,
 
-    /// Buffer of `char`s. A second buffer aside from `BufReader`'s internal buffer of `u8`s. Allocated once per `Lexer` instance.
+    /// Buffer of `char`s. Separate from `R`'s internal buffer (of e.g. `u8`s). Allocated once.
     chars_buf: String,
 
     /// Pending tokens.
     next_tokens: VecDeque<Token>,
 }
-impl<'a> TryFrom<&'a PreprocessedFilepath> for Lexer {
-    type Error = anyhow::Error;
-    fn try_from(pp_filepath: &'a PreprocessedFilepath) -> Result<Self> {
-        let f = File::open(pp_filepath as &PathBuf)
-            .with_context(|| format!("Failed to open {pp_filepath:?}"))?;
-        let br = BufReader::new(f);
+impl<R: Read + BufRead> Lexer<R> {
+    pub fn new(r: R) -> Result<Self> {
         Ok(Self {
             matchers: TokenMatchers::new()?,
-            br,
+            r,
             chars_buf: String::new(),
             next_tokens: VecDeque::new(),
         })
     }
-}
-impl Lexer {
+
     fn get_next(&mut self) -> Result<Option<Token>> {
         while self.next_tokens.is_empty() {
             /* Read until an arbitrary char. We choose to read until '\n'.
             Doing this guarantees, for now, b/c of the limited syntax we support, that each reading collects token(s) in whole.
             We don't want to read `std::io::Bytes`: for each byte, we'd have to check `Result`. */
-            let br_pos_before = self.br.stream_position().ok();
-            let read_len = self.br.read_line(&mut self.chars_buf)?;
+            let read_len = self.r.read_line(&mut self.chars_buf)?;
             if read_len == 0 {
                 return Ok(None);
             }
 
-            self.buf_to_tokens().with_context(|| {
-                let br_pos_after = self.br.stream_position().ok();
-                format!(
-                    "Between intra-file positions {:?} and {:?}, within below slice:\n{}",
-                    br_pos_before, br_pos_after, &self.chars_buf
-                )
-            })?;
+            self.buf_to_tokens()
+                .with_context(|| anyhow!("within below slice:\n{}", &self.chars_buf))?;
 
             self.chars_buf.clear();
         }
@@ -179,7 +166,7 @@ impl Lexer {
         }
     }
 }
-impl Iterator for Lexer {
+impl<R: Read + BufRead> Iterator for Lexer<R> {
     type Item = Result<Token>;
     fn next(&mut self) -> Option<Result<Token>> {
         self.get_next().transpose()

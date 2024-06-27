@@ -1,6 +1,13 @@
 use anyhow::Result;
-use compiler_c_sandler::driver::driver_main;
+use clap::Parser;
+use compiler_c_sandler::driver::{CliArgs, Driver};
 
 fn main() -> Result<()> {
-    driver_main()
+    env_logger::init();
+
+    let args = CliArgs::parse();
+    log::info!("{args:?}");
+
+    let driver = Driver::from(args);
+    driver.run()
 }

@@ -8,9 +8,11 @@ anyhow = "1.0.86"
 clap = { version = "4.5.4", features = ["derive"] }
 derivative = "2.2.0"
 derive_more = "0.99.17"
+duct = "0.13.7"
 env_logger = "0.11.3"
 getset = "0.1.2"
 log = "0.4.21"
+nonempty = "0.10.0"
 regex = "1.10.4"
 
 [dev-dependencies]

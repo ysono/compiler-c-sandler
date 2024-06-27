@@ -1,5 +1,7 @@
+mod files;
+
+use self::files::{AsmFilepath, ObjectFilepath, ProgramFilepath, SrcFilepath};
 use crate::{
-    files::{AsmFilepath, ObjectFilepath, PreprocessedFilepath, ProgramFilepath, SrcFilepath},
     stage1_lex::lexer::Lexer,
     stage2_parse::{
         phase1_parse::Parser, phase2_resolve::CAstValidator, phase3_typecheck::TypeChecker,
@@ -9,17 +11,21 @@ use crate::{
     stage5_asm_emit::emit::AsmCodeEmitter,
     symbol_table_backend::BackendSymbolTable,
 };
-use anyhow::{Context, Result};
-use clap::Parser as ClapParser;
+use anyhow::Result;
+use clap::{builder::OsStr, Parser as ClapParser};
+use derive_more::From;
+use duct::{cmd, Handle, ReaderHandle};
 use log;
-use std::fs;
+use nonempty::NonEmpty;
+use std::fs::{self, OpenOptions};
+use std::io::{self, BufRead, BufReader, BufWriter, Read};
+use std::mem;
 use std::path::PathBuf;
-use std::process::Command;
 use std::rc::Rc;
 
 #[derive(ClapParser, Debug)]
-struct CliArgs {
-    src_filepaths: Vec<String>,
+pub struct CliArgs {
+    src_filepaths: Vec<PathBuf>,
 
     #[clap(long = "lex")]
     until_lexer: bool,
@@ -40,165 +46,193 @@ struct CliArgs {
     until_asm_emission: bool,
 
     #[clap(short = 'c')]
-    output_object_file: bool,
+    until_assembler: bool,
 }
 
-pub fn driver_main() -> Result<()> {
-    env_logger::init();
+#[derive(From)]
+pub struct Driver {
+    args: CliArgs,
+}
+impl Driver {
+    pub fn run(mut self) -> Result<()> {
+        let src_filepaths = mem::replace(&mut self.args.src_filepaths, Vec::with_capacity(0));
 
-    let args = CliArgs::parse();
-    log::info!("{args:?}");
+        let mut asm_filepaths = Vec::with_capacity(self.args.src_filepaths.len());
+        for src_filepath in src_filepaths {
+            let src_filepath = SrcFilepath::try_from(src_filepath)?;
 
-    let mut asm_filepaths = vec![];
-    for src_filepath in args.src_filepaths.iter() {
-        let src_filepath = SrcFilepath::try_from(&src_filepath[..])?;
-        let pp_filepath = preprocess(&src_filepath)?;
-        log::info!("Preprocessor done -> {pp_filepath:?}");
+            let pp_reader = Self::preprocess(&src_filepath)?;
+            let pp_reader = BufReader::new(pp_reader);
 
-        let asm_filepath = compile(pp_filepath, &args)?;
-        log::info!("Compiler done -> {asm_filepath:?}");
-        if let Some(asm_filepath) = asm_filepath {
-            asm_filepaths.push(asm_filepath);
-        }
-    }
-
-    match args.output_object_file {
-        true => {
-            for asm_filepath in asm_filepaths {
-                assemble(asm_filepath)?;
+            let asm_filepath = self.compile(&src_filepath, pp_reader)?;
+            if let Some(asm_filepath) = asm_filepath {
+                asm_filepaths.push(asm_filepath);
             }
         }
-        false => {
-            assemble_and_link_program(asm_filepaths)?;
+
+        let asm_filepaths = NonEmpty::from_vec(asm_filepaths);
+        if let Some(asm_filepaths) = asm_filepaths {
+            let downstream_handles = self.assemble_or_link(&asm_filepaths);
+
+            let is_ok = Self::wait_for_downstream(downstream_handles);
+
+            if is_ok == true {
+                for asm_filepath in asm_filepaths {
+                    fs::remove_file(&asm_filepath as &PathBuf)?;
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    fn preprocess(src_filepath: &SrcFilepath) -> Result<ReaderHandle, io::Error> {
+        let gcc_cmd = cmd!(
+            "gcc",
+            src_filepath.as_os_str(),
+            "-E", // Stop after the preprocessing stage.
+            "-P", // Inhibit generation of linemarkers in the output from the preprocessor.
+            "-o", // Output.
+            "/dev/stdout",
+        );
+        log::info!("Preprocessor: {gcc_cmd:?}");
+        gcc_cmd.reader()
+    }
+
+    fn compile<R: Read + BufRead>(
+        &self,
+        src_filepath: &SrcFilepath,
+        pp_reader: R,
+    ) -> Result<Option<AsmFilepath>> {
+        let lexer = Lexer::new(pp_reader)?;
+        if self.args.until_lexer {
+            let tokens = lexer.collect::<Result<Vec<_>>>()?;
+            println!("tokens: {tokens:#?}");
+            return Ok(None);
+        }
+
+        let mut parser = Parser::new(lexer);
+        let c_prog = parser.parse_program()?;
+        if self.args.until_parser {
+            println!("c_prog: {c_prog:#?}");
+            return Ok(None);
+        }
+
+        let mut vadlidator = CAstValidator::default();
+        let c_prog = vadlidator.resolve_program(c_prog)?;
+
+        let type_checker = TypeChecker::default();
+        let (c_prog, mut symbol_table) = type_checker.typecheck_prog(c_prog)?;
+
+        if self.args.until_parser_validate {
+            println!("validated c_prog: {c_prog:#?}");
+            println!("symbol table: {symbol_table:#?}");
+            return Ok(None);
+        }
+
+        let tacky_prog = Tackifier::tackify_program(c_prog, &mut symbol_table);
+        if self.args.until_tacky {
+            println!("tacky_prog: {tacky_prog:#?}");
+            return Ok(None);
+        }
+
+        let backend_symbol_table = Rc::new(BackendSymbolTable::from(&symbol_table));
+
+        let asm_gen = AsmCodeGenerator::new(symbol_table, Rc::clone(&backend_symbol_table));
+        let asm_prog = asm_gen.gen_program(tacky_prog);
+        if self.args.until_asm_codegen {
+            println!("asm_prog: {asm_prog:#?}");
+            return Ok(None);
+        }
+
+        let asm_filepath = AsmFilepath::from(src_filepath);
+        let asm_file = OpenOptions::new()
+            .create(true)
+            .truncate(true)
+            .write(true)
+            .open(&asm_filepath as &PathBuf)?;
+        let asm_bw = BufWriter::new(asm_file);
+        let asm_emitter = AsmCodeEmitter::new(&backend_symbol_table, asm_bw)?;
+        asm_emitter.emit_program(asm_prog)?;
+        log::info!("Compiler done -> {asm_filepath:?}");
+        if self.args.until_asm_emission {
+            return Ok(None);
+        }
+
+        Ok(Some(asm_filepath))
+    }
+
+    fn assemble_or_link(
+        &self,
+        asm_filepaths: &NonEmpty<AsmFilepath>,
+    ) -> NonEmpty<Result<Handle, io::Error>> {
+        if self.args.until_assembler {
+            Self::launch_assembler(asm_filepaths)
+        } else {
+            let handle = Self::launch_linker(asm_filepaths);
+            NonEmpty::new(handle)
         }
     }
+    fn launch_assembler(
+        asm_filepaths: &NonEmpty<AsmFilepath>,
+    ) -> NonEmpty<Result<Handle, io::Error>> {
+        /* In order to specify each output `*.o` filepath, execute a separate gcc command per assembly file. */
+        let gcc_procs = asm_filepaths
+            .iter()
+            .map(|asm_filepath| {
+                let obj_filepath = ObjectFilepath::from(asm_filepath);
+                let gcc_cmd = cmd!(
+                    "gcc",
+                    asm_filepath.as_os_str(),
+                    "-c", // Compile or assemble the source files, but do not link.
+                    "-o", // Output
+                    obj_filepath.as_os_str()
+                );
+                log::info!("Assembler: {gcc_cmd:?}");
+                gcc_cmd.start()
+            })
+            .collect::<Vec<_>>();
+        NonEmpty::from_vec(gcc_procs).unwrap()
+    }
+    fn launch_linker(asm_filepaths: &NonEmpty<AsmFilepath>) -> Result<Handle, io::Error> {
+        let asm_args = asm_filepaths
+            .iter()
+            .map(|asm_filepath| asm_filepath.as_os_str());
 
-    Ok(())
-}
+        /* Among input file arguments to gcc, in general, earlier inputs may depend on later inputs.
+        We assume `main()` is inside the first asm input, and name our output program file after the first input file. */
+        let name0 = &asm_filepaths[0];
+        let prog_filepath = ProgramFilepath::from(name0);
+        let prog_args = [&OsStr::from("-o"), prog_filepath.as_os_str()];
 
-fn preprocess(src_filepath: &SrcFilepath) -> Result<PreprocessedFilepath> {
-    let pp_filepath = PreprocessedFilepath::from(src_filepath);
-
-    let mut cmd = Command::new("gcc");
-    cmd.args([
-        "-E",
-        "-P",
-        src_filepath.to_str().unwrap(),
-        "-o",
-        pp_filepath.to_str().unwrap(),
-    ]);
-    log::info!("Preprocessor: {cmd:?}");
-    let mut child = cmd
-        .spawn()
-        .context("Failed to launch the preprocessor process.")?;
-    let child_code = child
-        .wait()
-        .context("The preprocessor process was not running.")?;
-    assert!(
-        child_code.success(),
-        "The preprocessor exit code = {child_code}",
-    );
-
-    Ok(pp_filepath)
-}
-
-fn compile(pp_filepath: PreprocessedFilepath, args: &CliArgs) -> Result<Option<AsmFilepath>> {
-    let lexer = Lexer::try_from(&pp_filepath)?;
-    if args.until_lexer {
-        let tokens = lexer.collect::<Result<Vec<_>>>()?;
-        println!("tokens: {tokens:#?}");
-        return Ok(None);
+        let args = asm_args.chain(prog_args);
+        let gcc_cmd = cmd("gcc", args);
+        log::info!("Linker: {gcc_cmd:?}");
+        gcc_cmd.start()
     }
 
-    let mut parser = Parser::new(lexer);
-    let c_prog = parser.parse_program()?;
-    if args.until_parser {
-        println!("c_prog: {c_prog:#?}");
-        return Ok(None);
-    }
-
-    let mut vadlidator = CAstValidator::default();
-    let c_prog = vadlidator.resolve_program(c_prog)?;
-
-    let type_checker = TypeChecker::default();
-    let (c_prog, mut symbol_table) = type_checker.typecheck_prog(c_prog)?;
-
-    if args.until_parser_validate {
-        println!("validated c_prog: {c_prog:#?}");
-        println!("symbol table: {symbol_table:#?}");
-        return Ok(None);
-    }
-
-    let tacky_prog = Tackifier::tackify_program(c_prog, &mut symbol_table);
-    if args.until_tacky {
-        println!("tacky_prog: {tacky_prog:#?}");
-        return Ok(None);
-    }
-
-    let backend_symbol_table = Rc::new(BackendSymbolTable::from(&symbol_table));
-
-    let asm_gen = AsmCodeGenerator::new(symbol_table, Rc::clone(&backend_symbol_table));
-    let asm_prog = asm_gen.gen_program(tacky_prog);
-    if args.until_asm_codegen {
-        println!("asm_prog: {asm_prog:#?}");
-        return Ok(None);
-    }
-
-    let asm_filepath = AsmFilepath::from(&pp_filepath);
-    let asm_emitter = AsmCodeEmitter::new(&asm_filepath, &backend_symbol_table)?;
-    asm_emitter.emit_program(asm_prog)?;
-    if args.until_asm_emission {
-        println!("asm file: {asm_filepath:?}");
-        return Ok(None);
-    }
-
-    Ok(Some(asm_filepath))
-}
-
-fn assemble(asm_filepath: AsmFilepath) -> Result<ObjectFilepath> {
-    /* Run separate gcc command per foo.s file, so that we can specify each `-o foo.o` filepath. */
-    let obj_filepath = ObjectFilepath::from(&asm_filepath);
-    use_gcc_on_asms(&["-c"], vec![asm_filepath], &obj_filepath, "assembler")?;
-    Ok(obj_filepath)
-}
-fn assemble_and_link_program(asm_filepaths: Vec<AsmFilepath>) -> Result<Option<ProgramFilepath>> {
-    /* In general, earlier inputs may depend on later inputs. We assume `main()` is inside the first asm input. */
-    match asm_filepaths.first() {
-        None => Ok(None),
-        Some(asm0) => {
-            let prog_filepath = ProgramFilepath::from(asm0);
-            use_gcc_on_asms(&[], asm_filepaths, &prog_filepath, "assembler and linker")?;
-            Ok(Some(prog_filepath))
+    fn wait_for_downstream(downstream_handles: NonEmpty<Result<Handle, io::Error>>) -> bool {
+        let mut is_ok = true;
+        for handle in downstream_handles {
+            match handle {
+                Err(_) => {
+                    log::error!("Downstream failed to launch. {handle:?}");
+                    is_ok = false;
+                }
+                Ok(handle) => {
+                    let output = handle.wait();
+                    match output {
+                        Err(_) => {
+                            log::error!("Downstream failed. {handle:?} {output:?}");
+                            is_ok = false;
+                        }
+                        Ok(output) => {
+                            log::info!("Downstream done. {handle:?} {output:?}");
+                        }
+                    }
+                }
+            }
         }
+        is_ok
     }
-}
-fn use_gcc_on_asms(
-    gcc_flags: &[&str],
-    asm_paths: Vec<AsmFilepath>,
-    out_path: &PathBuf,
-    descr: &str,
-) -> Result<()> {
-    let mut cmd = Command::new("gcc");
-    cmd.args(gcc_flags);
-    cmd.args(asm_paths.iter().map(|p| p.as_os_str()));
-    cmd.args(["-o", out_path.to_str().unwrap()]);
-    log::info!("{descr} command: {cmd:?}");
-
-    let mut child = cmd
-        .spawn()
-        .with_context(|| format!("Failed to launch the {descr} process."))?;
-    let child_exit_status = child
-        .wait()
-        .with_context(|| format!("The {descr} process was not running."))?;
-    assert!(
-        child_exit_status.success(),
-        "The {descr} exit status = {child_exit_status}",
-    );
-    log::info!("{descr} done -> {out_path:?}");
-
-    for asm_path in asm_paths {
-        fs::remove_file(&asm_path as &PathBuf)?;
-    }
-
-    Ok(())
 }
