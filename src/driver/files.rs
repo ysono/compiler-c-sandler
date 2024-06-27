@@ -1,14 +1,15 @@
 use anyhow::{anyhow, Result};
 use derive_more::Deref;
+use std::ffi::OsStr;
 use std::path::PathBuf;
 
 #[derive(Deref, Debug)]
 pub struct SrcFilepath(PathBuf);
-impl<'a> TryFrom<&'a str> for SrcFilepath {
+impl TryFrom<PathBuf> for SrcFilepath {
     type Error = anyhow::Error;
-    fn try_from(s: &'a str) -> Result<Self> {
-        if s.ends_with(".c") {
-            Ok(Self(PathBuf::from(s)))
+    fn try_from(p: PathBuf) -> Result<Self> {
+        if p.extension() == Some(OsStr::new("c")) {
+            Ok(Self(p))
         } else {
             Err(anyhow!("The c source code file must have extension `.c`."))
         }
@@ -16,20 +17,10 @@ impl<'a> TryFrom<&'a str> for SrcFilepath {
 }
 
 #[derive(Deref, Debug)]
-pub struct PreprocessedFilepath(PathBuf);
-impl<'a> From<&'a SrcFilepath> for PreprocessedFilepath {
-    fn from(src_filepath: &'a SrcFilepath) -> Self {
-        let mut pp_filepath = PathBuf::from(src_filepath as &PathBuf);
-        pp_filepath.set_extension("i");
-        Self(pp_filepath)
-    }
-}
-
-#[derive(Deref, Debug)]
 pub struct AsmFilepath(PathBuf);
-impl<'a> From<&'a PreprocessedFilepath> for AsmFilepath {
-    fn from(pp_filepath: &'a PreprocessedFilepath) -> Self {
-        let mut asm_filepath = PathBuf::from(pp_filepath as &PathBuf);
+impl<'a> From<&'a SrcFilepath> for AsmFilepath {
+    fn from(src_filepath: &'a SrcFilepath) -> Self {
+        let mut asm_filepath = PathBuf::from(src_filepath as &PathBuf);
         asm_filepath.set_extension("s");
         Self(asm_filepath)
     }
