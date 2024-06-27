@@ -32,11 +32,11 @@ pub struct Function {
 #[derive(Debug)]
 pub enum Instruction {
     Return(ReadableValue),
-    SignExtend(Convert),
-    Truncate(Convert),
+    SignExtend(SrcDst),
+    Truncate(SrcDst),
     Unary(Unary),
     Binary(Binary),
-    Copy(Copy),
+    Copy(SrcDst),
     Jump(Rc<LabelIdentifier>),
     JumpIfZero(JumpIf),
     JumpIfNotZero(JumpIf),
@@ -47,7 +47,7 @@ mod instruction {
     use super::*;
 
     #[derive(Debug)]
-    pub struct Convert {
+    pub struct SrcDst {
         pub src: ReadableValue,
         pub dst: Rc<ResolvedIdentifier>,
     }
@@ -64,12 +64,6 @@ mod instruction {
         pub op: BinaryOperator,
         pub src1: ReadableValue,
         pub src2: ReadableValue,
-        pub dst: Rc<ResolvedIdentifier>,
-    }
-
-    #[derive(Debug)]
-    pub struct Copy {
-        pub src: ReadableValue,
         pub dst: Rc<ResolvedIdentifier>,
     }
 

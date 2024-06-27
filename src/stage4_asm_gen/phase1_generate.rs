@@ -175,11 +175,11 @@ impl AsmCodeGenerator {
     ) -> impl '_ + Iterator<Item = Instruction<PreFinalOperand>> {
         t_instrs.into_iter().flat_map(|t_instr| match t_instr {
             t::Instruction::Return(t_val) => self.gen_return_instrs(t_val),
-            t::Instruction::SignExtend(t_convert) => self.gen_signextend_instrs(t_convert),
-            t::Instruction::Truncate(t_convert) => self.gen_truncate_instrs(t_convert),
+            t::Instruction::SignExtend(t_srcdst) => self.gen_signextend_instrs(t_srcdst),
+            t::Instruction::Truncate(t_srcdst) => self.gen_truncate_instrs(t_srcdst),
             t::Instruction::Unary(t_unary) => self.gen_unary_instrs(t_unary),
             t::Instruction::Binary(t_binary) => self.gen_binary_instrs(t_binary),
-            t::Instruction::Copy(t_copy) => self.gen_copy_instrs(t_copy),
+            t::Instruction::Copy(t_srcdst) => self.gen_copy_instrs(t_srcdst),
             t::Instruction::Jump(lbl) => vec![Instruction::Jmp(lbl)],
             t::Instruction::JumpIfZero(t_jumpif) => {
                 self.gen_jumpif_instrs(ConditionCode::E, t_jumpif)
@@ -211,7 +211,7 @@ impl AsmCodeGenerator {
 
     fn gen_signextend_instrs(
         &self,
-        t::Convert { src, dst }: t::Convert,
+        t::SrcDst { src, dst }: t::SrcDst,
     ) -> Vec<Instruction<PreFinalOperand>> {
         let (src, _) = self.convert_val_operand(src);
         let (dst, _) = self.convert_var_operand(dst);
@@ -219,7 +219,7 @@ impl AsmCodeGenerator {
     }
     fn gen_truncate_instrs(
         &self,
-        t::Convert { src, dst }: t::Convert,
+        t::SrcDst { src, dst }: t::SrcDst,
     ) -> Vec<Instruction<PreFinalOperand>> {
         let (src, _) = self.convert_val_operand(src);
         let (dst, _) = self.convert_var_operand(dst);
@@ -384,9 +384,12 @@ impl AsmCodeGenerator {
 
     /* Tacky Copy */
 
-    fn gen_copy_instrs(&self, t_copy: t::Copy) -> Vec<Instruction<PreFinalOperand>> {
-        let (src, asm_type) = self.convert_val_operand(t_copy.src);
-        let (dst, _) = self.convert_var_operand(t_copy.dst);
+    fn gen_copy_instrs(
+        &self,
+        t::SrcDst { src, dst }: t::SrcDst,
+    ) -> Vec<Instruction<PreFinalOperand>> {
+        let (src, asm_type) = self.convert_val_operand(src);
+        let (dst, _) = self.convert_var_operand(dst);
         vec![Instruction::Mov { asm_type, src, dst }]
     }
 

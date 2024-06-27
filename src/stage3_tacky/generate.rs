@@ -207,13 +207,13 @@ impl<'a> FunInstrsGenerator<'a> {
             sub_val
         } else {
             let dst = self.symbol_table.declare_var_anon(typ);
-            let convert = Convert {
+            let srcdst = SrcDst {
                 src: sub_val,
                 dst: Rc::clone(&dst),
             };
             let instr = match typ {
-                VarType::Long => Instruction::SignExtend(convert),
-                VarType::Int => Instruction::Truncate(convert),
+                VarType::Long => Instruction::SignExtend(srcdst),
+                VarType::Int => Instruction::Truncate(srcdst),
                 _ => todo!(),
             };
             self.instrs.push(instr);
@@ -306,7 +306,7 @@ impl<'a> FunInstrsGenerator<'a> {
 
         self.instrs.push(new_shortcirc_jump_instr(rhs_val));
 
-        self.instrs.push(Instruction::Copy(Copy {
+        self.instrs.push(Instruction::Copy(SrcDst {
             src: ReadableValue::Constant(fully_evald_val),
             dst: Rc::clone(&result),
         }));
@@ -315,7 +315,7 @@ impl<'a> FunInstrsGenerator<'a> {
 
         self.instrs.push(Instruction::Label(label_shortcirc));
 
-        self.instrs.push(Instruction::Copy(Copy {
+        self.instrs.push(Instruction::Copy(SrcDst {
             src: ReadableValue::Constant(shortcirc_val),
             dst: Rc::clone(&result),
         }));
@@ -334,8 +334,10 @@ impl<'a> FunInstrsGenerator<'a> {
     ) -> ReadableValue {
         let rhs = self.gen_exp(rhs);
 
-        self.instrs
-            .push(Instruction::Copy(Copy { src: rhs, dst: Rc::clone(&ident) }));
+        self.instrs.push(Instruction::Copy(SrcDst {
+            src: rhs,
+            dst: Rc::clone(&ident),
+        }));
 
         ReadableValue::Variable(ident)
     }
@@ -408,7 +410,7 @@ impl<'a> FunInstrsGenerator<'a> {
 
         let then = self.gen_exp(*then);
 
-        self.instrs.push(Instruction::Copy(Copy {
+        self.instrs.push(Instruction::Copy(SrcDst {
             src: then,
             dst: Rc::clone(&result),
         }));
@@ -419,7 +421,7 @@ impl<'a> FunInstrsGenerator<'a> {
 
         let elze = self.gen_exp(*elze);
 
-        self.instrs.push(Instruction::Copy(Copy {
+        self.instrs.push(Instruction::Copy(SrcDst {
             src: elze,
             dst: Rc::clone(&result),
         }));
