@@ -103,7 +103,8 @@ impl<'slf> AsmCodeEmitter<'slf> {
                 self.write_operand(dst, OperandByteLen::B8)?;
                 writeln!(&mut self.bw)?;
             }
-            Instruction::MovZeroExtend { .. } => todo!(),
+            Instruction::MovZeroExtend { .. } => { /* No-op, b/c this instruction type is strictly pre-final. */
+            }
             Instruction::Unary(op, asm_type, operand) => {
                 let instr = match op {
                     UnaryOperator::BitwiseComplement => "not",
@@ -149,7 +150,14 @@ impl<'slf> AsmCodeEmitter<'slf> {
                 self.write_operand(operand, bytelen)?;
                 writeln!(&mut self.bw)?;
             }
-            Instruction::Div(..) => todo!(),
+            Instruction::Div(asm_type, operand) => {
+                let instr_sfx = Self::get_instr_sfx_wordlen(asm_type);
+                let bytelen = OperandByteLen::from(asm_type);
+
+                write!(&mut self.bw, "{TAB}div{instr_sfx}{TAB}")?;
+                self.write_operand(operand, bytelen)?;
+                writeln!(&mut self.bw)?;
+            }
             Instruction::Cdq(asm_type) => {
                 let instr = match asm_type {
                     AssemblyType::Longword => "cdq",
@@ -211,7 +219,10 @@ impl<'slf> AsmCodeEmitter<'slf> {
             ConditionCode::Le => "le",
             ConditionCode::G => "g",
             ConditionCode::Ge => "ge",
-            _ => todo!(),
+            ConditionCode::A => "a",
+            ConditionCode::Ae => "ae",
+            ConditionCode::B => "b",
+            ConditionCode::Be => "be",
         }
     }
     fn write_operand(&mut self, operand: Operand, obl: OperandByteLen) -> Result<(), io::Error> {
@@ -307,14 +318,15 @@ impl<'slf> AsmCodeEmitter<'slf> {
         }: StaticVariable,
     ) -> Result<(), io::Error> {
         const IDENT_PFX: &str = if cfg!(target_os = "macos") { "_" } else { "" };
-        let alignment = alignment as u8;
+
         let section = match init {
-            Const::Int(0) => ".bss",
-            Const::Int(_) => ".data",
-            Const::Long(0) => ".bss",
-            Const::Long(_) => ".data",
-            _ => todo!(),
+            Const::Int(0) | Const::Long(0) | Const::UInt(0) | Const::ULong(0) => ".bss",
+            Const::Int(_) | Const::Long(_) | Const::UInt(_) | Const::ULong(_) => ".data",
         };
+        let alignment = alignment as u8;
+        let bytelen = OperandByteLen::from(init.var_type()) as u8;
+
+        /* Begin emission. */
 
         match visibility {
             StaticVisibility::Global => {
@@ -326,19 +338,21 @@ impl<'slf> AsmCodeEmitter<'slf> {
         writeln!(&mut self.bw, "{TAB}.balign {alignment}")?;
         writeln!(&mut self.bw, "{IDENT_PFX}{ident}:")?;
         match init {
-            Const::Int(0) => {
-                writeln!(&mut self.bw, "{TAB}.zero 4")?;
+            Const::Int(0) | Const::UInt(0) | Const::Long(0) | Const::ULong(0) => {
+                writeln!(&mut self.bw, "{TAB}.zero {bytelen}")?;
             }
             Const::Int(i) => {
                 writeln!(&mut self.bw, "{TAB}.long {i}")?;
             }
-            Const::Long(0) => {
-                writeln!(&mut self.bw, "{TAB}.zero 8")?;
+            Const::UInt(i) => {
+                writeln!(&mut self.bw, "{TAB}.long {i}")?;
             }
             Const::Long(i) => {
                 writeln!(&mut self.bw, "{TAB}.quad {i}")?;
             }
-            _ => todo!(),
+            Const::ULong(i) => {
+                writeln!(&mut self.bw, "{TAB}.quad {i}")?;
+            }
         };
         Ok(())
     }
