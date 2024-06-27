@@ -3,6 +3,7 @@ use crate::{
     symbol_table_frontend::{ResolvedIdentifier, StaticVisibility},
     types_frontend::{Const, VarType},
 };
+use derive_more::From;
 use getset::Getters;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -108,7 +109,7 @@ pub enum BinaryOperator {
     Gte,
 }
 
-#[derive(Debug)]
+#[derive(From, Debug)]
 pub enum ReadableValue {
     Constant(Const),
     Variable(Rc<ResolvedIdentifier>),
