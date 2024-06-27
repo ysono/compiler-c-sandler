@@ -71,6 +71,11 @@ impl InstrsFinalizer {
                 let dst = self.convert_operand(dst);
                 Instruction::Movsx { src, dst }
             }
+            Instruction::MovZeroExtend { src, dst } => {
+                let src = self.convert_operand(src);
+                let dst = self.convert_operand(dst);
+                Instruction::MovZeroExtend { src, dst }
+            }
             Instruction::Unary(op, asm_type, operand) => {
                 let operand = self.convert_operand(operand);
                 Instruction::Unary(op, asm_type, operand)
@@ -88,6 +93,10 @@ impl InstrsFinalizer {
             Instruction::Idiv(asm_type, operand) => {
                 let operand = self.convert_operand(operand);
                 Instruction::Idiv(asm_type, operand)
+            }
+            Instruction::Div(asm_type, operand) => {
+                let operand = self.convert_operand(operand);
+                Instruction::Div(asm_type, operand)
             }
             Instruction::Cdq(asm_type) => Instruction::Cdq(asm_type),
             Instruction::Jmp(l) => Instruction::Jmp(l),

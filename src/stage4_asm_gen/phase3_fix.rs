@@ -40,6 +40,23 @@ impl OperandFixer {
                     new_instr,
                 )
             }
+            Instruction::MovZeroExtend { src, dst } => {
+                if matches!(&dst, Operand::Register(_)) {
+                    vec![Instruction::Mov{
+                        asm_type: AssemblyType::Longword,
+                        src,
+                        dst
+                    }]
+                } else { /* Then, the operand is on memory. */
+                    let reg = Register::R11;
+                    let instr_at_reg = Instruction::Mov{
+                        asm_type: AssemblyType::Quadword,
+                        src: reg.into(),
+                        dst,
+                    };
+                    Self::to_reg(AssemblyType::Longword, src, reg, instr_at_reg)
+                }
+            }
             Instruction::Binary { op, asm_type, arg, tgt } => {
                 let src_to_reg1 =
                     (matches!(&op, BinaryOperator::Add | BinaryOperator::Sub)
@@ -80,6 +97,11 @@ impl OperandFixer {
             Instruction::Idiv(asm_type, imm @ Operand::ImmediateValue(_)) => {
                 let reg = Register::R10;
                 let instr_at_reg = Instruction::Idiv(asm_type, reg.into());
+                Self::to_reg(asm_type, imm, reg, instr_at_reg)
+            }
+            Instruction::Div(asm_type, imm @ Operand::ImmediateValue(_)) => {
+                let reg = Register::R10;
+                let instr_at_reg = Instruction::Div(asm_type, reg.into());
                 Self::to_reg(asm_type, imm, reg, instr_at_reg)
             }
             Instruction::Push(operand @ Operand::ImmediateValue(i)) if i32::try_from(i).is_err() => {

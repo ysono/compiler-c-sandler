@@ -103,6 +103,7 @@ impl<'slf> AsmCodeEmitter<'slf> {
                 self.write_operand(dst, OperandByteLen::B8)?;
                 writeln!(&mut self.bw)?;
             }
+            Instruction::MovZeroExtend { .. } => todo!(),
             Instruction::Unary(op, asm_type, operand) => {
                 let instr = match op {
                     UnaryOperator::BitwiseComplement => "not",
@@ -148,6 +149,7 @@ impl<'slf> AsmCodeEmitter<'slf> {
                 self.write_operand(operand, bytelen)?;
                 writeln!(&mut self.bw)?;
             }
+            Instruction::Div(..) => todo!(),
             Instruction::Cdq(asm_type) => {
                 let instr = match asm_type {
                     AssemblyType::Longword => "cdq",
@@ -209,6 +211,7 @@ impl<'slf> AsmCodeEmitter<'slf> {
             ConditionCode::Le => "le",
             ConditionCode::G => "g",
             ConditionCode::Ge => "ge",
+            _ => todo!(),
         }
     }
     fn write_operand(&mut self, operand: Operand, obl: OperandByteLen) -> Result<(), io::Error> {

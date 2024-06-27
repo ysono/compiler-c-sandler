@@ -177,7 +177,7 @@ impl AsmCodeGenerator {
             t::Instruction::Return(t_val) => self.gen_return_instrs(t_val),
             t::Instruction::SignExtend(t_srcdst) => self.gen_signextend_instrs(t_srcdst),
             t::Instruction::Truncate(t_srcdst) => self.gen_truncate_instrs(t_srcdst),
-            t::Instruction::ZeroExtend(_) => todo!(),
+            t::Instruction::ZeroExtend(t_srcdst) => self.gen_zeroextend_instrs(t_srcdst),
             t::Instruction::Unary(t_unary) => self.gen_unary_instrs(t_unary),
             t::Instruction::Binary(t_binary) => self.gen_binary_instrs(t_binary),
             t::Instruction::Copy(t_srcdst) => self.gen_copy_instrs(t_srcdst),
@@ -229,6 +229,14 @@ impl AsmCodeGenerator {
             src,
             dst,
         }]
+    }
+    fn gen_zeroextend_instrs(
+        &self,
+        t::SrcDst { src, dst }: t::SrcDst,
+    ) -> Vec<Instruction<PreFinalOperand>> {
+        let (src, _, _) = self.convert_value(src);
+        let (dst, _, _) = self.convert_value(dst);
+        vec![Instruction::MovZeroExtend { src, dst }]
     }
 
     /* Tacky Unary */
@@ -324,7 +332,7 @@ impl AsmCodeGenerator {
             t::DivRemBinaryOperator::Div => Register::AX,
             t::DivRemBinaryOperator::Rem => Register::DX,
         };
-        let (asm_src1, asm_type, _) = self.convert_value(src1);
+        let (asm_src1, asm_type, is_signed) = self.convert_value(src1);
         let (asm_src2, _, _) = self.convert_value(src2);
         let (asm_dst, _, _) = self.convert_value(dst);
 
@@ -333,8 +341,20 @@ impl AsmCodeGenerator {
             src: asm_src1,
             dst: Register::AX.into(),
         };
-        let asm_instr_2 = Instruction::Cdq(asm_type);
-        let asm_instr_3 = Instruction::Idiv(asm_type, asm_src2);
+        let asm_instr_2 = if is_signed {
+            Instruction::Cdq(asm_type)
+        } else {
+            Instruction::Mov {
+                asm_type,
+                src: PreFinalOperand::ImmediateValue(0),
+                dst: Register::DX.into(),
+            }
+        };
+        let asm_instr_3 = if is_signed {
+            Instruction::Idiv(asm_type, asm_src2)
+        } else {
+            Instruction::Div(asm_type, asm_src2)
+        };
         let asm_instr_4 = Instruction::Mov {
             asm_type,
             src: ans_reg.into(),
@@ -350,16 +370,20 @@ impl AsmCodeGenerator {
         use t::ComparisonBinaryOperator as TBOC;
         use ConditionCode as CC;
 
-        let (asm_src1, asm_src_type, _) = self.convert_value(src1);
+        let (asm_src1, asm_src_type, is_signed) = self.convert_value(src1);
         let (asm_src2, _, _) = self.convert_value(src2);
         let (asm_dst, asm_dst_type, _) = self.convert_value(dst);
-        let cmp_0_cc = match t_op {
-            TBOC::Eq => CC::E,
-            TBOC::Neq => CC::Ne,
-            TBOC::Lt => CC::L,
-            TBOC::Lte => CC::Le,
-            TBOC::Gt => CC::G,
-            TBOC::Gte => CC::Ge,
+        let cmp_0_cc = match (t_op, is_signed) {
+            (TBOC::Eq, _) => CC::E,
+            (TBOC::Neq, _) => CC::Ne,
+            (TBOC::Lt, true) => CC::L,
+            (TBOC::Lt, false) => CC::B,
+            (TBOC::Lte, true) => CC::Le,
+            (TBOC::Lte, false) => CC::Be,
+            (TBOC::Gt, true) => CC::G,
+            (TBOC::Gt, false) => CC::A,
+            (TBOC::Gte, true) => CC::Ge,
+            (TBOC::Gte, false) => CC::Ae,
         };
 
         Self::gen_comparison_instrs_from_asm(

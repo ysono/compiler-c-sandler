@@ -40,6 +40,10 @@ pub enum Instruction<Oprnd> {
         src: Oprnd,
         dst: Oprnd,
     },
+    MovZeroExtend {
+        src: Oprnd,
+        dst: Oprnd,
+    },
     Unary(UnaryOperator, AssemblyType, Oprnd),
     Binary {
         op: BinaryOperator,
@@ -53,6 +57,7 @@ pub enum Instruction<Oprnd> {
         tgt: Oprnd, // Semantic LHS, non-modified. Asm operand #2.
     },
     Idiv(AssemblyType, Oprnd),
+    Div(AssemblyType, Oprnd),
     Cdq(AssemblyType),
     Jmp(Rc<LabelIdentifier>),
     JmpCC(ConditionCode, Rc<LabelIdentifier>),
@@ -127,4 +132,8 @@ pub enum ConditionCode {
     Le,
     G,
     Ge,
+    A,
+    Ae,
+    B,
+    Be,
 }
