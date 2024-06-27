@@ -19,9 +19,9 @@ impl Tackifier {
         c::Program { decls: c_decls }: c::Program<TypeCheckedCAst>,
         symbol_table: &mut SymbolTable,
     ) -> Program {
-        let funs = Self::tackify_decls(c_decls, symbol_table);
-
         let static_vars = Self::tackify_static_vars(symbol_table);
+
+        let funs = Self::tackify_decls(c_decls, symbol_table);
 
         Program { static_vars, funs }
     }
