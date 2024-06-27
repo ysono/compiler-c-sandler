@@ -44,7 +44,7 @@ impl IdentResolver {
     pub fn declare_var(
         &mut self,
         ident: Identifier,
-        storage_class: &Option<StorageClassSpecifier>,
+        storage_class: Option<&StorageClassSpecifier>,
     ) -> Result<Rc<ResolvedIdentifier>> {
         let has_linkage = self.is_file_scope()
             || match storage_class {
@@ -91,10 +91,10 @@ impl IdentResolver {
                     resolved_ident.as_ref(),
                     ResolvedIdentifier::SomeLinkage { .. }
                 );
-                if (prev_has_linkage && new_has_linkage) == false {
-                    Err(anyhow!("In one scope, 2+ declarations of a same identifier must all refer to the same object or function, hence must all have some linkage. {resolved_ident:?} vs {new_has_linkage}"))
-                } else {
+                if prev_has_linkage && new_has_linkage {
                     Ok(Rc::clone(resolved_ident))
+                } else {
+                    Err(anyhow!("In one scope, 2+ declarations of a same identifier must all refer to the same object or function, hence must all have some linkage. {resolved_ident:?} vs {new_has_linkage}"))
                 }
             }
         }

@@ -495,21 +495,16 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
                 },
                 Some(Ok(t::Token::Operator(t_op))) => {
                     let c_op_unary = match t_op {
-                        t::Operator::Tilde => Some(UnaryOperator::Complement),
-                        t::Operator::Minus => Some(UnaryOperator::Negate),
-                        t::Operator::Not => Some(UnaryOperator::Not),
-                        _ => None,
+                        t::Operator::Tilde => UnaryOperator::Complement,
+                        t::Operator::Minus => UnaryOperator::Negate,
+                        t::Operator::Not => UnaryOperator::Not,
+                        actual => return Err(anyhow!("{actual:?}")),
                     };
-                    match c_op_unary {
-                        Some(c_op_unary) => {
-                            let exp = self.parse_factor()?;
-                            return Ok(Expression::Unary(Unary {
-                                op: c_op_unary,
-                                sub_exp: Box::new(exp),
-                            }));
-                        }
-                        None => return Err(anyhow!("{t_op:?}")),
-                    }
+                    let exp = self.parse_factor()?;
+                    return Ok(Expression::Unary(Unary {
+                        op: c_op_unary,
+                        sub_exp: Box::new(exp),
+                    }));
                 }
                 Some(Ok(t::Token::Demarcator(t::Demarcator::ParenOpen))) => {
                     match self.maybe_parse_specifiers()? {
