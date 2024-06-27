@@ -180,6 +180,7 @@ impl<'slf, W: Write> AsmCodeEmitter<'slf, W> {
             Instruction::Call(ident) => {
                 write!(&mut self.w, "{TAB}call{TAB}")?;
                 self.write_fun_name(&ident)?;
+                self.write_fun_call_sfx(&ident)?;
                 writeln!(&mut self.w)?;
             }
             Instruction::Ret => {
@@ -278,6 +279,9 @@ impl<'slf, W: Write> AsmCodeEmitter<'slf, W> {
 
         write!(&mut self.w, "{IDENT_PFX}{ident}")?;
 
+        Ok(())
+    }
+    fn write_fun_call_sfx(&mut self, ident: &ResolvedIdentifier) -> Result<(), io::Error> {
         if cfg!(target_os = "linux") {
             match self.backend_symbol_table.get(ident).unwrap() {
                 AsmEntry::Obj { .. } => { /* No-op. */ }
@@ -290,7 +294,6 @@ impl<'slf, W: Write> AsmCodeEmitter<'slf, W> {
                 }
             }
         }
-
         Ok(())
     }
     fn write_static_var(
