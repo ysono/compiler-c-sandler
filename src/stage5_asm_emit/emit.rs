@@ -45,21 +45,16 @@ impl<'slf, W: Write> AsmCodeEmitter<'slf, W> {
         self.w.flush()?;
         Ok(())
     }
+
+    /* Function */
+
     fn write_fun(
         &mut self,
         Function { ident, visibility, instrs }: Function,
     ) -> Result<(), io::Error> {
-        match visibility {
-            StaticVisibility::Global => {
-                write!(&mut self.w, "{TAB}.globl{TAB}")?;
-                self.write_fun_name(&ident)?;
-                writeln!(&mut self.w)?;
-            }
-            StaticVisibility::NonGlobal => { /* No-op. */ }
-        }
+        self.write_identifier_visibility(&ident, &visibility)?;
         writeln!(&mut self.w, "{TAB}.text")?;
-        self.write_fun_name(&ident)?;
-        writeln!(&mut self.w, ":")?;
+        self.write_identifier_label(&ident)?;
         writeln!(&mut self.w, "{TAB}pushq{TAB}%rbp")?;
         writeln!(&mut self.w, "{TAB}movq{TAB}%rsp, %rbp")?;
         for instr in instrs {
@@ -179,7 +174,7 @@ impl<'slf, W: Write> AsmCodeEmitter<'slf, W> {
             }
             Instruction::Call(ident) => {
                 write!(&mut self.w, "{TAB}call{TAB}")?;
-                self.write_fun_name(&ident)?;
+                self.write_identifier(&ident)?;
                 self.write_fun_call_sfx(&ident)?;
                 writeln!(&mut self.w)?;
             }
@@ -254,7 +249,8 @@ impl<'slf, W: Write> AsmCodeEmitter<'slf, W> {
                 write!(&mut self.w, "{}(%rbp)", *stkpos)?;
             }
             Operand::Data(ident) => {
-                write!(&mut self.w, "{ident}(%rip)")?;
+                self.write_identifier(&ident)?;
+                write!(&mut self.w, "(%rip)")?;
             }
         }
         Ok(())
@@ -274,13 +270,6 @@ impl<'slf, W: Write> AsmCodeEmitter<'slf, W> {
 
         Ok(())
     }
-    fn write_fun_name(&mut self, ident: &ResolvedIdentifier) -> Result<(), io::Error> {
-        const IDENT_PFX: &str = if cfg!(target_os = "macos") { "_" } else { "" };
-
-        write!(&mut self.w, "{IDENT_PFX}{ident}")?;
-
-        Ok(())
-    }
     fn write_fun_call_sfx(&mut self, ident: &ResolvedIdentifier) -> Result<(), io::Error> {
         if cfg!(target_os = "linux") {
             match self.backend_symbol_table.get(ident).unwrap() {
@@ -296,6 +285,9 @@ impl<'slf, W: Write> AsmCodeEmitter<'slf, W> {
         }
         Ok(())
     }
+
+    /* Static variable */
+
     fn write_static_var(
         &mut self,
         StaticVariable {
@@ -305,8 +297,6 @@ impl<'slf, W: Write> AsmCodeEmitter<'slf, W> {
             init,
         }: StaticVariable,
     ) -> Result<(), io::Error> {
-        const IDENT_PFX: &str = if cfg!(target_os = "macos") { "_" } else { "" };
-
         let section = match init {
             Const::Int(0) | Const::Long(0) | Const::UInt(0) | Const::ULong(0) => ".bss",
             Const::Int(_) | Const::Long(_) | Const::UInt(_) | Const::ULong(_) => ".data",
@@ -316,15 +306,10 @@ impl<'slf, W: Write> AsmCodeEmitter<'slf, W> {
 
         /* Begin emission. */
 
-        match visibility {
-            StaticVisibility::Global => {
-                writeln!(&mut self.w, "{TAB}.globl{TAB}{IDENT_PFX}{ident}")?;
-            }
-            StaticVisibility::NonGlobal => { /* No-op. */ }
-        }
+        self.write_identifier_visibility(&ident, &visibility)?;
         writeln!(&mut self.w, "{TAB}{section}")?;
         writeln!(&mut self.w, "{TAB}.balign {alignment}")?;
-        writeln!(&mut self.w, "{IDENT_PFX}{ident}:")?;
+        self.write_identifier_label(&ident)?;
         match init {
             Const::Int(0) | Const::UInt(0) | Const::Long(0) | Const::ULong(0) => {
                 writeln!(&mut self.w, "{TAB}.zero {bytelen}")?;
@@ -343,5 +328,32 @@ impl<'slf, W: Write> AsmCodeEmitter<'slf, W> {
             }
         };
         Ok(())
+    }
+
+    /* Identifier of static var or function (not `LabelIdentifier`) */
+
+    fn write_identifier_visibility(
+        &mut self,
+        ident: &ResolvedIdentifier,
+        visibility: &StaticVisibility,
+    ) -> Result<(), io::Error> {
+        match visibility {
+            StaticVisibility::Global => {
+                write!(&mut self.w, "{TAB}.globl{TAB}")?;
+                self.write_identifier(ident)?;
+                writeln!(&mut self.w)?;
+            }
+            StaticVisibility::NonGlobal => { /* No-op. */ }
+        }
+        Ok(())
+    }
+    fn write_identifier_label(&mut self, ident: &ResolvedIdentifier) -> Result<(), io::Error> {
+        self.write_identifier(ident)?;
+        writeln!(&mut self.w, ":")?;
+        Ok(())
+    }
+    fn write_identifier(&mut self, ident: &ResolvedIdentifier) -> Result<(), io::Error> {
+        const IDENT_PFX: &str = if cfg!(target_os = "macos") { "_" } else { "" };
+        write!(&mut self.w, "{IDENT_PFX}{ident}")
     }
 }
