@@ -36,7 +36,7 @@ e   |   0x???0 -+ For one function call at a time: maybe padding; outgoing args.
     1. Uses local variables within the allocated stack frame.
         Emitted by [`crate::stage4_asm_gen::phase1_generate::InstrsGenerator::convert_fun()`],
         using all the various emitters in [`crate::stage4_asm_gen`], and
-        converting abstract variables to on-stack positions at [`crate::stage4_asm_gen::phase2_finalize::InstrsFinalizer::var_to_stack_pos()`].
+        converting abstract variables to on-stack positions at [`crate::stage4_asm_gen::phase2_finalize::var_to_stack_pos::VarToStackPos::var_to_stack_pos()`].
     + RSP points to "d", and is guaranteed to be 16-byte aligned.
 1. Whenever the current function calls another function,
     1. The current function must save any caller-saved registers that the current function will need to read after the callee returns.

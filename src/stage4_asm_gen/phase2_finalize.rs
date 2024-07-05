@@ -1,10 +1,12 @@
+pub mod var_to_stack_pos;
+
+use self::var_to_stack_pos::VarToStackPos;
 use crate::{
     stage4_asm_gen::{asm_ast::*, phase1_generate::GeneratedAsmAst, phase3_fix::OperandFixer},
     symbol_table_backend::{AsmEntry, BackendSymbolTable, StorageDuration},
-    symbol_table_frontend::ResolvedIdentifier,
-    types_backend::{Alignment, AssemblyType, OperandByteLen},
+    types_backend::AssemblyType,
 };
-use std::collections::{HashMap, VecDeque};
+use std::collections::VecDeque;
 use std::rc::Rc;
 
 #[derive(Debug)]
@@ -17,15 +19,13 @@ impl AsmAstVariant for FinalizedAsmAst {
 pub struct InstrsFinalizer {
     backend_symtab: Rc<BackendSymbolTable>,
 
-    last_used_stack_pos: StackPosition,
-    var_to_stack_pos: HashMap<Rc<ResolvedIdentifier>, StackPosition>,
+    var_to_stack_pos: VarToStackPos,
 }
 impl InstrsFinalizer {
     pub fn new(backend_symtab: Rc<BackendSymbolTable>) -> Self {
         Self {
             backend_symtab,
-            last_used_stack_pos: StackPosition(0),
-            var_to_stack_pos: HashMap::new(),
+            var_to_stack_pos: VarToStackPos::default(),
         }
     }
 
@@ -56,7 +56,7 @@ impl InstrsFinalizer {
         out_instrs.extend(instrs);
 
         /* We must read `self.last_used_stack_pos` strictly after the iterator of `Instruction`s has been completely traversed. */
-        let mut stack_frame_bytelen = self.last_used_stack_pos.0 * -1;
+        let mut stack_frame_bytelen = self.var_to_stack_pos.last_used_stack_pos().0 * -1;
         let rem = stack_frame_bytelen % 16;
         if rem != 0 {
             stack_frame_bytelen += 16 - rem;
@@ -138,7 +138,10 @@ impl InstrsFinalizer {
             PFO::Pseudo(ident) => match self.backend_symtab.get(&ident) {
                 None => panic!("All pseudos are expected to have been added to the symbol table."),
                 Some(AsmEntry::Obj { asm_type, storage_duration }) => match storage_duration {
-                    StorageDuration::Automatic => self.var_to_stack_pos(ident, *asm_type).into(),
+                    StorageDuration::Automatic => self
+                        .var_to_stack_pos
+                        .var_to_stack_pos(ident, *asm_type)
+                        .into(),
                     StorageDuration::Static => Operand::Data(ident),
                 },
                 Some(AsmEntry::Fun { .. }) => {
@@ -146,24 +149,5 @@ impl InstrsFinalizer {
                 }
             },
         }
-    }
-    fn var_to_stack_pos(
-        &mut self,
-        ident: Rc<ResolvedIdentifier>,
-        asm_type: AssemblyType,
-    ) -> StackPosition {
-        let pos = self.var_to_stack_pos.entry(ident).or_insert_with(|| {
-            let alloc = OperandByteLen::from(asm_type) as i64;
-            self.last_used_stack_pos.0 -= alloc;
-
-            let alignment = Alignment::from(asm_type) as i64;
-            let rem = self.last_used_stack_pos.0 % alignment;
-            if rem != 0 {
-                self.last_used_stack_pos.0 -= alignment + rem;
-            }
-
-            self.last_used_stack_pos
-        });
-        *pos
     }
 }
