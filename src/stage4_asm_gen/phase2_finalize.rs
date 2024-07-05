@@ -44,16 +44,7 @@ impl InstrsFinalizer {
     ) -> VecDeque<Instruction<FinalizedAsmAst>> {
         let instrs = self.convert_operands(in_instrs);
         let instrs = OperandFixer::fix_invalid_operands(instrs);
-
-        let dummy_alloc_stack_instr = Instruction::Binary {
-            op: BinaryOperator::Sub,
-            asm_type: AssemblyType::Quadword,
-            tgt: Register::SP.into(),
-            arg: Operand::ImmediateValue(0),
-        };
-        let mut out_instrs = VecDeque::from([dummy_alloc_stack_instr]);
-
-        out_instrs.extend(instrs);
+        let mut out_instrs = instrs.collect::<VecDeque<_>>();
 
         /* We must read `self.last_used_stack_pos` strictly after the iterator of `Instruction`s has been completely traversed. */
         let mut stack_frame_bytelen = self.var_to_stack_pos.last_used_stack_pos().0 * -1;
@@ -62,10 +53,13 @@ impl InstrsFinalizer {
             stack_frame_bytelen += 16 - rem;
         }
 
-        if stack_frame_bytelen == 0 {
-            out_instrs.pop_front();
-        } else if let Instruction::Binary { arg, .. } = &mut out_instrs[0] {
-            *arg = Operand::ImmediateValue(stack_frame_bytelen as u64);
+        if stack_frame_bytelen > 0 {
+            out_instrs.push_front(Instruction::Binary {
+                op: BinaryOperator::Sub,
+                asm_type: AssemblyType::Quadword,
+                tgt: Register::SP.into(),
+                arg: Operand::ImmediateValue(stack_frame_bytelen as u64),
+            });
         }
 
         out_instrs
