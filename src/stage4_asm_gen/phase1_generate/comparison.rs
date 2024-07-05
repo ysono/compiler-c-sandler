@@ -16,8 +16,8 @@ impl<'slf> InstrsGenerator<'slf> {
         let cc = match t_op {
             t::ComparisonUnaryOperator::Not => ConditionCode::E,
         };
-        let (src, src_asm_type, _) = self.convert_value(src);
-        let (dst, dst_asm_type, _) = self.convert_value(dst);
+        let (src, _, src_asm_type) = self.convert_value(src);
+        let (dst, _, dst_asm_type) = self.convert_value(dst);
 
         let mut asm_instrs = vec![Self::gen_cmp_vs_zero(src, src_asm_type)];
         asm_instrs.extend(Self::gen_setcc(cc, dst, dst_asm_type));
@@ -32,10 +32,10 @@ impl<'slf> InstrsGenerator<'slf> {
         use t::ComparisonBinaryOperator as TBOC;
         use ConditionCode as CC;
 
-        let (src1, src_asm_type, is_signed) = self.convert_value(src1);
+        let (src1, src_var_type, src_asm_type) = self.convert_value(src1);
         let (src2, _, _) = self.convert_value(src2);
-        let (dst, dst_asm_type, _) = self.convert_value(dst);
-        let cc = match (t_op, is_signed) {
+        let (dst, _, dst_asm_type) = self.convert_value(dst);
+        let cc = match (t_op, src_var_type.is_signed()) {
             (TBOC::Eq, _) => CC::E,
             (TBOC::Neq, _) => CC::Ne,
             (TBOC::Lt, true) => CC::L,
@@ -61,7 +61,7 @@ impl<'slf> InstrsGenerator<'slf> {
         &self,
         t::JumpIf { condition, jump_crit, lbl }: t::JumpIf,
     ) -> Vec<Instruction<GeneratedAsmAst>> {
-        let (condition, asm_type, _) = self.convert_value(condition);
+        let (condition, _, asm_type) = self.convert_value(condition);
 
         let cc = match jump_crit {
             t::JumpCriterion::JumpIfZero => ConditionCode::E,

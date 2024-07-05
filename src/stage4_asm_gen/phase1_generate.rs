@@ -5,7 +5,7 @@ mod txform;
 
 use crate::{
     stage3_tacky::tacky_ast as t, stage4_asm_gen::asm_ast::*, symbol_table_frontend::SymbolTable,
-    types_backend::AssemblyType,
+    types_backend::AssemblyType, types_frontend::VarType,
 };
 
 #[derive(Debug)]
@@ -51,7 +51,7 @@ impl<'slf> InstrsGenerator<'slf> {
     /* Tacky Return */
 
     fn gen_return_instrs(&self, t_val: t::ReadableValue) -> Vec<Instruction<GeneratedAsmAst>> {
-        let (src, asm_type, _) = self.convert_value(t_val);
+        let (src, _, asm_type) = self.convert_value(t_val);
         let asm_instr_1 = Instruction::Mov {
             asm_type,
             src,
@@ -69,7 +69,7 @@ impl<'slf> InstrsGenerator<'slf> {
         &self,
         t::SrcDst { src, dst }: t::SrcDst,
     ) -> Vec<Instruction<GeneratedAsmAst>> {
-        let (src, asm_type, _) = self.convert_value(src);
+        let (src, _, asm_type) = self.convert_value(src);
         let (dst, _, _) = self.convert_value(dst);
         vec![Instruction::Mov { asm_type, src, dst }]
     }
@@ -79,26 +79,30 @@ impl<'slf> InstrsGenerator<'slf> {
     fn convert_value<V: Into<t::ReadableValue>>(
         &self,
         t_val: V,
-    ) -> (PreFinalOperand, AssemblyType, bool) {
-        match t_val.into() {
+    ) -> (PreFinalOperand, VarType, AssemblyType) {
+        let t_val = t_val.into();
+        let (var_type, asm_type) = self.convert_value_to_type_info(&t_val);
+        let operand = Self::convert_value_to_operand(t_val);
+        (operand, var_type, asm_type)
+    }
+    fn convert_value_to_type_info(&self, t_val: &t::ReadableValue) -> (VarType, AssemblyType) {
+        match t_val {
             t::ReadableValue::Constant(konst) => {
-                let operand = PreFinalOperand::ImmediateValue(konst.as_raw());
-
                 let var_type = konst.var_type();
                 let asm_type = AssemblyType::from(var_type);
-                let is_signed = var_type.is_signed();
-
-                (operand, asm_type, is_signed)
+                (var_type, asm_type)
             }
             t::ReadableValue::Variable(ident) => {
-                let var_type = self.frontend_symtab.use_var(&ident).unwrap();
+                let var_type = self.frontend_symtab.use_var(ident).unwrap();
                 let asm_type = AssemblyType::from(var_type);
-                let is_signed = var_type.is_signed();
-
-                let operand = PreFinalOperand::Pseudo(ident);
-
-                (operand, asm_type, is_signed)
+                (var_type, asm_type)
             }
+        }
+    }
+    fn convert_value_to_operand(t_val: t::ReadableValue) -> PreFinalOperand {
+        match t_val {
+            t::ReadableValue::Constant(konst) => PreFinalOperand::ImmediateValue(konst.as_raw()),
+            t::ReadableValue::Variable(ident) => PreFinalOperand::Pseudo(ident),
         }
     }
 }

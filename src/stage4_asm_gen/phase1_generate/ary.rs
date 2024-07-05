@@ -24,7 +24,7 @@ impl<'slf> InstrsGenerator<'slf> {
             t::NumericUnaryOperator::Complement => UnaryOperator::BitwiseComplement,
             t::NumericUnaryOperator::Negate => UnaryOperator::TwosComplement,
         };
-        let (asm_src, asm_type, _) = self.convert_value(src);
+        let (asm_src, _, asm_type) = self.convert_value(src);
         let (asm_dst, _, _) = self.convert_value(dst);
 
         let asm_instr_1 = Instruction::Mov {
@@ -60,7 +60,7 @@ impl<'slf> InstrsGenerator<'slf> {
             t::ArithmeticBinaryOperator::Add => BinaryOperator::Add,
             t::ArithmeticBinaryOperator::Mul => BinaryOperator::Mul,
         };
-        let (asm_src1, asm_type, _) = self.convert_value(src1);
+        let (asm_src1, _, asm_type) = self.convert_value(src1);
         let (asm_src2, _, _) = self.convert_value(src2);
         let (asm_dst, _, _) = self.convert_value(dst);
 
@@ -86,7 +86,7 @@ impl<'slf> InstrsGenerator<'slf> {
             t::DivRemBinaryOperator::Div => Register::AX,
             t::DivRemBinaryOperator::Rem => Register::DX,
         };
-        let (asm_src1, asm_type, is_signed) = self.convert_value(src1);
+        let (asm_src1, var_type, asm_type) = self.convert_value(src1);
         let (asm_src2, _, _) = self.convert_value(src2);
         let (asm_dst, _, _) = self.convert_value(dst);
 
@@ -95,7 +95,7 @@ impl<'slf> InstrsGenerator<'slf> {
             src: asm_src1,
             dst: Register::AX.into(),
         };
-        let asm_instr_2 = if is_signed {
+        let asm_instr_2 = if var_type.is_signed() {
             Instruction::Cdq(asm_type)
         } else {
             Instruction::Mov {
@@ -104,7 +104,7 @@ impl<'slf> InstrsGenerator<'slf> {
                 dst: Register::DX.into(),
             }
         };
-        let asm_instr_3 = if is_signed {
+        let asm_instr_3 = if var_type.is_signed() {
             Instruction::Idiv(asm_type, asm_src2)
         } else {
             Instruction::Div(asm_type, asm_src2)

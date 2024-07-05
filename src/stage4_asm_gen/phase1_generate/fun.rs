@@ -39,7 +39,7 @@ impl<'slf> InstrsGenerator<'slf> {
                         PreFinalOperand::StackPosition(extra_arg_stack_pos)
                     }
                 };
-                let (dst, asm_type, _) = self.convert_value(param_ident);
+                let (dst, _, asm_type) = self.convert_value(param_ident);
                 Instruction::Mov { asm_type, src, dst }
             })
             .collect::<Vec<_>>();
@@ -74,7 +74,7 @@ impl<'slf> InstrsGenerator<'slf> {
         }
 
         for (i, arg_val) in args.into_iter().enumerate().rev() {
-            let (arg_operand, arg_asm_type, _) = self.convert_value(arg_val);
+            let (arg_operand, _, arg_asm_type) = self.convert_value(arg_val);
             match Self::ARG_REGS.get(i) {
                 None => match (&arg_operand, arg_asm_type) {
                     (PreFinalOperand::ImmediateValue(_) | PreFinalOperand::Register(_), _)
@@ -117,7 +117,7 @@ impl<'slf> InstrsGenerator<'slf> {
             });
         }
 
-        let (dst, dst_type, _) = self.convert_value(dst);
+        let (dst, _, dst_type) = self.convert_value(dst);
         asm_instrs.push(Instruction::Mov {
             asm_type: dst_type,
             src: Register::AX.into(),
