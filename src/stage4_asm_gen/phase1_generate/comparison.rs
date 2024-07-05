@@ -10,8 +10,12 @@ use crate::{
 impl<'slf> InstrsGenerator<'slf> {
     pub(super) fn gen_unary_comparison_instrs(
         &self,
+        t_op: t::ComparisonUnaryOperator,
         t::Unary { op: _, src, dst }: t::Unary,
     ) -> Vec<Instruction<GeneratedAsmAst>> {
+        let cc = match t_op {
+            t::ComparisonUnaryOperator::Not => ConditionCode::E,
+        };
         let (asm_src, asm_src_type, _) = self.convert_value(src);
         let (asm_dst, asm_dst_type, _) = self.convert_value(dst);
 
@@ -19,7 +23,7 @@ impl<'slf> InstrsGenerator<'slf> {
             asm_src_type,
             asm_src,
             PreFinalOperand::ImmediateValue(0),
-            ConditionCode::E,
+            cc,
             asm_dst_type,
             asm_dst,
         )

@@ -89,10 +89,19 @@ mod instruction {
 
 #[derive(Debug)]
 pub enum UnaryOperator {
-    /* -> int */
+    Numeric(NumericUnaryOperator),
+    Comparison(ComparisonUnaryOperator),
+}
+#[derive(Clone, Copy, Debug)]
+pub enum NumericUnaryOperator {
+    /* integer -> integer */
     Complement,
+    /* integer -> integer or floating-pt -> floating-pt */
     Negate,
-    /* -> bool */
+}
+#[derive(Clone, Copy, Debug)]
+pub enum ComparisonUnaryOperator {
+    /* integer or floating-pt -> bool */
     Not,
 }
 

@@ -10,21 +10,20 @@ impl<'slf> InstrsGenerator<'slf> {
     /* Tacky Unary */
 
     pub(super) fn gen_unary_instrs(&self, t_unary: t::Unary) -> Vec<Instruction<GeneratedAsmAst>> {
-        use t::UnaryOperator as TUO;
-
-        match t_unary.op {
-            TUO::Complement => {
-                self.gen_unary_numeric_instrs(UnaryOperator::BitwiseComplement, t_unary)
-            }
-            TUO::Negate => self.gen_unary_numeric_instrs(UnaryOperator::TwosComplement, t_unary),
-            TUO::Not => self.gen_unary_comparison_instrs(t_unary),
+        match &t_unary.op {
+            t::UnaryOperator::Numeric(op) => self.gen_unary_numeric_instrs(*op, t_unary),
+            t::UnaryOperator::Comparison(op) => self.gen_unary_comparison_instrs(*op, t_unary),
         }
     }
     fn gen_unary_numeric_instrs(
         &self,
-        asm_op: UnaryOperator,
+        t_op: t::NumericUnaryOperator,
         t::Unary { op: _, src, dst }: t::Unary,
     ) -> Vec<Instruction<GeneratedAsmAst>> {
+        let asm_op = match t_op {
+            t::NumericUnaryOperator::Complement => UnaryOperator::BitwiseComplement,
+            t::NumericUnaryOperator::Negate => UnaryOperator::TwosComplement,
+        };
         let (asm_src, asm_type, _) = self.convert_value(src);
         let (asm_dst, _, _) = self.convert_value(dst);
 

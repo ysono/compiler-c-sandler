@@ -15,10 +15,13 @@ pub enum ShortCircuitBOT {
 
 pub fn convert_op_unary(c_unary_op: c::UnaryOperator) -> UnaryOperator {
     use c::UnaryOperator as CUO;
+    use ComparisonUnaryOperator as TCUO;
+    use NumericUnaryOperator as TNUO;
+    use UnaryOperator as TUO;
     match c_unary_op {
-        CUO::Complement => UnaryOperator::Complement,
-        CUO::Negate => UnaryOperator::Negate,
-        CUO::Not => UnaryOperator::Not,
+        CUO::Complement => TUO::Numeric(TNUO::Complement),
+        CUO::Negate => TUO::Numeric(TNUO::Negate),
+        CUO::Not => TUO::Comparison(TCUO::Not),
     }
 }
 pub fn convert_op_binary(c_binary_op: &c::BinaryOperator) -> BinaryOperatorType {
