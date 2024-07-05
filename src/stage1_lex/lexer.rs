@@ -62,6 +62,79 @@ impl<R: Read + BufRead> Lexer<R> {
     }
 
     fn sfx_to_token(&self, sfx: &str) -> Result<(usize, Token)> {
+        let byte0 = sfx.as_bytes()[0];
+        if byte0.is_ascii_alphabetic() {
+            self.alpha_sfx_to_token(sfx)
+        } else if byte0.is_ascii_digit() {
+            self.digit_sfx_to_token(sfx)
+        } else {
+            self.nonalphanum_sfx_to_token(sfx)
+        }
+    }
+
+    fn alpha_sfx_to_token(&self, sfx: &str) -> Result<(usize, Token)> {
+        if let Some(mach) = self.matchers.wordlike.find(sfx) {
+            #[rustfmt::skip]
+            let token = match mach.as_str() {
+                "return" => Keyword::Return.into(),
+                "void"     => Type::Void.into(),
+                "int"      => Type::Int.into(),
+                "long"     => Type::Long.into(),
+                "signed"   => Type::Signed.into(),
+                "unsigned" => Type::Unsigned.into(),
+                "static" => StorageClassSpecifier::Static.into(),
+                "extern" => StorageClassSpecifier::Extern.into(),
+                "if"     => Control::If.into(),
+                "else"   => Control::Else.into(),
+                "do"       => Loop::Do.into(),
+                "while"    => Loop::While.into(),
+                "for"      => Loop::For.into(),
+                "break"    => Loop::Break.into(),
+                "continue" => Loop::Continue.into(),
+                s => Identifier(String::from(s)).into(),
+            };
+            return Ok((mach.len(), token));
+        }
+        return Err(anyhow!("{sfx}"));
+    }
+
+    fn digit_sfx_to_token(&self, sfx: &str) -> Result<(usize, Token)> {
+        if let Some(caps) = self.matchers.decimals.captures(sfx) {
+            let (literal, [digits, type_marker]) = caps.extract();
+
+            let mut markers = Vec::with_capacity(2);
+            markers.extend(
+                type_marker
+                    .as_bytes()
+                    .iter()
+                    .take(2)
+                    .map(|b| b.to_ascii_lowercase()),
+            );
+
+            let konst = match &markers[..] {
+                b"ul" | b"lu" => digits.parse::<u64>().map(Const::ULong)?,
+                b"l" => digits.parse::<i64>().map(Const::Long)?,
+                b"u" => {
+                    let i_wide = digits.parse::<u64>()?;
+                    u32::try_from(i_wide)
+                        .map(Const::UInt)
+                        .unwrap_or_else(|_| Const::ULong(i_wide))
+                }
+                b"" => {
+                    let i_wide = digits.parse::<i64>()?;
+                    i32::try_from(i_wide)
+                        .map(Const::Int)
+                        .unwrap_or_else(|_| Const::Long(i_wide))
+                }
+                actual => return Err(anyhow!("{actual:?}")),
+            };
+
+            return Ok((literal.len(), konst.into()));
+        }
+        return Err(anyhow!("{sfx}"));
+    }
+
+    fn nonalphanum_sfx_to_token(&self, sfx: &str) -> Result<(usize, Token)> {
         let sfx_bytes = sfx.as_bytes();
         match sfx_bytes[0] {
             b'(' => Ok((1, Demarcator::ParenOpen.into())),
@@ -73,9 +146,9 @@ impl<R: Read + BufRead> Lexer<R> {
             b'~' => Ok((1, Operator::Tilde.into())),
             b'?' => Ok((1, Operator::Question.into())),
             b':' => Ok((1, Operator::Colon.into())),
-            b if b.is_ascii_alphanumeric() == false => {
+            byte0 => {
                 let mut match_len = 1;
-                while (match_len < sfx_bytes.len()) && (sfx_bytes[match_len] == b) {
+                while (match_len < sfx_bytes.len()) && (sfx_bytes[match_len] == byte0) {
                     match_len += 1;
                 }
                 while (match_len < sfx_bytes.len()) && (sfx_bytes[match_len] == b'=') {
@@ -102,66 +175,6 @@ impl<R: Read + BufRead> Lexer<R> {
                     _ => return Err(anyhow!("{sfx}")),
                 };
                 return Ok((match_len, token));
-            }
-            b if b.is_ascii_digit() => {
-                if let Some(caps) = self.matchers.decimals.captures(sfx) {
-                    let (literal, [digits, type_marker]) = caps.extract();
-
-                    let mut markers = Vec::with_capacity(2);
-                    markers.extend(
-                        type_marker
-                            .as_bytes()
-                            .iter()
-                            .take(2)
-                            .map(|b| b.to_ascii_lowercase()),
-                    );
-
-                    let konst = match &markers[..] {
-                        b"ul" | b"lu" => digits.parse::<u64>().map(Const::ULong)?,
-                        b"l" => digits.parse::<i64>().map(Const::Long)?,
-                        b"u" => {
-                            let i_wide = digits.parse::<u64>()?;
-                            u32::try_from(i_wide)
-                                .map(Const::UInt)
-                                .unwrap_or_else(|_| Const::ULong(i_wide))
-                        }
-                        b"" => {
-                            let i_wide = digits.parse::<i64>()?;
-                            i32::try_from(i_wide)
-                                .map(Const::Int)
-                                .unwrap_or_else(|_| Const::Long(i_wide))
-                        }
-                        actual => return Err(anyhow!("{actual:?}")),
-                    };
-
-                    return Ok((literal.len(), konst.into()));
-                }
-                return Err(anyhow!("{sfx}"));
-            }
-            _ => {
-                if let Some(mach) = self.matchers.wordlike.find(sfx) {
-                    #[rustfmt::skip]
-                    let token = match mach.as_str() {
-                        "return" => Keyword::Return.into(),
-                        "void"     => Type::Void.into(),
-                        "int"      => Type::Int.into(),
-                        "long"     => Type::Long.into(),
-                        "signed"   => Type::Signed.into(),
-                        "unsigned" => Type::Unsigned.into(),
-                        "static" => StorageClassSpecifier::Static.into(),
-                        "extern" => StorageClassSpecifier::Extern.into(),
-                        "if"     => Control::If.into(),
-                        "else"   => Control::Else.into(),
-                        "do"       => Loop::Do.into(),
-                        "while"    => Loop::While.into(),
-                        "for"      => Loop::For.into(),
-                        "break"    => Loop::Break.into(),
-                        "continue" => Loop::Continue.into(),
-                        s => Identifier(String::from(s)).into(),
-                    };
-                    return Ok((mach.len(), token));
-                }
-                return Err(anyhow!("{sfx}"));
             }
         }
     }
