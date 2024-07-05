@@ -1,5 +1,6 @@
 use crate::{
-    symbol_table_frontend::{ResolvedIdentifier, Symbol, SymbolTable, VarAttrs},
+    identifier::UniqueIdentifier,
+    symbol_table_frontend::{Symbol, SymbolTable, VarAttrs},
     types_backend::AssemblyType,
 };
 use derive_more::Deref;
@@ -23,7 +24,7 @@ pub enum StorageDuration {
 
 #[derive(Deref)]
 pub struct BackendSymbolTable {
-    symbol_table: HashMap<Rc<ResolvedIdentifier>, AsmEntry>,
+    symbol_table: HashMap<Rc<UniqueIdentifier>, AsmEntry>,
 }
 impl From<SymbolTable> for BackendSymbolTable {
     fn from(c_table: SymbolTable) -> Self {

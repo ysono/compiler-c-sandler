@@ -1,12 +1,11 @@
 pub use self::instruction::*;
 use crate::{
-    symbol_table_frontend::{ResolvedIdentifier, StaticVisibility},
+    identifier::UniqueIdentifier,
+    symbol_table_frontend::StaticVisibility,
     types_frontend::{Const, VarType},
 };
-use derive_more::From;
-use getset::Getters;
+use derive_more::{Deref, From};
 use std::rc::Rc;
-use std::sync::atomic::{AtomicUsize, Ordering};
 
 #[derive(Debug)]
 pub struct Program {
@@ -16,7 +15,7 @@ pub struct Program {
 
 #[derive(Debug)]
 pub struct StaticVariable {
-    pub ident: Rc<ResolvedIdentifier>,
+    pub ident: Rc<UniqueIdentifier>,
     pub visibility: StaticVisibility,
     pub typ: VarType,
     pub init: Const,
@@ -24,9 +23,9 @@ pub struct StaticVariable {
 
 #[derive(Debug)]
 pub struct Function {
-    pub ident: Rc<ResolvedIdentifier>,
+    pub ident: Rc<UniqueIdentifier>,
     pub visibility: StaticVisibility,
-    pub param_idents: Vec<Rc<ResolvedIdentifier>>,
+    pub param_idents: Vec<Rc<UniqueIdentifier>>,
     pub instrs: Vec<Instruction>,
 }
 
@@ -54,14 +53,14 @@ mod instruction {
     #[derive(Debug)]
     pub struct SrcDst {
         pub src: ReadableValue,
-        pub dst: Rc<ResolvedIdentifier>,
+        pub dst: Rc<UniqueIdentifier>,
     }
 
     #[derive(Debug)]
     pub struct Unary {
         pub op: UnaryOperator,
         pub src: ReadableValue,
-        pub dst: Rc<ResolvedIdentifier>,
+        pub dst: Rc<UniqueIdentifier>,
     }
 
     #[derive(Debug)]
@@ -69,7 +68,7 @@ mod instruction {
         pub op: BinaryOperator,
         pub src1: ReadableValue,
         pub src2: ReadableValue,
-        pub dst: Rc<ResolvedIdentifier>,
+        pub dst: Rc<UniqueIdentifier>,
     }
 
     #[derive(Debug)]
@@ -86,9 +85,9 @@ mod instruction {
 
     #[derive(Debug)]
     pub struct FunCall {
-        pub ident: Rc<ResolvedIdentifier>,
+        pub ident: Rc<UniqueIdentifier>,
         pub args: Vec<ReadableValue>,
-        pub dst: Rc<ResolvedIdentifier>,
+        pub dst: Rc<UniqueIdentifier>,
     }
 }
 
@@ -140,19 +139,14 @@ pub enum ComparisonBinaryOperator {
 #[derive(From, Debug)]
 pub enum ReadableValue {
     Constant(Const),
-    Variable(Rc<ResolvedIdentifier>),
+    Variable(Rc<UniqueIdentifier>),
 }
 
-#[derive(Getters, Debug)]
-#[getset(get = "pub")]
-pub struct LabelIdentifier {
-    id: usize,
-    name: String,
-}
+#[derive(Deref, Debug)]
+pub struct LabelIdentifier(UniqueIdentifier);
 impl LabelIdentifier {
-    pub(super) fn new(name: String) -> Self {
-        static NEXT_ID: AtomicUsize = AtomicUsize::new(0);
-        let curr_id = NEXT_ID.fetch_add(1, Ordering::SeqCst);
-        Self { id: curr_id, name }
+    pub fn new(descr: String) -> Self {
+        let ident = UniqueIdentifier::new_generated(Some(descr));
+        Self(ident)
     }
 }

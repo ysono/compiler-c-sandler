@@ -1,6 +1,7 @@
 pub use crate::stage3_tacky::tacky_ast::LabelIdentifier;
 use crate::{
-    symbol_table_frontend::{ResolvedIdentifier, StaticVisibility},
+    identifier::UniqueIdentifier,
+    symbol_table_frontend::StaticVisibility,
     types_backend::{Alignment, AssemblyType},
     types_frontend::Const,
 };
@@ -21,7 +22,7 @@ pub struct Program<T: AsmAstVariant> {
 
 #[derive(Debug)]
 pub struct StaticVariable {
-    pub ident: Rc<ResolvedIdentifier>,
+    pub ident: Rc<UniqueIdentifier>,
     pub visibility: StaticVisibility,
     pub alignment: Alignment,
     pub init: Const,
@@ -29,7 +30,7 @@ pub struct StaticVariable {
 
 #[derive(Debug)]
 pub struct Function<T: AsmAstVariant> {
-    pub ident: Rc<ResolvedIdentifier>,
+    pub ident: Rc<UniqueIdentifier>,
     pub visibility: StaticVisibility,
     pub instrs: T::Instructions,
 }
@@ -69,7 +70,7 @@ pub enum Instruction<T: AsmAstVariant> {
     SetCC(ConditionCode, T::Operand),
     Label(Rc<LabelIdentifier>),
     Push(T::Operand),
-    Call(Rc<ResolvedIdentifier>),
+    Call(Rc<UniqueIdentifier>),
     Ret,
 }
 
@@ -91,7 +92,7 @@ pub enum PreFinalOperand {
     ImmediateValue(i64),
     Register(Register),
     StackPosition(StackPosition),
-    Pseudo(Rc<ResolvedIdentifier>),
+    Pseudo(Rc<UniqueIdentifier>),
 }
 
 #[derive(From, Clone, Debug)]
@@ -99,7 +100,7 @@ pub enum Operand {
     ImmediateValue(i64),
     Register(Register),
     StackPosition(StackPosition),
-    Data(Rc<ResolvedIdentifier>),
+    Data(Rc<UniqueIdentifier>),
 }
 impl Operand {
     pub fn is_on_mem(&self) -> bool {

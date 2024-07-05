@@ -1,6 +1,6 @@
 use crate::{
+    identifier::UniqueIdentifier,
     stage4_asm_gen::asm_ast::StackPosition,
-    symbol_table_frontend::ResolvedIdentifier,
     types_backend::{Alignment, AssemblyType, OperandByteLen},
 };
 use getset::Getters;
@@ -11,7 +11,7 @@ use std::rc::Rc;
 pub struct VarToStackPos {
     #[getset(get = "pub")]
     last_used_stack_pos: StackPosition,
-    var_to_stack_pos: HashMap<Rc<ResolvedIdentifier>, StackPosition>,
+    var_to_stack_pos: HashMap<Rc<UniqueIdentifier>, StackPosition>,
 }
 impl Default for VarToStackPos {
     fn default() -> Self {
@@ -24,7 +24,7 @@ impl Default for VarToStackPos {
 impl VarToStackPos {
     pub fn var_to_stack_pos(
         &mut self,
-        ident: Rc<ResolvedIdentifier>,
+        ident: Rc<UniqueIdentifier>,
         asm_type: AssemblyType,
     ) -> StackPosition {
         let pos = self.var_to_stack_pos.entry(ident).or_insert_with(|| {

@@ -5,8 +5,8 @@ mod ident_resolver;
 
 use self::ident_resolver::IdentResolver;
 use crate::{
+    identifier::UniqueIdentifier,
     stage2_parse::{c_ast::*, phase1_parse::ParsedCAst},
-    symbol_table_frontend::ResolvedIdentifier,
 };
 use anyhow::{anyhow, Context, Result};
 use std::rc::Rc;
@@ -14,11 +14,11 @@ use std::rc::Rc;
 #[derive(Debug)]
 pub struct ResolvedCAst(());
 impl CAstVariant for ResolvedCAst {
-    type Identifier = Rc<ResolvedIdentifier>;
+    type Identifier = Rc<UniqueIdentifier>;
     type BlockScopeDeclaration = BlockScopeDeclaration<ResolvedCAst>;
     type LoopId = Rc<LoopId>;
     type Expression = Expression<ResolvedCAst>;
-    type Lvalue = Rc<ResolvedIdentifier>;
+    type Lvalue = Rc<UniqueIdentifier>;
 }
 
 #[derive(Default)]

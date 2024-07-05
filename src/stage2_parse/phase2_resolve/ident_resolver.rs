@@ -1,6 +1,6 @@
 use crate::{
-    stage1_lex::tokens::Identifier, stage2_parse::c_ast::StorageClassSpecifier,
-    symbol_table_frontend::ResolvedIdentifier,
+    identifier::UniqueIdentifier, stage1_lex::tokens::Identifier,
+    stage2_parse::c_ast::StorageClassSpecifier,
 };
 use anyhow::{anyhow, Result};
 use std::collections::{HashMap, HashSet};
@@ -8,7 +8,7 @@ use std::rc::Rc;
 
 pub struct IdentResolver {
     /// This abstracts a copy-on-write dict.
-    ident_to_resolved_idents: HashMap<Rc<Identifier>, Vec<Rc<ResolvedIdentifier>>>,
+    ident_to_resolved_idents: HashMap<Rc<Identifier>, Vec<Rc<UniqueIdentifier>>>,
 
     /// This tracks each copy-on-write layer's keys.
     scope_to_idents: Vec<HashSet<Rc<Identifier>>>,
@@ -45,7 +45,7 @@ impl IdentResolver {
         &mut self,
         ident: Identifier,
         storage_class: Option<&StorageClassSpecifier>,
-    ) -> Result<Rc<ResolvedIdentifier>> {
+    ) -> Result<Rc<UniqueIdentifier>> {
         let has_linkage = self.is_file_scope()
             || match storage_class {
                 Some(StorageClassSpecifier::Extern) => true,
@@ -53,7 +53,7 @@ impl IdentResolver {
             };
         self.declare(ident, has_linkage)
     }
-    pub fn declare_fun(&mut self, ident: Identifier) -> Result<Rc<ResolvedIdentifier>> {
+    pub fn declare_fun(&mut self, ident: Identifier) -> Result<Rc<UniqueIdentifier>> {
         let has_linkage = true;
         self.declare(ident, has_linkage)
     }
@@ -61,7 +61,7 @@ impl IdentResolver {
         &mut self,
         ident: Identifier,
         new_has_linkage: bool,
-    ) -> Result<Rc<ResolvedIdentifier>> {
+    ) -> Result<Rc<UniqueIdentifier>> {
         let local_scope = self.scope_to_idents.last_mut().unwrap();
         match local_scope.contains(&ident) {
             false => {
@@ -70,9 +70,10 @@ impl IdentResolver {
                 local_scope.insert(Rc::clone(&ident));
 
                 let resolved_ident = if new_has_linkage {
-                    ResolvedIdentifier::SomeLinkage(Rc::clone(&ident))
+                    UniqueIdentifier::Exact(Rc::clone(&ident))
                 } else {
-                    ResolvedIdentifier::new_no_linkage_named(Rc::clone(&ident))
+                    /* We could use a description here: eg concat(surrounding fun name, var name). */
+                    UniqueIdentifier::new_generated(None)
                 };
                 let resolved_ident = Rc::new(resolved_ident);
 
@@ -87,10 +88,8 @@ impl IdentResolver {
                 let resolved_idents = self.ident_to_resolved_idents.get_mut(&ident).unwrap();
                 let resolved_ident = resolved_idents.last_mut().unwrap();
 
-                let prev_has_linkage = matches!(
-                    resolved_ident.as_ref(),
-                    ResolvedIdentifier::SomeLinkage { .. }
-                );
+                let prev_has_linkage =
+                    matches!(resolved_ident.as_ref(), UniqueIdentifier::Exact { .. });
                 if prev_has_linkage && new_has_linkage {
                     Ok(Rc::clone(resolved_ident))
                 } else {
@@ -100,7 +99,7 @@ impl IdentResolver {
         }
     }
 
-    pub fn get(&self, ident: &Identifier) -> Result<Rc<ResolvedIdentifier>> {
+    pub fn get(&self, ident: &Identifier) -> Result<Rc<UniqueIdentifier>> {
         let resolved_idents = self
             .ident_to_resolved_idents
             .get(ident)

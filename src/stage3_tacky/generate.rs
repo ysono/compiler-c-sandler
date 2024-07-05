@@ -2,11 +2,10 @@ mod helpers;
 
 use self::helpers::{BinaryOperatorType, LoopIdToLabels, ShortCircuitBOT};
 use crate::{
+    identifier::UniqueIdentifier,
     stage2_parse::{c_ast as c, phase3_typecheck::TypeCheckedCAst},
     stage3_tacky::tacky_ast::*,
-    symbol_table_frontend::{
-        FunAttrs, ResolvedIdentifier, StaticInitialValue, Symbol, SymbolTable, VarAttrs,
-    },
+    symbol_table_frontend::{FunAttrs, StaticInitialValue, Symbol, SymbolTable, VarAttrs},
     types_backend::OperandByteLen,
     types_frontend::{Const, VarType},
 };
@@ -315,7 +314,7 @@ impl<'a> FunInstrsGenerator<'a> {
     ) -> ReadableValue {
         let result = self.symbol_table.declare_var_anon(out_typ);
 
-        let name = result.id_int().unwrap();
+        let name = result.id().unwrap().as_int();
         let label_shortcirc = Rc::new(LabelIdentifier::new(format!(
             "{op_type}.{name:x}.shortcircuit",
         )));
@@ -369,7 +368,7 @@ impl<'a> FunInstrsGenerator<'a> {
 
     fn gen_exp_assignment(
         &mut self,
-        ident: Rc<ResolvedIdentifier>,
+        ident: Rc<UniqueIdentifier>,
         rhs: c::TypedExpression<TypeCheckedCAst>,
     ) -> ReadableValue {
         let rhs = self.gen_exp(rhs);
@@ -437,7 +436,7 @@ impl<'a> FunInstrsGenerator<'a> {
     ) -> ReadableValue {
         let result = self.symbol_table.declare_var_anon(out_typ);
 
-        let name = result.id_int().unwrap();
+        let name = result.id().unwrap().as_int();
         let label_else = Rc::new(LabelIdentifier::new(format!("exp_cond.{name:x}.else")));
         let label_end = Rc::new(LabelIdentifier::new(format!("exp_cond.{name:x}.end",)));
 

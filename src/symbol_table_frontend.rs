@@ -1,6 +1,6 @@
 pub use self::{fun::FunDeclScope, var::VarDeclScope};
 use crate::{
-    stage1_lex::tokens::Identifier,
+    identifier::{IdentifierId, UniqueIdentifier},
     stage2_parse::{
         c_ast::{
             Block, Expression, FunctionCall, FunctionDeclaration, StorageClassSpecifier,
@@ -11,74 +11,9 @@ use crate::{
     types_frontend::{Const, FunType, VarType},
 };
 use anyhow::{anyhow, Context, Result};
-use derivative::Derivative;
 use derive_more::{Deref, DerefMut, Into};
 use std::collections::{hash_map::Entry, HashMap};
-use std::fmt::Display;
 use std::rc::Rc;
-use std::sync::atomic::{AtomicUsize, Ordering};
-
-#[derive(Derivative, Debug)]
-#[derivative(PartialEq, Eq, Hash)]
-pub enum ResolvedIdentifier {
-    NoLinkage {
-        id: IdentifierId,
-
-        #[derivative(PartialEq = "ignore", Hash = "ignore")]
-        orig: Option<Rc<Identifier>>,
-    },
-    SomeLinkage(Rc<Identifier>),
-}
-impl ResolvedIdentifier {
-    pub fn new_no_linkage_named(orig: Rc<Identifier>) -> Self {
-        Self::NoLinkage {
-            id: IdentifierId::new(),
-            orig: Some(orig),
-        }
-    }
-    pub fn id_int(&self) -> Option<usize> {
-        match self {
-            Self::NoLinkage { id, .. } => Some(id.as_int()),
-            Self::SomeLinkage(..) => None,
-        }
-    }
-}
-impl Display for ResolvedIdentifier {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::NoLinkage { id, orig } => {
-                /* DELIM must be, and ORIG_DEFAULT ought to be,
-                a non-empty str that cannot be a substring within any original identifier string. */
-                const DELIM: char = '.';
-                const ORIG_DEFAULT: &str = "tmp.";
-                let name = orig
-                    .as_ref()
-                    .map(|ident| ident as &str)
-                    .unwrap_or(ORIG_DEFAULT);
-                let id = id.as_int();
-                write!(f, "{name}{DELIM}{id:x}")
-            }
-            Self::SomeLinkage(ident) => {
-                let name = ident as &str;
-                write!(f, "{name}")
-            }
-        }
-    }
-}
-
-#[derive(PartialEq, Eq, Hash, Debug)]
-pub struct IdentifierId(usize);
-impl IdentifierId {
-    #[allow(clippy::new_without_default)]
-    pub fn new() -> Self {
-        static NEXT_ID: AtomicUsize = AtomicUsize::new(0);
-        let curr_id = NEXT_ID.fetch_add(1, Ordering::SeqCst);
-        Self(curr_id)
-    }
-    pub fn as_int(&self) -> usize {
-        self.0
-    }
-}
 
 #[derive(Debug)]
 pub enum Symbol {
@@ -110,18 +45,18 @@ pub struct FunAttrs {
 #[derive(Clone, Copy, Debug)]
 pub enum StaticVisibility {
     Global,    // Visible to other translation units.
-    NonGlobal, // Visible either in translation unit or in block.
+    NonGlobal, // Visible within translation unit (eg within block).
 }
 
 #[derive(Default, Into, Deref, DerefMut, Debug)]
 pub struct SymbolTable {
-    symbol_table: HashMap<Rc<ResolvedIdentifier>, Symbol>,
+    symbol_table: HashMap<Rc<UniqueIdentifier>, Symbol>,
 }
 impl SymbolTable {
-    pub fn declare_var_anon(&mut self, typ: VarType) -> Rc<ResolvedIdentifier> {
-        let ident = Rc::new(ResolvedIdentifier::NoLinkage {
+    pub fn declare_var_anon(&mut self, typ: VarType) -> Rc<UniqueIdentifier> {
+        let ident = Rc::new(UniqueIdentifier::Generated {
             id: IdentifierId::new(),
-            orig: None,
+            descr: None,
         });
         self.symbol_table.insert(
             Rc::clone(&ident),
@@ -205,7 +140,7 @@ impl SymbolTable {
     }
     fn insert_var_decl(
         &mut self,
-        ident: Rc<ResolvedIdentifier>,
+        ident: Rc<UniqueIdentifier>,
         new_decl_summary: self::var::Decl,
         new_typ: VarType,
     ) -> Result<()> {
@@ -276,7 +211,7 @@ impl SymbolTable {
         }
     }
 
-    pub fn use_var(&self, ident: &ResolvedIdentifier) -> Result<VarType> {
+    pub fn use_var(&self, ident: &UniqueIdentifier) -> Result<VarType> {
         let prev_symbol = self
             .symbol_table
             .get(ident)
@@ -337,7 +272,7 @@ impl SymbolTable {
     }
     fn insert_fun_decl(
         &mut self,
-        ident: Rc<ResolvedIdentifier>,
+        ident: Rc<UniqueIdentifier>,
         new_viz: self::fun::Viz,
         newly_defined: bool,
         new_typ: &Rc<FunType>,

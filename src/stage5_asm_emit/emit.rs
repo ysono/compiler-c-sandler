@@ -1,13 +1,14 @@
 use crate::{
+    identifier::UniqueIdentifier,
     stage4_asm_gen::{
         asm_ast::{
-            BinaryOperator, ConditionCode, Function, Instruction, LabelIdentifier, Operand,
-            Program, Register, StaticVariable, UnaryOperator,
+            BinaryOperator, ConditionCode, Function, Instruction, Operand, Program, Register,
+            StaticVariable, UnaryOperator,
         },
         FinalizedAsmAst,
     },
     symbol_table_backend::{AsmEntry, BackendSymbolTable},
-    symbol_table_frontend::{ResolvedIdentifier, StaticVisibility},
+    symbol_table_frontend::StaticVisibility,
     types_backend::{AssemblyType, OperandByteLen},
     types_frontend::Const,
 };
@@ -58,9 +59,9 @@ impl<W: Write> AsmCodeEmitter<W> {
         &mut self,
         Function { ident, visibility, instrs }: Function<FinalizedAsmAst>,
     ) -> Result<(), io::Error> {
-        self.write_identifier_visibility(&ident, &visibility)?;
+        self.write_label_visibility(&ident, visibility, LabelLocality::of_fun())?;
         writeln!(&mut self.w, "{TAB}.text")?;
-        self.write_identifier_label(&ident)?;
+        self.write_label_instance(&ident, LabelLocality::of_fun())?;
         writeln!(&mut self.w, "{TAB}pushq{TAB}%rbp")?;
         writeln!(&mut self.w, "{TAB}movq{TAB}%rsp, %rbp")?;
         for instr in instrs {
@@ -154,13 +155,13 @@ impl<W: Write> AsmCodeEmitter<W> {
             }
             Instruction::Jmp(lbl) => {
                 write!(&mut self.w, "{TAB}jmp{TAB}")?;
-                self.write_label(&lbl)?;
+                self.write_label_name(&lbl, LabelLocality::of_jump())?;
                 writeln!(&mut self.w)?;
             }
             Instruction::JmpCC(cc, lbl) => {
                 let instr_sfx = Self::get_instr_sfx_condition(cc);
                 write!(&mut self.w, "{TAB}j{instr_sfx}{TAB}")?;
-                self.write_label(&lbl)?;
+                self.write_label_name(&lbl, LabelLocality::of_jump())?;
                 writeln!(&mut self.w)?;
             }
             Instruction::SetCC(cc, operand) => {
@@ -169,10 +170,7 @@ impl<W: Write> AsmCodeEmitter<W> {
                 self.write_operand(operand, OperandByteLen::B1)?;
                 writeln!(&mut self.w)?;
             }
-            Instruction::Label(lbl) => {
-                self.write_label(&lbl)?;
-                writeln!(&mut self.w, ":")?;
-            }
+            Instruction::Label(lbl) => self.write_label_instance(&lbl, LabelLocality::of_jump())?,
             Instruction::Push(operand) => {
                 write!(&mut self.w, "{TAB}pushq{TAB}")?;
                 self.write_operand(operand, OperandByteLen::B8)?;
@@ -180,7 +178,7 @@ impl<W: Write> AsmCodeEmitter<W> {
             }
             Instruction::Call(ident) => {
                 write!(&mut self.w, "{TAB}call{TAB}")?;
-                self.write_identifier(&ident)?;
+                self.write_label_name(&ident, LabelLocality::of_fun())?;
                 self.write_fun_call_sfx(&ident)?;
                 writeln!(&mut self.w)?;
             }
@@ -255,28 +253,13 @@ impl<W: Write> AsmCodeEmitter<W> {
                 write!(&mut self.w, "{}(%rbp)", *stkpos)?;
             }
             Operand::Data(ident) => {
-                self.write_identifier(&ident)?;
+                self.write_label_name(&ident, LabelLocality::of_static_var())?;
                 write!(&mut self.w, "(%rip)")?;
             }
         }
         Ok(())
     }
-    fn write_label(&mut self, lbl: &LabelIdentifier) -> Result<(), io::Error> {
-        const NAME_PFX: &str = if cfg!(target_os = "macos") {
-            "L."
-        } else {
-            ".L."
-        };
-
-        let name = self.label_bad_char.replace_all(lbl.name(), "_");
-
-        let id = lbl.id();
-
-        write!(&mut self.w, "{NAME_PFX}{name}.{id}")?;
-
-        Ok(())
-    }
-    fn write_fun_call_sfx(&mut self, ident: &ResolvedIdentifier) -> Result<(), io::Error> {
+    fn write_fun_call_sfx(&mut self, ident: &UniqueIdentifier) -> Result<(), io::Error> {
         if cfg!(target_os = "linux") {
             match self.backend_symtab.get(ident).unwrap() {
                 AsmEntry::Obj { .. } => { /* No-op. */ }
@@ -313,10 +296,10 @@ impl<W: Write> AsmCodeEmitter<W> {
 
         /* Begin emission. */
 
-        self.write_identifier_visibility(&ident, &visibility)?;
+        self.write_label_visibility(&ident, visibility, LabelLocality::of_static_var())?;
         writeln!(&mut self.w, "{TAB}{section}")?;
         writeln!(&mut self.w, "{TAB}.balign {alignment}")?;
-        self.write_identifier_label(&ident)?;
+        self.write_label_instance(&ident, LabelLocality::of_static_var())?;
         match init {
             Const::Int(0) | Const::UInt(0) | Const::Long(0) | Const::ULong(0) => {
                 writeln!(&mut self.w, "{TAB}.zero {bytelen}")?;
@@ -330,30 +313,88 @@ impl<W: Write> AsmCodeEmitter<W> {
         Ok(())
     }
 
-    /* Identifier of static var or function (not `LabelIdentifier`) */
+    /* Asm label */
 
-    fn write_identifier_visibility(
+    fn write_label_visibility(
         &mut self,
-        ident: &ResolvedIdentifier,
-        visibility: &StaticVisibility,
+        ident: &UniqueIdentifier,
+        visibility: StaticVisibility,
+        locality: LabelLocality,
     ) -> Result<(), io::Error> {
         match visibility {
             StaticVisibility::Global => {
                 write!(&mut self.w, "{TAB}.globl{TAB}")?;
-                self.write_identifier(ident)?;
+                self.write_label_name(ident, locality)?;
                 writeln!(&mut self.w)?;
             }
             StaticVisibility::NonGlobal => { /* No-op. */ }
         }
         Ok(())
     }
-    fn write_identifier_label(&mut self, ident: &ResolvedIdentifier) -> Result<(), io::Error> {
-        self.write_identifier(ident)?;
+    fn write_label_instance(
+        &mut self,
+        ident: &UniqueIdentifier,
+        locality: LabelLocality,
+    ) -> Result<(), io::Error> {
+        self.write_label_name(ident, locality)?;
         writeln!(&mut self.w, ":")?;
         Ok(())
     }
-    fn write_identifier(&mut self, ident: &ResolvedIdentifier) -> Result<(), io::Error> {
-        const IDENT_PFX: &str = if cfg!(target_os = "macos") { "_" } else { "" };
-        write!(&mut self.w, "{IDENT_PFX}{ident}")
+    fn write_label_name(
+        &mut self,
+        ident: &UniqueIdentifier,
+        locality: LabelLocality,
+    ) -> Result<(), io::Error> {
+        const IDENT_PFX_NONLOCAL: &str = if cfg!(target_os = "macos") { "_" } else { "" };
+        const IDENT_PFX_LOCAL: &str = if cfg!(target_os = "macos") {
+            "L."
+        } else {
+            ".L."
+        };
+        let ident_pfx = match locality {
+            LabelLocality::InObjSymTab => IDENT_PFX_NONLOCAL,
+            LabelLocality::Local => IDENT_PFX_LOCAL,
+        };
+        write!(&mut self.w, "{ident_pfx}")?;
+        self.write_ident(ident)?;
+        Ok(())
+    }
+    fn write_ident(&mut self, ident: &UniqueIdentifier) -> Result<(), io::Error> {
+        match ident {
+            UniqueIdentifier::Exact(ident) => {
+                let name = ident as &str;
+                write!(&mut self.w, "{name}")
+            }
+            UniqueIdentifier::Generated { id, descr } => {
+                /* DELIM must be, and NAME_DEFAULT ought to be,
+                a non-empty str that cannot be a substring within any original identifier string in the C src code. */
+                const DELIM: char = '.';
+                const NAME_DEFAULT: &str = "anon.";
+                let name = descr
+                    .as_ref()
+                    .map(|descr| descr as &str)
+                    .unwrap_or(NAME_DEFAULT);
+                let name = self.label_bad_char.replace_all(name, "_");
+                let id = id.as_int();
+                write!(&mut self.w, "{name}{DELIM}{id:x}")
+            }
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+enum LabelLocality {
+    InObjSymTab, // Non-local, ie assembler will include this label in the object file's symbol table.
+    Local,       // Ditto not include.
+}
+impl LabelLocality {
+    fn of_fun() -> Self {
+        Self::InObjSymTab
+    }
+    fn of_static_var() -> Self {
+        Self::InObjSymTab
+    }
+    fn of_jump() -> Self {
+        Self::Local
     }
 }

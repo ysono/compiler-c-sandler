@@ -1,6 +1,7 @@
 use crate::{
+    identifier::UniqueIdentifier,
     stage2_parse::{c_ast::*, phase2_resolve::ResolvedCAst},
-    symbol_table_frontend::{FunDeclScope, ResolvedIdentifier, SymbolTable, VarDeclScope},
+    symbol_table_frontend::{FunDeclScope, SymbolTable, VarDeclScope},
     types_frontend::{FunType, VarType},
 };
 use anyhow::{anyhow, Result};
@@ -9,11 +10,11 @@ use std::rc::Rc;
 #[derive(Debug)]
 pub struct TypeCheckedCAst(());
 impl CAstVariant for TypeCheckedCAst {
-    type Identifier = Rc<ResolvedIdentifier>;
+    type Identifier = Rc<UniqueIdentifier>;
     type BlockScopeDeclaration = BlockScopeDeclaration<TypeCheckedCAst>;
     type LoopId = Rc<LoopId>;
     type Expression = TypedExpression<TypeCheckedCAst>;
-    type Lvalue = Rc<ResolvedIdentifier>;
+    type Lvalue = Rc<UniqueIdentifier>;
 }
 
 #[derive(Default)]
