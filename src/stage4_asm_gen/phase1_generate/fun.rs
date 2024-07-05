@@ -107,7 +107,7 @@ impl<'slf> InstrsGenerator<'slf> {
 
         asm_instrs.push(Instruction::Call(ident));
 
-        let stack_pop_bytelen = 8 * (stack_args_count as i64) + stack_padding_bytelen;
+        let stack_pop_bytelen = 8 * (stack_args_count as u64) + stack_padding_bytelen;
         if stack_pop_bytelen != 0 {
             asm_instrs.push(Instruction::Binary {
                 op: BinaryOperator::Add,

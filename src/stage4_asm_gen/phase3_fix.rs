@@ -11,7 +11,7 @@ impl OperandFixer {
         in_instrs.flat_map(|in_instr| match in_instr {
             Instruction::Mov { asm_type, mut src, dst } => {
                 if let (AssemblyType::Longword, Operand::ImmediateValue(i)) = (asm_type, &src) {
-                    src = Operand::ImmediateValue(*i as u32 as i64); // Zero-out most significant bytes.
+                    src = Operand::ImmediateValue(*i as u32 as u64); // Zero-out most significant bytes.
                 }
 
                 let src_to_reg1 =

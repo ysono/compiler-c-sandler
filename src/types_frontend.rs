@@ -82,13 +82,13 @@ impl Const {
         }
     }
 
-    pub fn as_raw(&self) -> i64 {
+    pub fn to_bits(&self) -> u64 {
         match self {
-            Const::Int(i) => *i as i64,
-            Const::Long(i) => *i,
-            Const::UInt(i) => *i as i64,
-            Const::ULong(i) => *i as i64,
-            Const::Double(_) => todo!(),
+            Const::Int(i) => *i as u64,
+            Const::Long(i) => *i as u64,
+            Const::UInt(i) => *i as u64,
+            Const::ULong(i) => *i,
+            Const::Double(f) => f.to_bits(),
         }
     }
 

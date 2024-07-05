@@ -101,7 +101,7 @@ impl<'slf> InstrsGenerator<'slf> {
     }
     fn convert_value_to_operand(t_val: t::ReadableValue) -> PreFinalOperand {
         match t_val {
-            t::ReadableValue::Constant(konst) => PreFinalOperand::ImmediateValue(konst.as_raw()),
+            t::ReadableValue::Constant(konst) => PreFinalOperand::ImmediateValue(konst.to_bits()),
             t::ReadableValue::Variable(ident) => PreFinalOperand::Pseudo(ident),
         }
     }

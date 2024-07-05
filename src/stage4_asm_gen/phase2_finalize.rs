@@ -65,7 +65,7 @@ impl InstrsFinalizer {
         if stack_frame_bytelen == 0 {
             out_instrs.pop_front();
         } else if let Instruction::Binary { arg, .. } = &mut out_instrs[0] {
-            *arg = Operand::ImmediateValue(stack_frame_bytelen);
+            *arg = Operand::ImmediateValue(stack_frame_bytelen as u64);
         }
 
         out_instrs
