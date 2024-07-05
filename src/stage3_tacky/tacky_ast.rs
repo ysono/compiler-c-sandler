@@ -44,8 +44,7 @@ pub enum Instruction {
     Binary(Binary),
     Copy(SrcDst),
     Jump(Rc<LabelIdentifier>),
-    JumpIfZero(JumpIf),
-    JumpIfNotZero(JumpIf),
+    JumpIf(JumpIf),
     Label(Rc<LabelIdentifier>),
     FunCall(FunCall),
 }
@@ -76,7 +75,13 @@ mod instruction {
     #[derive(Debug)]
     pub struct JumpIf {
         pub condition: ReadableValue,
-        pub tgt: Rc<LabelIdentifier>,
+        pub jump_crit: JumpCriterion,
+        pub lbl: Rc<LabelIdentifier>,
+    }
+    #[derive(Debug)]
+    pub enum JumpCriterion {
+        JumpIfZero,
+        JumpIfNotZero,
     }
 
     #[derive(Debug)]

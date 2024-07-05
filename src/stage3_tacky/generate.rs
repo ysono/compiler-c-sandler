@@ -322,12 +322,12 @@ impl<'a> FunInstrsGenerator<'a> {
         let label_end = Rc::new(LabelIdentifier::new(format!("{op_type}.{name:x}.end",)));
 
         let new_shortcirc_jump_instr = |condition: ReadableValue| {
-            let tgt = Rc::clone(&label_shortcirc);
-            let jumpif = JumpIf { condition, tgt };
-            match op_type {
-                ShortCircuitBOT::And => Instruction::JumpIfZero(jumpif),
-                ShortCircuitBOT::Or => Instruction::JumpIfNotZero(jumpif),
-            }
+            let jump_crit = match op_type {
+                ShortCircuitBOT::And => JumpCriterion::JumpIfZero,
+                ShortCircuitBOT::Or => JumpCriterion::JumpIfNotZero,
+            };
+            let lbl = Rc::clone(&label_shortcirc);
+            Instruction::JumpIf(JumpIf { condition, jump_crit, lbl })
         };
 
         let new_out_const = |i: i32| Const::Int(i).cast_to(out_typ);
@@ -393,9 +393,10 @@ impl<'a> FunInstrsGenerator<'a> {
 
                 let condition = self.gen_exp(condition);
 
-                self.instrs.push(Instruction::JumpIfZero(JumpIf {
+                self.instrs.push(Instruction::JumpIf(JumpIf {
                     condition,
-                    tgt: Rc::clone(&label_end),
+                    jump_crit: JumpCriterion::JumpIfZero,
+                    lbl: Rc::clone(&label_end),
                 }));
 
                 self.gen_stmt(*then);
@@ -411,9 +412,10 @@ impl<'a> FunInstrsGenerator<'a> {
 
                 let condition = self.gen_exp(condition);
 
-                self.instrs.push(Instruction::JumpIfZero(JumpIf {
+                self.instrs.push(Instruction::JumpIf(JumpIf {
                     condition,
-                    tgt: Rc::clone(&label_else),
+                    jump_crit: JumpCriterion::JumpIfZero,
+                    lbl: Rc::clone(&label_else),
                 }));
 
                 self.gen_stmt(*then);
@@ -443,9 +445,10 @@ impl<'a> FunInstrsGenerator<'a> {
 
         let condition = self.gen_exp(*condition);
 
-        self.instrs.push(Instruction::JumpIfZero(JumpIf {
+        self.instrs.push(Instruction::JumpIf(JumpIf {
             condition,
-            tgt: Rc::clone(&label_else),
+            jump_crit: JumpCriterion::JumpIfZero,
+            lbl: Rc::clone(&label_else),
         }));
 
         let then = self.gen_exp(*then);
@@ -498,9 +501,10 @@ impl<'a> FunInstrsGenerator<'a> {
 
         let condition = self.gen_exp(condition);
 
-        self.instrs.push(Instruction::JumpIfZero(JumpIf {
+        self.instrs.push(Instruction::JumpIf(JumpIf {
             condition,
-            tgt: Rc::clone(&lbl_break),
+            jump_crit: JumpCriterion::JumpIfZero,
+            lbl: Rc::clone(&lbl_break),
         }));
 
         self.gen_stmt(*body);
@@ -529,9 +533,10 @@ impl<'a> FunInstrsGenerator<'a> {
 
         let condition = self.gen_exp(condition);
 
-        self.instrs.push(Instruction::JumpIfNotZero(JumpIf {
+        self.instrs.push(Instruction::JumpIf(JumpIf {
             condition,
-            tgt: lbl_start,
+            jump_crit: JumpCriterion::JumpIfNotZero,
+            lbl: lbl_start,
         }));
 
         self.instrs.push(Instruction::Label(lbl_break));
@@ -561,9 +566,10 @@ impl<'a> FunInstrsGenerator<'a> {
         if let Some(c_cond) = condition {
             let condition = self.gen_exp(c_cond);
 
-            self.instrs.push(Instruction::JumpIfZero(JumpIf {
+            self.instrs.push(Instruction::JumpIf(JumpIf {
                 condition,
-                tgt: Rc::clone(&lbl_break),
+                jump_crit: JumpCriterion::JumpIfZero,
+                lbl: Rc::clone(&lbl_break),
             }));
         }
 

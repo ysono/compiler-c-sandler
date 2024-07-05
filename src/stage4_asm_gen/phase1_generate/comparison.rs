@@ -16,18 +16,14 @@ impl<'slf> InstrsGenerator<'slf> {
         let cc = match t_op {
             t::ComparisonUnaryOperator::Not => ConditionCode::E,
         };
-        let (asm_src, asm_src_type, _) = self.convert_value(src);
-        let (asm_dst, asm_dst_type, _) = self.convert_value(dst);
+        let (src, src_asm_type, _) = self.convert_value(src);
+        let (dst, dst_asm_type, _) = self.convert_value(dst);
 
-        Self::gen_comparison_instrs_from_asm(
-            asm_src_type,
-            asm_src,
-            PreFinalOperand::ImmediateValue(0),
-            cc,
-            asm_dst_type,
-            asm_dst,
-        )
+        let mut asm_instrs = vec![Self::gen_cmp_vs_zero(src, src_asm_type)];
+        asm_instrs.extend(Self::gen_setcc(cc, dst, dst_asm_type));
+        asm_instrs
     }
+
     pub(super) fn gen_comparison_instrs(
         &self,
         t_op: t::ComparisonBinaryOperator,
@@ -36,10 +32,10 @@ impl<'slf> InstrsGenerator<'slf> {
         use t::ComparisonBinaryOperator as TBOC;
         use ConditionCode as CC;
 
-        let (asm_src1, asm_src_type, is_signed) = self.convert_value(src1);
-        let (asm_src2, _, _) = self.convert_value(src2);
-        let (asm_dst, asm_dst_type, _) = self.convert_value(dst);
-        let cmp_0_cc = match (t_op, is_signed) {
+        let (src1, src_asm_type, is_signed) = self.convert_value(src1);
+        let (src2, _, _) = self.convert_value(src2);
+        let (dst, dst_asm_type, _) = self.convert_value(dst);
+        let cc = match (t_op, is_signed) {
             (TBOC::Eq, _) => CC::E,
             (TBOC::Neq, _) => CC::Ne,
             (TBOC::Lt, true) => CC::L,
@@ -52,49 +48,55 @@ impl<'slf> InstrsGenerator<'slf> {
             (TBOC::Gte, false) => CC::Ae,
         };
 
-        Self::gen_comparison_instrs_from_asm(
-            asm_src_type,
-            asm_src1,
-            asm_src2,
-            cmp_0_cc,
-            asm_dst_type,
-            asm_dst,
-        )
-    }
-    fn gen_comparison_instrs_from_asm(
-        asm_src_type: AssemblyType,
-        asm_src1: PreFinalOperand,
-        asm_src2: PreFinalOperand,
-        cmp_0_cc: ConditionCode,
-        asm_dst_type: AssemblyType,
-        asm_dst: PreFinalOperand,
-    ) -> Vec<Instruction<GeneratedAsmAst>> {
-        let asm_instr_1 = Instruction::Cmp {
-            asm_type: asm_src_type,
-            tgt: asm_src1,
-            arg: asm_src2,
-        };
-        let asm_instr_2 = Instruction::Mov {
-            asm_type: asm_dst_type,
-            src: PreFinalOperand::ImmediateValue(0),
-            dst: asm_dst.clone(),
-        };
-        let asm_instr_3 = Instruction::SetCC(cmp_0_cc, asm_dst);
-        vec![asm_instr_1, asm_instr_2, asm_instr_3]
+        let mut asm_instrs = vec![Instruction::Cmp {
+            asm_type: src_asm_type,
+            tgt: src1,
+            arg: src2,
+        }];
+        asm_instrs.extend(Self::gen_setcc(cc, dst, dst_asm_type));
+        asm_instrs
     }
 
     pub(super) fn gen_jumpif_instrs(
         &self,
-        cmp_0_cc: ConditionCode,
-        t::JumpIf { condition, tgt }: t::JumpIf,
+        t::JumpIf { condition, jump_crit, lbl }: t::JumpIf,
     ) -> Vec<Instruction<GeneratedAsmAst>> {
         let (condition, asm_type, _) = self.convert_value(condition);
-        let asm_instr_1 = Instruction::Cmp {
-            asm_type,
-            tgt: condition,
-            arg: PreFinalOperand::ImmediateValue(0),
+
+        let cc = match jump_crit {
+            t::JumpCriterion::JumpIfZero => ConditionCode::E,
+            t::JumpCriterion::JumpIfNotZero => ConditionCode::Ne,
         };
-        let asm_instr_2 = Instruction::JmpCC(cmp_0_cc, tgt);
-        vec![asm_instr_1, asm_instr_2]
+
+        vec![
+            Self::gen_cmp_vs_zero(condition, asm_type),
+            Instruction::JmpCC(cc, lbl),
+        ]
+    }
+
+    fn gen_cmp_vs_zero(
+        src: PreFinalOperand,
+        src_asm_type: AssemblyType,
+    ) -> Instruction<GeneratedAsmAst> {
+        Instruction::Cmp {
+            asm_type: src_asm_type,
+            tgt: src,
+            arg: PreFinalOperand::ImmediateValue(0),
+        }
+    }
+
+    fn gen_setcc(
+        cc: ConditionCode,
+        dst: PreFinalOperand,
+        dst_asm_type: AssemblyType,
+    ) -> Vec<Instruction<GeneratedAsmAst>> {
+        vec![
+            Instruction::Mov {
+                asm_type: dst_asm_type,
+                src: PreFinalOperand::ImmediateValue(0),
+                dst: dst.clone(),
+            },
+            Instruction::SetCC(cc, dst),
+        ]
     }
 }

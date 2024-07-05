@@ -42,12 +42,7 @@ impl<'slf> InstrsGenerator<'slf> {
             t::Instruction::Binary(t_binary) => self.gen_binary_instrs(t_binary),
             t::Instruction::Copy(t_srcdst) => self.gen_copy_instrs(t_srcdst),
             t::Instruction::Jump(lbl) => vec![Instruction::Jmp(lbl)],
-            t::Instruction::JumpIfZero(t_jumpif) => {
-                self.gen_jumpif_instrs(ConditionCode::E, t_jumpif)
-            }
-            t::Instruction::JumpIfNotZero(t_jumpif) => {
-                self.gen_jumpif_instrs(ConditionCode::Ne, t_jumpif)
-            }
+            t::Instruction::JumpIf(t_jumpif) => self.gen_jumpif_instrs(t_jumpif),
             t::Instruction::Label(lbl) => vec![Instruction::Label(lbl)],
             t::Instruction::FunCall(t_fun_call) => self.gen_funcall_instrs(t_fun_call),
         })
