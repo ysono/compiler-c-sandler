@@ -24,7 +24,7 @@ e   |   0x???0 -+ For one function call at a time: maybe padding; outgoing args.
 1. The `call` asm instruction pushes the to-be-restored instruction pointer.
     + RSP points to "b".
 1. The current function's prologue pushes the previous stack frame's RBP.
-    + Emitted by [`crate::stage5_asm_emit::emit::AsmCodeEmitter::emit_program()`].
+    + Emitted by [`crate::stage5_asm_emit::emit::AsmCodeEmitter::write_fun()`].
     + RSP points to "c", and is guaranteed to be 16-byte aligned.
     + RBP points to "c".
 1. The current function's prologue allocates and initializes the current function's incoming arguments and local variables.
