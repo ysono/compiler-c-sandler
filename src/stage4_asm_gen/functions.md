@@ -32,9 +32,9 @@ e   |   0x???0 -+ For one function call at a time: maybe padding; outgoing args.
         Emitted by [`crate::stage4_asm_gen::phase2_finalize::InstrsFinalizer::finalize_instrs()`].
     1. Copies incoming on-stack arguments, from `16(%rbp)`, `24(%rbp)`, etc, into the current function's stack frame.
         (Presumably this can be optimized away in the future.)
-        Emitted by [`crate::stage4_asm_gen::phase1_generate::AsmCodeGenerator::convert_fun()`].
+        Emitted by [`crate::stage4_asm_gen::phase1_generate::InstrsGenerator::convert_fun()`].
     1. Uses local variables within the allocated stack frame.
-        Emitted by [`crate::stage4_asm_gen::phase1_generate::AsmCodeGenerator::convert_fun()`],
+        Emitted by [`crate::stage4_asm_gen::phase1_generate::InstrsGenerator::convert_fun()`],
         using all the various emitters in [`crate::stage4_asm_gen`], and
         converting abstract variables to on-stack positions at [`crate::stage4_asm_gen::phase2_finalize::InstrsFinalizer::var_to_stack_pos()`].
     + RSP points to "d", and is guaranteed to be 16-byte aligned.
@@ -51,7 +51,7 @@ e   |   0x???0 -+ For one function call at a time: maybe padding; outgoing args.
         + Just before each `call` instruction, the RSP is required to be 16-byte aligned.
     1. The current function pops the stack, undoing the prior preparation for the function-call.
         + RSP points to "d".
-    + Emitted by [`crate::stage4_asm_gen::phase1_generate::AsmCodeGenerator::gen_funcall_instrs()`].
+    + Emitted by [`crate::stage4_asm_gen::phase1_generate::InstrsGenerator::gen_funcall_instrs()`].
 1. The current function's epilogue restores the previous stack frame and instruction pointer.
     1. Pops the stack, s.t. RSP points to "c".
     1. Pops the previous stack frame's RBP.

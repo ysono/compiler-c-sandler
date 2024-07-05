@@ -1,7 +1,10 @@
 use crate::{
-    stage4_asm_gen::asm_ast::{
-        BinaryOperator, ConditionCode, Function, Instruction, LabelIdentifier, Operand, Program,
-        Register, StaticVariable, UnaryOperator,
+    stage4_asm_gen::{
+        asm_ast::{
+            BinaryOperator, ConditionCode, Function, Instruction, LabelIdentifier, Operand,
+            Program, Register, StaticVariable, UnaryOperator,
+        },
+        FinalizedAsmAst,
     },
     symbol_table_backend::{AsmEntry, BackendSymbolTable},
     symbol_table_frontend::{ResolvedIdentifier, StaticVisibility},
@@ -13,23 +16,26 @@ use std::io::{self, Write};
 
 const TAB: &str = "\t";
 
-pub struct AsmCodeEmitter<'slf, W> {
+pub struct AsmCodeEmitter<W> {
     label_bad_char: Regex,
 
-    backend_symbol_table: &'slf BackendSymbolTable,
+    backend_symtab: BackendSymbolTable,
 
     w: W,
 }
-impl<'slf, W: Write> AsmCodeEmitter<'slf, W> {
-    pub fn new(backend_symbol_table: &'slf BackendSymbolTable, w: W) -> Result<Self, io::Error> {
+impl<W: Write> AsmCodeEmitter<W> {
+    pub fn new(backend_symtab: BackendSymbolTable, w: W) -> Result<Self, io::Error> {
         Ok(Self {
             label_bad_char: Regex::new(r"[^a-zA-Z0-9._]").unwrap(),
-            backend_symbol_table,
+            backend_symtab,
             w,
         })
     }
 
-    pub fn emit_program(mut self, Program { static_vars, funs }: Program) -> Result<(), io::Error> {
+    pub fn emit_program(
+        mut self,
+        Program { static_vars, funs }: Program<FinalizedAsmAst>,
+    ) -> Result<(), io::Error> {
         for fun in funs {
             self.write_fun(fun)?;
         }
@@ -50,7 +56,7 @@ impl<'slf, W: Write> AsmCodeEmitter<'slf, W> {
 
     fn write_fun(
         &mut self,
-        Function { ident, visibility, instrs }: Function,
+        Function { ident, visibility, instrs }: Function<FinalizedAsmAst>,
     ) -> Result<(), io::Error> {
         self.write_identifier_visibility(&ident, &visibility)?;
         writeln!(&mut self.w, "{TAB}.text")?;
@@ -62,7 +68,7 @@ impl<'slf, W: Write> AsmCodeEmitter<'slf, W> {
         }
         Ok(())
     }
-    fn write_instr(&mut self, instr: Instruction<Operand>) -> Result<(), io::Error> {
+    fn write_instr(&mut self, instr: Instruction<FinalizedAsmAst>) -> Result<(), io::Error> {
         match instr {
             Instruction::Mov { asm_type, src, dst } => {
                 let instr_sfx = Self::get_instr_sfx_wordlen(asm_type);
@@ -272,7 +278,7 @@ impl<'slf, W: Write> AsmCodeEmitter<'slf, W> {
     }
     fn write_fun_call_sfx(&mut self, ident: &ResolvedIdentifier) -> Result<(), io::Error> {
         if cfg!(target_os = "linux") {
-            match self.backend_symbol_table.get(ident).unwrap() {
+            match self.backend_symtab.get(ident).unwrap() {
                 AsmEntry::Obj { .. } => { /* No-op. */ }
                 AsmEntry::Fun { is_defined } => {
                     if *is_defined == false {

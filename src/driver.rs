@@ -7,9 +7,8 @@ use crate::{
         phase1_parse::Parser, phase2_resolve::CAstValidator, phase3_typecheck::TypeChecker,
     },
     stage3_tacky::generate::Tackifier,
-    stage4_asm_gen::phase1_generate::AsmCodeGenerator,
+    stage4_asm_gen::AsmCodeGenerator,
     stage5_asm_emit::emit::AsmCodeEmitter,
-    symbol_table_backend::BackendSymbolTable,
 };
 use anyhow::Result;
 use clap::{builder::OsStr, Parser as ClapParser};
@@ -21,7 +20,6 @@ use std::fs::{self, OpenOptions};
 use std::io::{self, BufRead, BufReader, BufWriter, Read};
 use std::mem;
 use std::path::PathBuf;
-use std::rc::Rc;
 
 #[derive(ClapParser, Debug)]
 pub struct CliArgs {
@@ -122,24 +120,22 @@ impl Driver {
         let c_prog = vadlidator.resolve_program(c_prog)?;
 
         let type_checker = TypeChecker::default();
-        let (c_prog, mut symbol_table) = type_checker.typecheck_prog(c_prog)?;
+        let (c_prog, mut frontend_symtab) = type_checker.typecheck_prog(c_prog)?;
 
         if self.args.until_parser_validate {
             println!("validated c_prog: {c_prog:#?}");
-            println!("symbol table: {symbol_table:#?}");
+            println!("symbol table: {frontend_symtab:#?}");
             return Ok(None);
         }
 
-        let tacky_prog = Tackifier::tackify_program(c_prog, &mut symbol_table);
+        let tacky_prog = Tackifier::tackify_program(c_prog, &mut frontend_symtab);
         if self.args.until_tacky {
             println!("tacky_prog: {tacky_prog:#?}");
             return Ok(None);
         }
 
-        let backend_symbol_table = Rc::new(BackendSymbolTable::from(&symbol_table));
-
-        let asm_gen = AsmCodeGenerator::new(symbol_table, Rc::clone(&backend_symbol_table));
-        let asm_prog = asm_gen.gen_program(tacky_prog);
+        let asm_gen = AsmCodeGenerator::new(frontend_symtab);
+        let (asm_prog, backend_symtab) = asm_gen.gen_program(tacky_prog);
         if self.args.until_asm_codegen {
             println!("asm_prog: {asm_prog:#?}");
             return Ok(None);
@@ -152,7 +148,7 @@ impl Driver {
             .write(true)
             .open(&asm_filepath as &PathBuf)?;
         let asm_bw = BufWriter::new(asm_file);
-        let asm_emitter = AsmCodeEmitter::new(&backend_symbol_table, asm_bw)?;
+        let asm_emitter = AsmCodeEmitter::new(backend_symtab, asm_bw)?;
         asm_emitter.emit_program(asm_prog)?;
         log::info!("Compiler done -> {asm_filepath:?}");
         if self.args.until_asm_emission {

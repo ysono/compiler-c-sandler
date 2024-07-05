@@ -1,10 +1,13 @@
-use crate::{stage4_asm_gen::asm_ast::*, types_backend::AssemblyType};
+use crate::{
+    stage4_asm_gen::{asm_ast::*, phase2_finalize::FinalizedAsmAst},
+    types_backend::AssemblyType,
+};
 
 pub struct OperandFixer {}
 impl OperandFixer {
     pub fn fix_invalid_operands<'a>(
-        in_instrs: impl 'a + Iterator<Item = Instruction<Operand>>,
-    ) -> impl 'a + Iterator<Item = Instruction<Operand>> {
+        in_instrs: impl 'a + Iterator<Item = Instruction<FinalizedAsmAst>>,
+    ) -> impl 'a + Iterator<Item = Instruction<FinalizedAsmAst>> {
         in_instrs.flat_map(|in_instr| match in_instr {
             Instruction::Mov { asm_type, mut src, dst } => {
                 if let (AssemblyType::Longword, Operand::ImmediateValue(i)) = (asm_type, &src) {
@@ -116,8 +119,8 @@ impl OperandFixer {
         asm_type: AssemblyType,
         operand_to_reg: Operand,
         reg: Register,
-        instr_at_reg: Instruction<Operand>,
-    ) -> Vec<Instruction<Operand>> {
+        instr_at_reg: Instruction<FinalizedAsmAst>,
+    ) -> Vec<Instruction<FinalizedAsmAst>> {
         let instr_to_reg = Instruction::Mov {
             asm_type,
             src: operand_to_reg,
@@ -130,8 +133,8 @@ impl OperandFixer {
         (dst_asm_type, mut dst): (AssemblyType, Operand),
         src_to_reg1: bool,
         (dst_to_reg2, reg2_to_dst): (bool, bool),
-        new_instr: impl FnOnce(Operand, Operand) -> Instruction<Operand>,
-    ) -> Vec<Instruction<Operand>> {
+        new_instr: impl FnOnce(Operand, Operand) -> Instruction<FinalizedAsmAst>,
+    ) -> Vec<Instruction<FinalizedAsmAst>> {
         let reg1 = Register::R10;
         let reg2 = Register::R11;
 

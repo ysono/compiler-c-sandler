@@ -25,26 +25,29 @@ pub enum StorageDuration {
 pub struct BackendSymbolTable {
     symbol_table: HashMap<Rc<ResolvedIdentifier>, AsmEntry>,
 }
-impl<'a> From<&'a SymbolTable> for BackendSymbolTable {
-    fn from(c_table: &'a SymbolTable) -> Self {
-        let mut asm_table = HashMap::new();
-        for (ident, symbol) in c_table.iter() {
-            let asm_entry = match symbol {
-                Symbol::Var { typ, attrs } => {
-                    let asm_type = AssemblyType::from(*typ);
-                    let storage_duration = match attrs {
-                        VarAttrs::AutomaticStorageDuration => StorageDuration::Automatic,
-                        VarAttrs::StaticStorageDuration { .. } => StorageDuration::Static,
-                    };
-                    AsmEntry::Obj { asm_type, storage_duration }
-                }
-                Symbol::Fun { typ: _, attrs } => {
-                    let is_defined = attrs.is_defined;
-                    AsmEntry::Fun { is_defined }
-                }
-            };
-            asm_table.insert(Rc::clone(ident), asm_entry);
-        }
+impl From<SymbolTable> for BackendSymbolTable {
+    fn from(c_table: SymbolTable) -> Self {
+        let c_table: HashMap<_, _> = c_table.into();
+        let asm_table = c_table
+            .into_iter()
+            .map(|(ident, symbol)| {
+                let asm_entry = match symbol {
+                    Symbol::Var { typ, attrs } => {
+                        let asm_type = AssemblyType::from(typ);
+                        let storage_duration = match attrs {
+                            VarAttrs::AutomaticStorageDuration => StorageDuration::Automatic,
+                            VarAttrs::StaticStorageDuration { .. } => StorageDuration::Static,
+                        };
+                        AsmEntry::Obj { asm_type, storage_duration }
+                    }
+                    Symbol::Fun { typ: _, attrs } => {
+                        let is_defined = attrs.is_defined;
+                        AsmEntry::Fun { is_defined }
+                    }
+                };
+                (ident, asm_entry)
+            })
+            .collect::<HashMap<_, _>>();
         Self { symbol_table: asm_table }
     }
 }

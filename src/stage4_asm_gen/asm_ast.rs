@@ -5,13 +5,18 @@ use crate::{
     types_frontend::Const,
 };
 use derive_more::{Deref, DerefMut, From};
-use std::collections::VecDeque;
+use std::fmt::Debug;
 use std::rc::Rc;
 
+pub trait AsmAstVariant {
+    type Instructions: Debug;
+    type Operand: Debug;
+}
+
 #[derive(Debug)]
-pub struct Program {
+pub struct Program<T: AsmAstVariant> {
     pub static_vars: Vec<StaticVariable>,
-    pub funs: Vec<Function>,
+    pub funs: Vec<Function<T>>,
 }
 
 #[derive(Debug)]
@@ -23,47 +28,47 @@ pub struct StaticVariable {
 }
 
 #[derive(Debug)]
-pub struct Function {
+pub struct Function<T: AsmAstVariant> {
     pub ident: Rc<ResolvedIdentifier>,
     pub visibility: StaticVisibility,
-    pub instrs: VecDeque<Instruction<Operand>>,
+    pub instrs: T::Instructions,
 }
 
 #[derive(Debug)]
-pub enum Instruction<Oprnd> {
+pub enum Instruction<T: AsmAstVariant> {
     Mov {
         asm_type: AssemblyType,
-        src: Oprnd,
-        dst: Oprnd,
+        src: T::Operand,
+        dst: T::Operand,
     },
     Movsx {
-        src: Oprnd,
-        dst: Oprnd,
+        src: T::Operand,
+        dst: T::Operand,
     },
     MovZeroExtend {
-        src: Oprnd,
-        dst: Oprnd,
+        src: T::Operand,
+        dst: T::Operand,
     },
-    Unary(UnaryOperator, AssemblyType, Oprnd),
+    Unary(UnaryOperator, AssemblyType, T::Operand),
     Binary {
         op: BinaryOperator,
         asm_type: AssemblyType,
-        arg: Oprnd, // Semantic RHS. Asm operand #1.
-        tgt: Oprnd, // Semantic LHS, as well as output. Asm operand #2.
+        arg: T::Operand, // Semantic RHS. Asm operand #1.
+        tgt: T::Operand, // Semantic LHS, as well as output. Asm operand #2.
     },
     Cmp {
         asm_type: AssemblyType,
-        arg: Oprnd, // Semantic RHS. Asm operand #1.
-        tgt: Oprnd, // Semantic LHS, non-modified. Asm operand #2.
+        arg: T::Operand, // Semantic RHS. Asm operand #1.
+        tgt: T::Operand, // Semantic LHS, non-modified. Asm operand #2.
     },
-    Idiv(AssemblyType, Oprnd),
-    Div(AssemblyType, Oprnd),
+    Idiv(AssemblyType, T::Operand),
+    Div(AssemblyType, T::Operand),
     Cdq(AssemblyType),
     Jmp(Rc<LabelIdentifier>),
     JmpCC(ConditionCode, Rc<LabelIdentifier>),
-    SetCC(ConditionCode, Oprnd),
+    SetCC(ConditionCode, T::Operand),
     Label(Rc<LabelIdentifier>),
-    Push(Oprnd),
+    Push(T::Operand),
     Call(Rc<ResolvedIdentifier>),
     Ret,
 }

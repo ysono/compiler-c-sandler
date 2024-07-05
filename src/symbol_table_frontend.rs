@@ -12,7 +12,7 @@ use crate::{
 };
 use anyhow::{anyhow, Context, Result};
 use derivative::Derivative;
-use derive_more::{Deref, DerefMut};
+use derive_more::{Deref, DerefMut, Into};
 use std::collections::{hash_map::Entry, HashMap};
 use std::fmt::Display;
 use std::rc::Rc;
@@ -113,7 +113,7 @@ pub enum StaticVisibility {
     NonGlobal, // Visible either in translation unit or in block.
 }
 
-#[derive(Default, Deref, DerefMut, Debug)]
+#[derive(Default, Into, Deref, DerefMut, Debug)]
 pub struct SymbolTable {
     symbol_table: HashMap<Rc<ResolvedIdentifier>, Symbol>,
 }

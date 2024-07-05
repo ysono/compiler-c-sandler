@@ -1,5 +1,5 @@
 use crate::{
-    stage4_asm_gen::{asm_ast::*, phase3_fix::OperandFixer},
+    stage4_asm_gen::{asm_ast::*, phase1_generate::GeneratedAsmAst, phase3_fix::OperandFixer},
     symbol_table_backend::{AsmEntry, BackendSymbolTable, StorageDuration},
     symbol_table_frontend::ResolvedIdentifier,
     types_backend::{Alignment, AssemblyType, OperandByteLen},
@@ -7,26 +7,41 @@ use crate::{
 use std::collections::{HashMap, VecDeque};
 use std::rc::Rc;
 
+#[derive(Debug)]
+pub struct FinalizedAsmAst(());
+impl AsmAstVariant for FinalizedAsmAst {
+    type Instructions = VecDeque<Instruction<FinalizedAsmAst>>;
+    type Operand = Operand;
+}
+
 pub struct InstrsFinalizer {
-    backend_symbol_table: Rc<BackendSymbolTable>,
+    backend_symtab: Rc<BackendSymbolTable>,
 
     last_used_stack_pos: StackPosition,
     var_to_stack_pos: HashMap<Rc<ResolvedIdentifier>, StackPosition>,
 }
 impl InstrsFinalizer {
-    pub fn new(backend_symbol_table: Rc<BackendSymbolTable>) -> Self {
+    pub fn new(backend_symtab: Rc<BackendSymbolTable>) -> Self {
         Self {
-            backend_symbol_table,
+            backend_symtab,
             last_used_stack_pos: StackPosition(0),
             var_to_stack_pos: HashMap::new(),
         }
     }
 
-    /// See documentation at [`crate::stage4_asm_gen`].
-    pub fn finalize_instrs(
+    pub fn finalize_fun(
         &mut self,
-        in_instrs: impl Iterator<Item = Instruction<PreFinalOperand>>,
-    ) -> VecDeque<Instruction<Operand>> {
+        Function { ident, visibility, instrs }: Function<GeneratedAsmAst>,
+    ) -> Function<FinalizedAsmAst> {
+        let instrs = self.finalize_instrs(instrs.into_iter());
+        Function { ident, visibility, instrs }
+    }
+
+    /// See documentation at [`crate::stage4_asm_gen`].
+    fn finalize_instrs(
+        &mut self,
+        in_instrs: impl Iterator<Item = Instruction<GeneratedAsmAst>>,
+    ) -> VecDeque<Instruction<FinalizedAsmAst>> {
         let instrs = self.convert_operands(in_instrs);
         let instrs = OperandFixer::fix_invalid_operands(instrs);
 
@@ -58,8 +73,8 @@ impl InstrsFinalizer {
 
     fn convert_operands<'a>(
         &'a mut self,
-        in_instrs: impl 'a + Iterator<Item = Instruction<PreFinalOperand>>,
-    ) -> impl 'a + Iterator<Item = Instruction<Operand>> {
+        in_instrs: impl 'a + Iterator<Item = Instruction<GeneratedAsmAst>>,
+    ) -> impl 'a + Iterator<Item = Instruction<FinalizedAsmAst>> {
         in_instrs.map(move |in_instr| match in_instr {
             Instruction::Mov { asm_type, src, dst } => {
                 let src = self.convert_operand(src);
@@ -120,7 +135,7 @@ impl InstrsFinalizer {
             PFO::ImmediateValue(i) => Operand::ImmediateValue(i),
             PFO::Register(r) => Operand::Register(r),
             PFO::StackPosition(s) => Operand::StackPosition(s),
-            PFO::Pseudo(ident) => match self.backend_symbol_table.get(&ident) {
+            PFO::Pseudo(ident) => match self.backend_symtab.get(&ident) {
                 None => panic!("All pseudos are expected to have been added to the symbol table."),
                 Some(AsmEntry::Obj { asm_type, storage_duration }) => match storage_duration {
                     StorageDuration::Automatic => self.var_to_stack_pos(ident, *asm_type).into(),
