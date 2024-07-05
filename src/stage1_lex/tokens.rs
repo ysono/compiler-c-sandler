@@ -1,7 +1,7 @@
 use crate::types_frontend::Const;
 use derive_more::{Deref, From};
 
-#[derive(From, PartialEq, Eq, Debug)]
+#[derive(From, PartialEq, Debug)]
 pub enum Token {
     Demarcator(Demarcator),
     Keyword(Keyword),
@@ -13,7 +13,7 @@ pub enum Token {
     Const(Const),
     Identifier(Identifier),
 }
-#[derive(PartialEq, Eq, Debug)]
+#[derive(PartialEq, Debug)]
 pub enum Demarcator {
     ParenOpen,
     ParenClose,
@@ -22,7 +22,7 @@ pub enum Demarcator {
     Semicolon,
     Comma,
 }
-#[derive(PartialEq, Eq, Debug)]
+#[derive(PartialEq, Debug)]
 pub enum Keyword {
     Return,
 }
@@ -33,13 +33,14 @@ pub enum Type {
     Long = 2,
     Signed = 3,
     Unsigned = 4,
+    Double = 5,
 }
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, PartialEq, Debug)]
 pub enum StorageClassSpecifier {
     Static,
     Extern,
 }
-#[derive(PartialEq, Eq, Debug)]
+#[derive(PartialEq, Debug)]
 pub enum Operator {
     /* unary -> int */
     Tilde,
@@ -68,12 +69,12 @@ pub enum Operator {
     Question,
     Colon,
 }
-#[derive(PartialEq, Eq, Debug)]
+#[derive(PartialEq, Debug)]
 pub enum Control {
     If,
     Else,
 }
-#[derive(PartialEq, Eq, Debug)]
+#[derive(PartialEq, Debug)]
 pub enum Loop {
     Do,
     While,

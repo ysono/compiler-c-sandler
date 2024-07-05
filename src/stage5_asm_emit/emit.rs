@@ -300,6 +300,7 @@ impl<'slf, W: Write> AsmCodeEmitter<'slf, W> {
         let section = match init {
             Const::Int(0) | Const::Long(0) | Const::UInt(0) | Const::ULong(0) => ".bss",
             Const::Int(_) | Const::Long(_) | Const::UInt(_) | Const::ULong(_) => ".data",
+            Const::Double(_) => todo!(),
         };
         let alignment = alignment as u8;
         let bytelen = OperandByteLen::from(init.var_type()) as u8;
@@ -314,18 +315,11 @@ impl<'slf, W: Write> AsmCodeEmitter<'slf, W> {
             Const::Int(0) | Const::UInt(0) | Const::Long(0) | Const::ULong(0) => {
                 writeln!(&mut self.w, "{TAB}.zero {bytelen}")?;
             }
-            Const::Int(i) => {
-                writeln!(&mut self.w, "{TAB}.long {i}")?;
-            }
-            Const::UInt(i) => {
-                writeln!(&mut self.w, "{TAB}.long {i}")?;
-            }
-            Const::Long(i) => {
-                writeln!(&mut self.w, "{TAB}.quad {i}")?;
-            }
-            Const::ULong(i) => {
-                writeln!(&mut self.w, "{TAB}.quad {i}")?;
-            }
+            Const::Int(i) => writeln!(&mut self.w, "{TAB}.long {i}")?,
+            Const::UInt(i) => writeln!(&mut self.w, "{TAB}.long {i}")?,
+            Const::Long(i) => writeln!(&mut self.w, "{TAB}.quad {i}")?,
+            Const::ULong(i) => writeln!(&mut self.w, "{TAB}.quad {i}")?,
+            Const::Double(_) => todo!(),
         };
         Ok(())
     }

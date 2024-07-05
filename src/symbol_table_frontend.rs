@@ -175,7 +175,7 @@ impl SymbolTable {
                 _ => Err(anyhow!("On type=var w/ storage_duration=static, initializer, if present, must be constexpr. Only a simple const is supported."))
             }
         };
-        let siv_zero = || StaticInitialValue::Initial(Const::new(0, new_typ));
+        let siv_zero = || StaticInitialValue::Initial(Const::new_integer(0, new_typ));
 
         #[rustfmt::skip]
         let new_decl_summary = match (new_scope, new_sc, new_init) {

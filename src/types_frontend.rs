@@ -7,12 +7,14 @@ pub enum VarType {
     Long,
     UInt,
     ULong,
+    Double,
 }
 impl VarType {
     pub fn is_signed(&self) -> bool {
         match self {
             Self::Int | Self::Long => true,
             Self::UInt | Self::ULong => false,
+            Self::Double => todo!(),
         }
     }
 
@@ -34,6 +36,7 @@ impl VarType {
                 Ordering::Less => typ2,
             }
         }
+        // TODO double
     }
 }
 
@@ -43,15 +46,17 @@ pub struct FunType {
     pub ret: VarType,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, PartialEq, Debug)]
 pub enum Const {
     Int(i32),
     Long(i64),
     UInt(u32),
     ULong(u64),
+    Double(f64),
 }
 impl Const {
-    pub fn new(i: i32, typ: VarType) -> Const {
+    pub fn new_integer(i: i32, typ: VarType) -> Const {
+        // TODO all usages
         let konst = Const::Int(i);
         konst.cast_to(typ)
     }
@@ -63,6 +68,7 @@ impl Const {
                     Const::Long(i) => $out_konst_variant(*i as $out_prim),
                     Const::UInt(i) => $out_konst_variant(*i as $out_prim),
                     Const::ULong(i) => $out_konst_variant(*i as $out_prim),
+                    Const::Double(_) => todo!(),
                 }
             };
         }
@@ -72,6 +78,7 @@ impl Const {
             VarType::Long => new_const!(Const::Long, i64),
             VarType::UInt => new_const!(Const::UInt, u32),
             VarType::ULong => new_const!(Const::ULong, u64),
+            VarType::Double => todo!(),
         }
     }
 
@@ -81,6 +88,7 @@ impl Const {
             Const::Long(i) => *i,
             Const::UInt(i) => *i as i64,
             Const::ULong(i) => *i as i64,
+            Const::Double(_) => todo!(),
         }
     }
 
@@ -90,6 +98,7 @@ impl Const {
             Const::Long(_) => VarType::Long,
             Const::UInt(_) => VarType::UInt,
             Const::ULong(_) => VarType::ULong,
+            Const::Double(_) => VarType::Double,
         }
     }
 }

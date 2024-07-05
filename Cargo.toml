@@ -20,6 +20,7 @@ rusty-hook = "0.11.2"
 
 [lints.clippy]
 bool_comparison = "allow"
+comparison_to_empty = "allow"
 len_zero = "allow"
 needless_return = "allow"
 neg_multiply = "allow"

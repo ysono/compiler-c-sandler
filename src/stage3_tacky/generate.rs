@@ -57,7 +57,7 @@ impl Tackifier {
             {
                 let konst = match initial_value {
                     StaticInitialValue::Initial(konst) => *konst,
-                    StaticInitialValue::Tentative => Const::new(0, *typ),
+                    StaticInitialValue::Tentative => Const::new_integer(0, *typ),
                     StaticInitialValue::NoInitializer => continue,
                 };
                 let static_var = StaticVariable {
@@ -315,7 +315,7 @@ impl<'a> FunInstrsGenerator<'a> {
             }
         };
 
-        let new_out_const = |i: i32| Const::new(i, out_typ);
+        let new_out_const = |i: i32| Const::new_integer(i, out_typ);
         let (shortcirc_val, fully_evald_val) = match op_type {
             ShortCircuitBOT::And => (new_out_const(0), new_out_const(1)),
             ShortCircuitBOT::Or => (new_out_const(1), new_out_const(0)),

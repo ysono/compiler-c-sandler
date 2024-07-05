@@ -6,7 +6,7 @@
 <param-list> ::= "void"
                | { <type-specifier> }+ <identifier> { "," { <type-specifier> }+ <identifier> }
 <specifier> ::= <type-specifier> | "static" | "extern"
-<type-specifier> ::= "int" | "long" | "unsigned" | "signed"
+<type-specifier> ::= "int" | "long" | "unsigned" | "signed" | "double"
 <block> ::= "{" { <block-item> } "}"
 <block-item> ::= <statement> | <declaration>
 <statement> ::= "return" <exp> ";"
@@ -30,10 +30,11 @@
 <argument-list> ::= <exp> { "," <exp> }
 <unop> ::= "-" | "~" | "!"
 <binop> ::= "-" | "+" | "*" | "/" | "%" | "&&" | "||" | "==" | "!=" | "<" | "<=" | ">" | ">=" | "="
-<const> ::= <int> | <long> | <uint> | <ulong>
+<const> ::= <int> | <long> | <uint> | <ulong> | <double>
 <identifier> ::= ? An identifier token ?
 <int> ::= ? An int token ?
 <long> ::= ? An int or long token ?
 <uint> ::= ? An unsigned int token ?
 <ulong> ::= ? An unsigned int or unsigned long token ?
+<double> ::= ? A floating-point constant token ?
 ```

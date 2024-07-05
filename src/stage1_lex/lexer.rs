@@ -65,8 +65,8 @@ impl<R: Read + BufRead> Lexer<R> {
         let byte0 = sfx.as_bytes()[0];
         if byte0.is_ascii_alphabetic() {
             self.alpha_sfx_to_token(sfx)
-        } else if byte0.is_ascii_digit() {
-            self.digit_sfx_to_token(sfx)
+        } else if byte0 == b'.' || byte0.is_ascii_digit() {
+            self.dot_or_digit_sfx_to_token(sfx)
         } else {
             self.nonalphanum_sfx_to_token(sfx)
         }
@@ -82,6 +82,7 @@ impl<R: Read + BufRead> Lexer<R> {
                 "long"     => Type::Long.into(),
                 "signed"   => Type::Signed.into(),
                 "unsigned" => Type::Unsigned.into(),
+                "double"   => Type::Double.into(),
                 "static" => StorageClassSpecifier::Static.into(),
                 "extern" => StorageClassSpecifier::Extern.into(),
                 "if"     => Control::If.into(),
@@ -98,40 +99,53 @@ impl<R: Read + BufRead> Lexer<R> {
         return Err(anyhow!("{sfx}"));
     }
 
-    fn digit_sfx_to_token(&self, sfx: &str) -> Result<(usize, Token)> {
-        if let Some(caps) = self.matchers.decimals.captures(sfx) {
-            let (literal, [digits, type_marker]) = caps.extract();
+    fn dot_or_digit_sfx_to_token(&self, sfx: &str) -> Result<(usize, Token)> {
+        if let Some(caps) = self.matchers.numeric.captures(sfx) {
+            let (whole, [head, head_dot, int_marker, float_expo]) = caps.extract();
 
-            let mut markers = Vec::with_capacity(2);
-            markers.extend(
-                type_marker
-                    .as_bytes()
-                    .iter()
-                    .take(2)
-                    .map(|b| b.to_ascii_lowercase()),
-            );
-
-            let konst = match &markers[..] {
-                b"ul" | b"lu" => digits.parse::<u64>().map(Const::ULong)?,
-                b"l" => digits.parse::<i64>().map(Const::Long)?,
-                b"u" => {
-                    let i_wide = digits.parse::<u64>()?;
-                    u32::try_from(i_wide)
-                        .map(Const::UInt)
-                        .unwrap_or_else(|_| Const::ULong(i_wide))
-                }
-                b"" => {
-                    let i_wide = digits.parse::<i64>()?;
-                    i32::try_from(i_wide)
-                        .map(Const::Int)
-                        .unwrap_or_else(|_| Const::Long(i_wide))
-                }
-                actual => return Err(anyhow!("{actual:?}")),
+            let konst = if (head != "") && (head_dot == "") && (float_expo == "") {
+                Self::parse_integer(head, int_marker)?
+            } else if (head.len() > head_dot.len()) && (int_marker == "") {
+                let literal = &whole[..(whole.len() - 1)];
+                literal.parse::<f64>().map(Const::Double)?
+            } else {
+                return Err(anyhow!("{whole}"));
             };
 
-            return Ok((literal.len(), konst.into()));
+            let match_len = whole.len() - 1; // Un-count the tail-end `[^\w.]`.
+
+            return Ok((match_len, konst.into()));
         }
         return Err(anyhow!("{sfx}"));
+    }
+    fn parse_integer(digits: &str, int_marker: &str) -> Result<Const> {
+        let mut markers = Vec::with_capacity(2);
+        markers.extend(
+            int_marker
+                .as_bytes()
+                .iter()
+                .take(2)
+                .map(|b| b.to_ascii_lowercase()),
+        );
+
+        let konst = match &markers[..] {
+            b"ul" | b"lu" => digits.parse::<u64>().map(Const::ULong)?,
+            b"l" => digits.parse::<i64>().map(Const::Long)?,
+            b"u" => {
+                let i_wide = digits.parse::<u64>()?;
+                u32::try_from(i_wide)
+                    .map(Const::UInt)
+                    .unwrap_or_else(|_| Const::ULong(i_wide))
+            }
+            b"" => {
+                let i_wide = digits.parse::<i64>()?;
+                i32::try_from(i_wide)
+                    .map(Const::Int)
+                    .unwrap_or_else(|_| Const::Long(i_wide))
+            }
+            actual => return Err(anyhow!("{actual:?}")),
+        };
+        Ok(konst)
     }
 
     fn nonalphanum_sfx_to_token(&self, sfx: &str) -> Result<(usize, Token)> {
@@ -187,13 +201,13 @@ impl<R: Read + BufRead> Iterator for Lexer<R> {
 }
 
 struct TokenMatchers {
-    decimals: Regex,
     wordlike: Regex,
+    numeric: Regex,
 }
 impl TokenMatchers {
     fn new() -> Result<Self> {
-        let decimals = Regex::new(r"^([0-9]+)([lLuU]{0,2})\b")?;
         let wordlike = Regex::new(r"^[a-zA-Z_]\w*\b")?;
-        Ok(Self { decimals, wordlike })
+        let numeric = Regex::new(r"^(\d*(\.?)\d*)([lLuU]{0,2})((?:[eE][+-]?\d+)?)[^\w.]")?;
+        Ok(Self { wordlike, numeric })
     }
 }

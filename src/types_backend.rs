@@ -10,6 +10,7 @@ impl From<VarType> for AssemblyType {
         match var_type {
             VarType::Int | VarType::UInt => Self::Longword,
             VarType::Long | VarType::ULong => Self::Quadword,
+            VarType::Double => todo!(),
         }
     }
 }

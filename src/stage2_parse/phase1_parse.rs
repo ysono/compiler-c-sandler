@@ -155,6 +155,7 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
                 [t::Type::Long, t::Type::Unsigned] => VarType::ULong,
                 [t::Type::Signed] => VarType::Int,
                 [t::Type::Unsigned] => VarType::UInt,
+                [t::Type::Double] => VarType::Double,
                 actual => return Err(anyhow!("Invalid types. {actual:?}")),
                 /* Void is not supported yet. */
             };
