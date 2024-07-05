@@ -3,7 +3,7 @@ use crate::{
     symbol_table_frontend::{FunDeclScope, ResolvedIdentifier, SymbolTable, VarDeclScope},
     types_frontend::{FunType, VarType},
 };
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use std::rc::Rc;
 
 #[derive(Debug)]
@@ -237,6 +237,14 @@ impl TypeChecker {
             }
             Expression::Unary(Unary { op, sub_exp }) => {
                 let sub_exp = Box::new(self.typecheck_exp(*sub_exp)?);
+
+                if matches!(
+                    (&op, sub_exp.typ),
+                    (UnaryOperator::Complement, VarType::Double)
+                ) {
+                    return Err(anyhow!("Cannot apply {op:?} on {sub_exp:?}"));
+                }
+
                 let typ = match &op {
                     UnaryOperator::Not => VarType::Int,
                     UnaryOperator::Complement | UnaryOperator::Negate => sub_exp.typ,
@@ -253,6 +261,10 @@ impl TypeChecker {
                 let common_typ = VarType::derive_common_type(lhs.typ, rhs.typ);
                 let cast_exp =
                     |exp: TypedExpression<TypeCheckedCAst>| Self::maybe_cast_exp(exp, common_typ);
+
+                if matches!((&op, common_typ), (BO::Rem, VarType::Double)) {
+                    return Err(anyhow!("Cannot apply {op:?} on {lhs:?} and {rhs:?}"));
+                }
 
                 let (out_typ, lhs, rhs) = match &op {
                     BO::And | BO::Or => (VarType::Int, lhs, rhs),

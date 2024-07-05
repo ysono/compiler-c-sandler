@@ -21,6 +21,8 @@ impl VarType {
     pub fn derive_common_type(typ1: VarType, typ2: VarType) -> VarType {
         if typ1 == typ2 {
             typ1
+        } else if (typ1 == VarType::Double) || (typ2 == VarType::Double) {
+            VarType::Double
         } else {
             let bytelen1 = OperandByteLen::from(typ1);
             let bytelen2 = OperandByteLen::from(typ2);
@@ -36,7 +38,6 @@ impl VarType {
                 Ordering::Less => typ2,
             }
         }
-        // TODO double
     }
 }
 
@@ -55,11 +56,10 @@ pub enum Const {
     Double(f64),
 }
 impl Const {
-    pub fn new_integer(i: i32, typ: VarType) -> Const {
-        // TODO all usages
-        let konst = Const::Int(i);
-        konst.cast_to(typ)
+    pub fn new_zero_bits(typ: VarType) -> Const {
+        Const::Int(0).cast_to(typ)
     }
+
     pub fn cast_to(&self, typ: VarType) -> Const {
         macro_rules! new_const {
             ( $out_konst_variant:expr, $out_prim:ty ) => {
@@ -68,7 +68,7 @@ impl Const {
                     Const::Long(i) => $out_konst_variant(*i as $out_prim),
                     Const::UInt(i) => $out_konst_variant(*i as $out_prim),
                     Const::ULong(i) => $out_konst_variant(*i as $out_prim),
-                    Const::Double(_) => todo!(),
+                    Const::Double(f) => $out_konst_variant(*f as $out_prim),
                 }
             };
         }
@@ -78,7 +78,7 @@ impl Const {
             VarType::Long => new_const!(Const::Long, i64),
             VarType::UInt => new_const!(Const::UInt, u32),
             VarType::ULong => new_const!(Const::ULong, u64),
-            VarType::Double => todo!(),
+            VarType::Double => new_const!(Const::Double, f64),
         }
     }
 
