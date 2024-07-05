@@ -227,16 +227,31 @@ impl<'a> FunInstrsGenerator<'a> {
                 dst: Rc::clone(&dst),
             };
 
-            let out_bytelen = OperandByteLen::from(typ);
-            let sub_bytelen = OperandByteLen::from(sub_typ);
-            let instr = match out_bytelen.cmp(&sub_bytelen) {
-                Ordering::Equal => Instruction::Copy(srcdst),
-                Ordering::Less => Instruction::Truncate(srcdst),
-                Ordering::Greater => {
-                    if sub_typ.is_signed() {
-                        Instruction::SignExtend(srcdst)
-                    } else {
-                        Instruction::ZeroExtend(srcdst)
+            let instr = if sub_typ == VarType::Double {
+                if typ.is_signed() {
+                    Instruction::DoubleToInt(srcdst)
+                } else {
+                    Instruction::DoubleToUInt(srcdst)
+                }
+            } else if typ == VarType::Double {
+                if sub_typ.is_signed() {
+                    Instruction::IntToDouble(srcdst)
+                } else {
+                    Instruction::UIntToDouble(srcdst)
+                }
+            } else {
+                /* Then, casting between different integer types. */
+                let out_bytelen = OperandByteLen::from(typ);
+                let sub_bytelen = OperandByteLen::from(sub_typ);
+                match out_bytelen.cmp(&sub_bytelen) {
+                    Ordering::Equal => Instruction::Copy(srcdst),
+                    Ordering::Less => Instruction::Truncate(srcdst),
+                    Ordering::Greater => {
+                        if sub_typ.is_signed() {
+                            Instruction::SignExtend(srcdst)
+                        } else {
+                            Instruction::ZeroExtend(srcdst)
+                        }
                     }
                 }
             };
