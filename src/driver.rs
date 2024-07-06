@@ -11,7 +11,7 @@ use crate::{
     stage5_asm_emit::emit::AsmCodeEmitter,
 };
 use anyhow::Result;
-use clap::{builder::OsStr, Parser as ClapParser};
+use clap::Parser as ClapParser;
 use derive_more::From;
 use duct::{cmd, Handle, ReaderHandle};
 use log;
@@ -45,6 +45,9 @@ pub struct CliArgs {
 
     #[clap(short = 'c')]
     until_assembler: bool,
+
+    #[clap(short = 'l')]
+    lib_names: Vec<String>,
 }
 
 #[derive(From)]
@@ -159,13 +162,13 @@ impl Driver {
     }
 
     fn assemble_or_link(
-        &self,
+        &mut self,
         asm_filepaths: &NonEmpty<AsmFilepath>,
     ) -> NonEmpty<Result<Handle, io::Error>> {
         if self.args.until_assembler {
             Self::launch_assembler(asm_filepaths)
         } else {
-            let handle = Self::launch_linker(asm_filepaths);
+            let handle = self.launch_linker(asm_filepaths);
             NonEmpty::new(handle)
         }
     }
@@ -190,18 +193,28 @@ impl Driver {
             .collect::<Vec<_>>();
         NonEmpty::from_vec(gcc_procs).unwrap()
     }
-    fn launch_linker(asm_filepaths: &NonEmpty<AsmFilepath>) -> Result<Handle, io::Error> {
+    fn launch_linker(
+        &mut self,
+        asm_filepaths: &NonEmpty<AsmFilepath>,
+    ) -> Result<Handle, io::Error> {
         let asm_args = asm_filepaths
             .iter()
-            .map(|asm_filepath| asm_filepath.as_os_str());
+            .map(|asm_filepath| asm_filepath.to_str().unwrap());
+
+        let lib_names = mem::replace(&mut self.args.lib_names, Vec::with_capacity(0));
+        let lib_args = lib_names
+            .into_iter()
+            .map(|lib_name| format!("-l{lib_name}"))
+            .collect::<Vec<_>>();
+        let lib_args = lib_args.iter().map(|s| &s[..]);
 
         /* Among input file arguments to gcc, in general, earlier inputs may depend on later inputs.
         We assume `main()` is inside the first asm input, and name our output program file after the first input file. */
         let name0 = &asm_filepaths[0];
         let prog_filepath = ProgramFilepath::from(name0);
-        let prog_args = [&OsStr::from("-o"), prog_filepath.as_os_str()];
+        let prog_args = ["-o", prog_filepath.to_str().unwrap()];
 
-        let args = asm_args.chain(prog_args);
+        let args = asm_args.chain(lib_args).chain(prog_args);
         let gcc_cmd = cmd("gcc", args);
         log::info!("Linker: {gcc_cmd:?}");
         gcc_cmd.start()
