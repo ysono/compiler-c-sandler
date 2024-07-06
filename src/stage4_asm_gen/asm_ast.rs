@@ -87,7 +87,7 @@ pub enum BinaryOperator {
     Mul,
 }
 
-#[derive(From, Clone, Debug)]
+#[derive(Clone, Debug)]
 pub enum PreFinalOperand {
     ImmediateValue(u64),
     Register(Register),

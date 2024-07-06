@@ -55,7 +55,7 @@ impl<'slf> InstrsGenerator<'slf> {
         let asm_instr_1 = Instruction::Mov {
             asm_type,
             src,
-            dst: Register::AX.into(),
+            dst: PreFinalOperand::Register(Register::AX),
         };
 
         let asm_instr_2 = Instruction::Ret;

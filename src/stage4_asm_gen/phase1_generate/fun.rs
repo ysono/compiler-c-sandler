@@ -68,7 +68,7 @@ impl<'slf> InstrsGenerator<'slf> {
             asm_instrs.push(Instruction::Binary {
                 op: BinaryOperator::Sub,
                 asm_type: AssemblyType::Quadword,
-                tgt: Register::SP.into(),
+                tgt: PreFinalOperand::Register(Register::SP),
                 arg: PreFinalOperand::ImmediateValue(stack_padding_bytelen),
             });
         }
@@ -90,16 +90,16 @@ impl<'slf> InstrsGenerator<'slf> {
                         asm_instrs.push(Instruction::Mov {
                             asm_type: AssemblyType::Longword,
                             src: arg_operand,
-                            dst: Register::AX.into(),
+                            dst: PreFinalOperand::Register(Register::AX),
                         });
-                        asm_instrs.push(Instruction::Push(Register::AX.into()));
+                        asm_instrs.push(Instruction::Push(PreFinalOperand::Register(Register::AX)));
                     }
                 },
                 Some(reg) => {
                     asm_instrs.push(Instruction::Mov {
                         asm_type: arg_asm_type,
                         src: arg_operand,
-                        dst: (*reg).into(),
+                        dst: PreFinalOperand::Register(*reg),
                     });
                 }
             }
@@ -112,7 +112,7 @@ impl<'slf> InstrsGenerator<'slf> {
             asm_instrs.push(Instruction::Binary {
                 op: BinaryOperator::Add,
                 asm_type: AssemblyType::Quadword,
-                tgt: Register::SP.into(),
+                tgt: PreFinalOperand::Register(Register::SP),
                 arg: PreFinalOperand::ImmediateValue(stack_pop_bytelen),
             });
         }
@@ -120,7 +120,7 @@ impl<'slf> InstrsGenerator<'slf> {
         let (dst, _, dst_type) = self.convert_value(dst);
         asm_instrs.push(Instruction::Mov {
             asm_type: dst_type,
-            src: Register::AX.into(),
+            src: PreFinalOperand::Register(Register::AX),
             dst,
         });
 
