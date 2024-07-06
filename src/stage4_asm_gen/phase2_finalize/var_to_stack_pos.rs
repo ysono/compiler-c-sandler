@@ -31,7 +31,7 @@ impl VarToStackPos {
             let alloc = OperandByteLen::from(asm_type) as i64;
             self.last_used_stack_pos.0 -= alloc;
 
-            let alignment = Alignment::from(asm_type) as i64;
+            let alignment = Alignment::default_of(asm_type) as i64;
             let rem = self.last_used_stack_pos.0 % alignment;
             if rem != 0 {
                 self.last_used_stack_pos.0 -= alignment + rem;

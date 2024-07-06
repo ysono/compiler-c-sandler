@@ -1,39 +1,34 @@
 use crate::{
+    identifier::UniqueIdentifier,
     stage3_tacky::tacky_ast as t,
     stage4_asm_gen::{
         asm_ast::*,
         phase1_generate::{GeneratedAsmAst, InstrsGenerator},
     },
     types_backend::AssemblyType,
+    types_frontend::VarType,
 };
-use std::cmp;
+use std::rc::Rc;
 
-impl<'slf> InstrsGenerator<'slf> {
-    const ARG_REGS: [Register; 6] = [
-        Register::DI,
-        Register::SI,
-        Register::DX,
-        Register::CX,
-        Register::R8,
-        Register::R9,
-    ];
+impl InstrsGenerator {
     /// See documentation at [`crate::stage4_asm_gen`].
-    pub fn convert_fun(
-        &self,
-        t::Function {
-            ident,
-            visibility,
-            param_idents,
-            instrs: t_instrs,
-        }: t::Function,
-    ) -> Function<GeneratedAsmAst> {
+    pub(super) fn gen_fun_instrs(
+        &mut self,
+        param_idents: Vec<Rc<UniqueIdentifier>>,
+        t_instrs: Vec<t::Instruction>,
+    ) -> Vec<Instruction<GeneratedAsmAst>> {
+        /* Instructions that copy incoming args into the current function's stack frame. */
+        let mut arg_reg_resolver = ArgRegResolver::default();
         let mut extra_arg_stack_pos = StackPosition(8);
         let mut asm_instrs = param_idents
             .into_iter()
-            .enumerate()
-            .map(|(i, param_ident)| {
-                let src = match Self::ARG_REGS.get(i) {
-                    Some(reg) => PreFinalOperand::Register(*reg),
+            .map(|param_ident| {
+                let arg_type = self.frontend_symtab.use_var(&param_ident).unwrap();
+
+                let arg_reg = arg_reg_resolver.next_reg(arg_type);
+
+                let src = match arg_reg {
+                    Some(reg) => PreFinalOperand::Register(reg),
                     None => {
                         *extra_arg_stack_pos += 8;
                         PreFinalOperand::StackPosition(extra_arg_stack_pos)
@@ -44,24 +39,72 @@ impl<'slf> InstrsGenerator<'slf> {
             })
             .collect::<Vec<_>>();
 
+        /* The function body's instructions. */
         asm_instrs.extend(self.gen_instructions(t_instrs));
 
-        Function {
-            ident,
-            visibility,
-            instrs: asm_instrs,
-        }
+        asm_instrs
     }
     /// See documentation at [`crate::stage4_asm_gen`].
     pub(super) fn gen_funcall_instrs(
-        &self,
+        &mut self,
         t::FunCall { ident, args, dst }: t::FunCall,
     ) -> Vec<Instruction<GeneratedAsmAst>> {
+        use AssemblyType as AT;
+        use PreFinalOperand as PFO;
+
         let mut asm_instrs = vec![];
 
-        let reg_args_count = cmp::min(Self::ARG_REGS.len(), args.len());
-        let stack_args_count = args.len() - reg_args_count;
+        /* Push arg-copying instructions in the _reverse_ order. */
+        let mut arg_reg_resolver = ArgRegResolver::default();
+        let mut stack_args_count = 0;
+        for arg_val in args {
+            let arg_var_type = match &arg_val {
+                t::ReadableValue::Constant(konst) => konst.var_type(),
+                t::ReadableValue::Variable(ident) => self.frontend_symtab.use_var(ident).unwrap(),
+            };
 
+            let arg_reg = arg_reg_resolver.next_reg(arg_var_type);
+
+            let (arg_operand, _, arg_asm_type) = self.convert_value(arg_val);
+
+            match arg_reg {
+                Some(reg) => {
+                    asm_instrs.push(Instruction::Mov {
+                        asm_type: arg_asm_type,
+                        src: arg_operand,
+                        dst: PreFinalOperand::Register(reg),
+                    });
+                }
+                None => {
+                    stack_args_count += 1;
+
+                    match (&arg_operand, arg_asm_type) {
+                        (PFO::ImmediateValue(_) | PFO::Register(_), _)
+                        | (_, AT::Quadword | AT::Double) => {
+                            asm_instrs.push(Instruction::Push(arg_operand));
+                        }
+                        (PFO::Pseudo(_) | PFO::StackPosition(_) | PFO::Data(_), AT::Longword) => {
+                            /* `pushq` operation always reads and pushes 8 bytes.
+                            In case (arg's memory address + (8-1)) lies outside the readable memory, we cannot `pushq` directly. */
+                            asm_instrs.extend(
+                                [
+                                    Instruction::Mov {
+                                        asm_type: arg_asm_type,
+                                        src: arg_operand,
+                                        dst: PreFinalOperand::Register(Register::AX),
+                                    },
+                                    Instruction::Push(PreFinalOperand::Register(Register::AX)),
+                                ]
+                                .into_iter()
+                                .rev(),
+                            );
+                        }
+                    }
+                }
+            }
+        }
+
+        /* Evaluate the need for padding. */
         let stack_padding_bytelen = if (stack_args_count & 1) == 1 { 8 } else { 0 };
 
         if stack_padding_bytelen != 0 {
@@ -73,40 +116,13 @@ impl<'slf> InstrsGenerator<'slf> {
             });
         }
 
-        for (i, arg_val) in args.into_iter().enumerate().rev() {
-            let (arg_operand, _, arg_asm_type) = self.convert_value(arg_val);
-            match Self::ARG_REGS.get(i) {
-                None => match (&arg_operand, arg_asm_type) {
-                    (PreFinalOperand::ImmediateValue(_) | PreFinalOperand::Register(_), _)
-                    | (_, AssemblyType::Quadword) => {
-                        asm_instrs.push(Instruction::Push(arg_operand));
-                    }
-                    (
-                        PreFinalOperand::Pseudo(_) | PreFinalOperand::StackPosition(_),
-                        AssemblyType::Longword,
-                    ) => {
-                        /* `pushq` operation always reads and pushes 8 bytes.
-                        In case (arg's memory address + (8-1)) lies outside the readable memory, we cannot `pushq` directly. */
-                        asm_instrs.push(Instruction::Mov {
-                            asm_type: AssemblyType::Longword,
-                            src: arg_operand,
-                            dst: PreFinalOperand::Register(Register::AX),
-                        });
-                        asm_instrs.push(Instruction::Push(PreFinalOperand::Register(Register::AX)));
-                    }
-                },
-                Some(reg) => {
-                    asm_instrs.push(Instruction::Mov {
-                        asm_type: arg_asm_type,
-                        src: arg_operand,
-                        dst: PreFinalOperand::Register(*reg),
-                    });
-                }
-            }
-        }
+        /* Finalize the order of the padding + arg-copying instructions. */
+        asm_instrs.reverse();
 
+        /* The `call` instruction. */
         asm_instrs.push(Instruction::Call(ident));
 
+        /* Push the instruction that pops the current stack frame. */
         let stack_pop_bytelen = 8 * (stack_args_count as u64) + stack_padding_bytelen;
         if stack_pop_bytelen != 0 {
             asm_instrs.push(Instruction::Binary {
@@ -117,13 +133,67 @@ impl<'slf> InstrsGenerator<'slf> {
             });
         }
 
-        let (dst, _, dst_type) = self.convert_value(dst);
+        /* Push the instruction that `mov`s the return value. */
+        let (dst, _, dst_asm_type) = self.convert_value(dst);
+        let ret_reg = match dst_asm_type {
+            AssemblyType::Longword | AssemblyType::Quadword => Register::AX,
+            AssemblyType::Double => Register::XMM0,
+        };
         asm_instrs.push(Instruction::Mov {
-            asm_type: dst_type,
-            src: PreFinalOperand::Register(Register::AX),
+            asm_type: dst_asm_type,
+            src: PreFinalOperand::Register(ret_reg),
             dst,
         });
 
         asm_instrs
+    }
+}
+
+const INT_ARG_REGS: [Register; 6] = [
+    Register::DI,
+    Register::SI,
+    Register::DX,
+    Register::CX,
+    Register::R8,
+    Register::R9,
+];
+const FLOAT_ARG_REGS: [Register; 8] = [
+    Register::XMM0,
+    Register::XMM1,
+    Register::XMM2,
+    Register::XMM3,
+    Register::XMM4,
+    Register::XMM5,
+    Register::XMM6,
+    Register::XMM7,
+];
+
+struct ArgRegResolver {
+    int_regs_count: usize,
+    float_regs_count: usize,
+}
+#[allow(clippy::derivable_impls)]
+impl Default for ArgRegResolver {
+    fn default() -> Self {
+        Self {
+            int_regs_count: 0,
+            float_regs_count: 0,
+        }
+    }
+}
+impl ArgRegResolver {
+    fn next_reg(&mut self, arg_type: VarType) -> Option<Register> {
+        match arg_type {
+            VarType::Int | VarType::Long | VarType::UInt | VarType::ULong => {
+                let ret = INT_ARG_REGS.get(self.int_regs_count).cloned();
+                self.int_regs_count += 1;
+                ret
+            }
+            VarType::Double => {
+                let ret = FLOAT_ARG_REGS.get(self.float_regs_count).cloned();
+                self.float_regs_count += 1;
+                ret
+            }
+        }
     }
 }

@@ -3,26 +3,26 @@ use crate::{
     symbol_table_frontend::{Symbol, SymbolTable, VarAttrs},
     types_backend::AssemblyType,
 };
-use derive_more::Deref;
+use derive_more::{Deref, DerefMut};
 use std::collections::HashMap;
 use std::rc::Rc;
 
 pub enum AsmEntry {
     Obj {
         asm_type: AssemblyType,
-        storage_duration: StorageDuration,
+        loc: ObjLocation,
     },
     Fun {
         is_defined: bool,
     },
 }
-
-pub enum StorageDuration {
-    Automatic,
-    Static,
+pub enum ObjLocation {
+    Stack,
+    StaticReadWrite,
+    StaticReadonly,
 }
 
-#[derive(Deref)]
+#[derive(Deref, DerefMut)]
 pub struct BackendSymbolTable {
     symbol_table: HashMap<Rc<UniqueIdentifier>, AsmEntry>,
 }
@@ -35,11 +35,11 @@ impl From<SymbolTable> for BackendSymbolTable {
                 let asm_entry = match symbol {
                     Symbol::Var { typ, attrs } => {
                         let asm_type = AssemblyType::from(typ);
-                        let storage_duration = match attrs {
-                            VarAttrs::AutomaticStorageDuration => StorageDuration::Automatic,
-                            VarAttrs::StaticStorageDuration { .. } => StorageDuration::Static,
+                        let loc = match attrs {
+                            VarAttrs::AutomaticStorageDuration => ObjLocation::Stack,
+                            VarAttrs::StaticStorageDuration { .. } => ObjLocation::StaticReadWrite,
                         };
-                        AsmEntry::Obj { asm_type, storage_duration }
+                        AsmEntry::Obj { asm_type, loc }
                     }
                     Symbol::Fun { typ: _, attrs } => {
                         let is_defined = attrs.is_defined;

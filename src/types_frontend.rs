@@ -1,5 +1,7 @@
 use crate::types_backend::OperandByteLen;
 use std::cmp::Ordering;
+use std::hash::{Hash, Hasher};
+use std::mem;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum VarType {
@@ -12,9 +14,8 @@ pub enum VarType {
 impl VarType {
     pub fn is_signed(&self) -> bool {
         match self {
-            Self::Int | Self::Long => true,
+            Self::Int | Self::Long | Self::Double => true,
             Self::UInt | Self::ULong => false,
-            Self::Double => todo!(),
         }
     }
 
@@ -99,6 +100,23 @@ impl Const {
             Const::UInt(_) => VarType::UInt,
             Const::ULong(_) => VarType::ULong,
             Const::Double(_) => VarType::Double,
+        }
+    }
+}
+impl Eq for Const {
+    /* Rust's `f64` type does not implement `Eq`. Specifically, `NaN != NaN`.
+    `Const::Double(_)`s incorrectly surfaces `f64`'s `PartialEq` result as `Eq` result. `Const::Double(NaN) != Const::Double(NaN)`.
+    As long as we don't compare `Const::Double(NaN)` with another `Const::Double(_)`, the comparison works as expected. */
+}
+impl Hash for Const {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        mem::discriminant(self).hash(state);
+        match self {
+            Const::Int(i) => i.hash(state),
+            Const::Long(i) => i.hash(state),
+            Const::UInt(i) => i.hash(state),
+            Const::ULong(i) => i.hash(state),
+            Const::Double(f) => f.to_bits().hash(state),
         }
     }
 }

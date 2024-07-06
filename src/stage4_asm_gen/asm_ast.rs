@@ -16,8 +16,16 @@ pub trait AsmAstVariant {
 
 #[derive(Debug)]
 pub struct Program<T: AsmAstVariant> {
+    pub static_consts: Vec<StaticConstant>,
     pub static_vars: Vec<StaticVariable>,
     pub funs: Vec<Function<T>>,
+}
+
+#[derive(Debug)]
+pub struct StaticConstant {
+    pub ident: Rc<UniqueIdentifier>,
+    pub alignment: Alignment,
+    pub init: Const,
 }
 
 #[derive(Debug)]
@@ -50,6 +58,16 @@ pub enum Instruction<T: AsmAstVariant> {
         src: T::Operand,
         dst: T::Operand,
     },
+    Cvttsd2si {
+        dst_asm_type: AssemblyType,
+        src: T::Operand,
+        dst: T::Operand,
+    },
+    Cvtsi2sd {
+        src_asm_type: AssemblyType,
+        src: T::Operand,
+        dst: T::Operand,
+    },
     Unary(UnaryOperator, AssemblyType, T::Operand),
     Binary {
         op: BinaryOperator,
@@ -78,6 +96,7 @@ pub enum Instruction<T: AsmAstVariant> {
 pub enum UnaryOperator {
     BitwiseComplement,
     TwosComplement,
+    Shr,
 }
 
 #[derive(Debug)]
@@ -85,6 +104,10 @@ pub enum BinaryOperator {
     Add,
     Sub,
     Mul,
+    DivDouble,
+    And,
+    Or,
+    Xor,
 }
 
 #[derive(Clone, Debug)]
@@ -92,6 +115,7 @@ pub enum PreFinalOperand {
     ImmediateValue(u64),
     Register(Register),
     StackPosition(StackPosition),
+    Data(Rc<UniqueIdentifier>),
     Pseudo(Rc<UniqueIdentifier>),
 }
 
@@ -118,6 +142,10 @@ impl Operand {
 
 #[derive(Clone, Copy, Debug)]
 pub enum Register {
+    /* Elsewhere in code, non-SSE registers are aka "general purpose" (aka "gp") registers,
+    where this nomenclature applies to registers other than R8 ~ R15. */
+
+    /* non-SSE, caller-saved */
     AX,
     CX,
     DX,
@@ -127,8 +155,19 @@ pub enum Register {
     R9,
     R10,
     R11,
-    /* Above are caller-saved. Below are callee-saved. */
+    /* non-SSE, callee-saved */
     SP,
+    /* SSE */
+    XMM0,
+    XMM1,
+    XMM2,
+    XMM3,
+    XMM4,
+    XMM5,
+    XMM6,
+    XMM7,
+    XMM14,
+    XMM15,
 }
 
 /// Offset from RBP.
@@ -139,12 +178,12 @@ pub struct StackPosition(pub(super) i64);
 pub enum ConditionCode {
     E,
     Ne,
-    L,
-    Le,
     G,
     Ge,
-    A,
-    Ae,
-    B,
-    Be,
+    L,
+    Le,
+    A,  // gt
+    Ae, // gte
+    B,  // lt
+    Be, // lte
 }

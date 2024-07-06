@@ -35,8 +35,10 @@ impl<W: Write> AsmCodeEmitter<W> {
 
     pub fn emit_program(
         mut self,
-        Program { static_vars, funs }: Program<FinalizedAsmAst>,
+        Program { static_consts, static_vars, funs }: Program<FinalizedAsmAst>,
     ) -> Result<(), io::Error> {
+        let _ = static_consts; // TODO
+
         for fun in funs {
             self.write_fun(fun)?;
         }
@@ -92,10 +94,13 @@ impl<W: Write> AsmCodeEmitter<W> {
             }
             Instruction::MovZeroExtend { .. } => { /* No-op, b/c this instruction type is strictly pre-final. */
             }
+            Instruction::Cvttsd2si { .. } => todo!(),
+            Instruction::Cvtsi2sd { .. } => todo!(),
             Instruction::Unary(op, asm_type, operand) => {
                 let instr = match op {
                     UnaryOperator::BitwiseComplement => "not",
                     UnaryOperator::TwosComplement => "neg",
+                    UnaryOperator::Shr => todo!(),
                 };
                 let instr_sfx = Self::get_instr_sfx_wordlen(asm_type);
                 let bytelen = OperandByteLen::from(asm_type);
@@ -109,6 +114,7 @@ impl<W: Write> AsmCodeEmitter<W> {
                     BinaryOperator::Add => "add",
                     BinaryOperator::Sub => "sub",
                     BinaryOperator::Mul => "imul",
+                    _ => todo!(),
                 };
                 let instr_sfx = Self::get_instr_sfx_wordlen(asm_type);
                 let bytelen = OperandByteLen::from(asm_type);
@@ -149,6 +155,7 @@ impl<W: Write> AsmCodeEmitter<W> {
                 let instr = match asm_type {
                     AssemblyType::Longword => "cdq",
                     AssemblyType::Quadword => "cqo",
+                    AssemblyType::Double => todo!(),
                 };
 
                 writeln!(&mut self.w, "{TAB}{instr}")?;
@@ -194,6 +201,7 @@ impl<W: Write> AsmCodeEmitter<W> {
         match asm_type {
             AssemblyType::Longword => 'l',
             AssemblyType::Quadword => 'q',
+            AssemblyType::Double => todo!(),
         }
     }
     fn get_instr_sfx_condition(cc: ConditionCode) -> &'static str {
@@ -246,6 +254,7 @@ impl<W: Write> AsmCodeEmitter<W> {
                     (Register::R11, OBL::B4) => "%r11d",
                     (Register::R11, OBL::B1) => "%r11b",
                     (Register::SP, _) => "%rsp",
+                    _ => todo!(),
                 };
                 write!(&mut self.w, "{reg_str}")?;
             }

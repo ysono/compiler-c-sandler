@@ -5,27 +5,28 @@ use crate::{
         phase1_generate::{GeneratedAsmAst, InstrsGenerator},
     },
     types_backend::AssemblyType,
+    types_frontend::VarType,
 };
 
-impl<'slf> InstrsGenerator<'slf> {
+impl InstrsGenerator {
     pub(super) fn gen_unary_comparison_instrs(
-        &self,
+        &mut self,
         t_op: t::ComparisonUnaryOperator,
         t::Unary { op: _, src, dst }: t::Unary,
     ) -> Vec<Instruction<GeneratedAsmAst>> {
+        let (src, _, src_asm_type) = self.convert_value(src);
+        let (dst, _, dst_asm_type) = self.convert_value(dst);
         let cc = match t_op {
             t::ComparisonUnaryOperator::Not => ConditionCode::E,
         };
-        let (src, _, src_asm_type) = self.convert_value(src);
-        let (dst, _, dst_asm_type) = self.convert_value(dst);
 
-        let mut asm_instrs = vec![Self::gen_cmp_vs_zero(src, src_asm_type)];
+        let mut asm_instrs = Self::gen_cmp_vs_zero(src, src_asm_type);
         asm_instrs.extend(Self::gen_setcc(cc, dst, dst_asm_type));
         asm_instrs
     }
 
-    pub(super) fn gen_comparison_instrs(
-        &self,
+    pub(super) fn gen_binary_comparison_instrs(
+        &mut self,
         t_op: t::ComparisonBinaryOperator,
         t::Binary { op: _, src1, src2, dst }: t::Binary,
     ) -> Vec<Instruction<GeneratedAsmAst>> {
@@ -35,7 +36,14 @@ impl<'slf> InstrsGenerator<'slf> {
         let (src1, src_var_type, src_asm_type) = self.convert_value(src1);
         let (src2, _, _) = self.convert_value(src2);
         let (dst, _, dst_asm_type) = self.convert_value(dst);
-        let cc = match (t_op, src_var_type.is_signed()) {
+
+        let cc_is_lg_family = match src_var_type {
+            VarType::Int | VarType::Long | VarType::UInt | VarType::ULong => {
+                src_var_type.is_signed()
+            }
+            VarType::Double => false,
+        };
+        let cc = match (t_op, cc_is_lg_family) {
             (TBOC::Eq, _) => CC::E,
             (TBOC::Neq, _) => CC::Ne,
             (TBOC::Lt, true) => CC::L,
@@ -58,7 +66,7 @@ impl<'slf> InstrsGenerator<'slf> {
     }
 
     pub(super) fn gen_jumpif_instrs(
-        &self,
+        &mut self,
         t::JumpIf { condition, jump_crit, lbl }: t::JumpIf,
     ) -> Vec<Instruction<GeneratedAsmAst>> {
         let (condition, _, asm_type) = self.convert_value(condition);
@@ -68,27 +76,50 @@ impl<'slf> InstrsGenerator<'slf> {
             t::JumpCriterion::JumpIfNotZero => ConditionCode::Ne,
         };
 
-        vec![
-            Self::gen_cmp_vs_zero(condition, asm_type),
-            Instruction::JmpCC(cc, lbl),
-        ]
+        let mut asm_instrs = Self::gen_cmp_vs_zero(condition, asm_type);
+        asm_instrs.push(Instruction::JmpCC(cc, lbl));
+        asm_instrs
     }
 
     fn gen_cmp_vs_zero(
         src: PreFinalOperand,
         src_asm_type: AssemblyType,
-    ) -> Instruction<GeneratedAsmAst> {
-        Instruction::Cmp {
-            asm_type: src_asm_type,
-            tgt: src,
-            arg: PreFinalOperand::ImmediateValue(0),
+    ) -> Vec<Instruction<GeneratedAsmAst>> {
+        match src_asm_type {
+            AssemblyType::Longword | AssemblyType::Quadword => {
+                vec![Instruction::Cmp {
+                    asm_type: src_asm_type,
+                    tgt: src,
+                    arg: PreFinalOperand::ImmediateValue(0),
+                    /* On each integer variant of the `cmp*` instr,
+                    operand #2 (ie `tgt`) must eventually _not_ be an immediate value. */
+                }]
+            }
+            AssemblyType::Double => {
+                let reg = || PreFinalOperand::Register(Register::XMM0);
+                vec![
+                    Instruction::Binary {
+                        op: BinaryOperator::Xor,
+                        asm_type: src_asm_type,
+                        tgt: reg(),
+                        arg: reg(),
+                    },
+                    Instruction::Cmp {
+                        asm_type: src_asm_type,
+                        tgt: reg(),
+                        arg: src,
+                        /* On each floating-point variant of the `cmp*` instr,
+                        operand #2 (ie `tgt`) must eventually be a register. */
+                    },
+                ]
+            }
         }
     }
 
     fn gen_setcc(
         cc: ConditionCode,
         dst: PreFinalOperand,
-        dst_asm_type: AssemblyType,
+        dst_asm_type: AssemblyType, // This is expected to be Longword.
     ) -> Vec<Instruction<GeneratedAsmAst>> {
         vec![
             Instruction::Mov {

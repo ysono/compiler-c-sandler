@@ -59,14 +59,50 @@ impl OperandFixer {
                     Self::to_reg(AssemblyType::Longword, src, reg, instr_at_reg)
                 }
             }
+            Instruction::Cvttsd2si { dst_asm_type, src, dst } => {
+                let reg2_to_dst = dst.is_on_mem();
+                let new_instr = |src: Operand, dst: Operand| Instruction::Cvttsd2si { dst_asm_type, src, dst };
+                Self::maybe_use_2_regs(
+                    (AssemblyType::Double, src),
+                    (dst_asm_type, dst),
+                    false,
+                    (false, reg2_to_dst),
+                    new_instr
+                )
+            }
+            Instruction::Cvtsi2sd { src_asm_type, src, dst } => {
+                let src_to_reg1 = matches!(&src, Operand::ImmediateValue(_));
+                let reg2_to_dst = matches!(&dst, Operand::Register(_)) == false;
+                let new_instr =|src: Operand, dst: Operand| Instruction::Cvtsi2sd { src_asm_type, src, dst };
+                Self::maybe_use_2_regs(
+                    (src_asm_type, src),
+                    (AssemblyType::Double, dst),
+                    src_to_reg1,
+                    (false, reg2_to_dst),
+                    new_instr
+                )
+            }
             Instruction::Binary { op, asm_type, arg, tgt } => {
-                let src_to_reg1 =
-                    (matches!(&op, BinaryOperator::Add | BinaryOperator::Sub)
-                        && arg.is_on_mem()
-                        && tgt.is_on_mem())
-                    || (matches!(&asm_type, AssemblyType::Quadword)
-                        && matches!(&arg, Operand::ImmediateValue(i) if i32::try_from(*i).is_err()));
-                let dst_to_and_from_reg2 = matches!(&op, BinaryOperator::Mul) && tgt.is_on_mem();
+                use BinaryOperator as BO;
+
+                let (src_to_reg1, dst_to_and_from_reg2);
+                match asm_type {
+                    AssemblyType::Longword|AssemblyType::Quadword => {
+                        src_to_reg1 = (matches!(&op, BO::Add | BO::Sub | BO::And | BO::Or)
+                                && arg.is_on_mem()
+                                && tgt.is_on_mem())
+                            || (matches!(&asm_type, AssemblyType::Quadword)
+                                && matches!(&arg, Operand::ImmediateValue(i) if i32::try_from(*i).is_err()));
+                        dst_to_and_from_reg2 = matches!(&op, BinaryOperator::Mul) && tgt.is_on_mem();
+                    }
+                    AssemblyType::Double => {
+                        /* The xorpd instruction requires either a register or a 16-byte-aligned memory address as its source operand,
+                        but we don’t need a rewrite rule for this
+                        since all the xorpd instructions we generate already satisfy this requirement. */
+                        src_to_reg1 = false;
+                        dst_to_and_from_reg2 = matches!(&tgt, Operand::Register(_)) == false;
+                    }
+                }
                 let new_instr = |arg: Operand, tgt: Operand| Instruction::Binary { op, asm_type, arg, tgt };
                 Self::maybe_use_2_regs(
                     (asm_type, arg),
@@ -77,10 +113,19 @@ impl OperandFixer {
                 )
             }
             Instruction::Cmp { asm_type, arg, tgt } => {
-                let src_to_reg1 =
-                    (arg.is_on_mem() && tgt.is_on_mem())
-                    || (matches!(&arg, Operand::ImmediateValue(i) if i32::try_from(*i).is_err()));
-                let dst_to_reg2 = matches!(&tgt, Operand::ImmediateValue(_));
+                let (src_to_reg1, dst_to_reg2);
+                match asm_type {
+                    AssemblyType::Longword|AssemblyType::Quadword => {
+                        src_to_reg1 =
+                            (arg.is_on_mem() && tgt.is_on_mem())
+                            || (matches!(&arg, Operand::ImmediateValue(i) if i32::try_from(*i).is_err()));
+                        dst_to_reg2 = matches!(&tgt, Operand::ImmediateValue(_));
+                    }
+                    AssemblyType::Double => {
+                        src_to_reg1 = false;
+                        dst_to_reg2 = matches!(&tgt, Operand::Register(_)) == false;
+                    }
+                }
                 let new_instr = |arg: Operand, tgt: Operand| Instruction::Cmp { asm_type, arg, tgt };
                 Self::maybe_use_2_regs(
                     (asm_type, arg),
@@ -128,8 +173,16 @@ impl OperandFixer {
         (dst_to_reg2, reg2_to_dst): (bool, bool),
         new_instr: impl FnOnce(Operand, Operand) -> Instruction<FinalizedAsmAst>,
     ) -> Vec<Instruction<FinalizedAsmAst>> {
-        let reg1 = || Register::R10.into();
-        let reg2 = || Register::R11.into();
+        let reg1 = match src_asm_type {
+            AssemblyType::Longword | AssemblyType::Quadword => Register::R10,
+            AssemblyType::Double => Register::XMM14,
+        };
+        let reg2 = match dst_asm_type {
+            AssemblyType::Longword | AssemblyType::Quadword => Register::R11,
+            AssemblyType::Double => Register::XMM15,
+        };
+        let reg1 = move || reg1.into();
+        let reg2 = move || reg2.into();
 
         let mov = |asm_type: AssemblyType, src: Operand, dst: Operand| Instruction::Mov {
             asm_type,

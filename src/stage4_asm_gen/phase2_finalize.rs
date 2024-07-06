@@ -3,9 +3,10 @@ pub mod var_to_stack_pos;
 use self::var_to_stack_pos::VarToStackPos;
 use crate::{
     stage4_asm_gen::{asm_ast::*, phase1_generate::GeneratedAsmAst, phase3_fix::OperandFixer},
-    symbol_table_backend::{AsmEntry, BackendSymbolTable, StorageDuration},
+    symbol_table_backend::{AsmEntry, BackendSymbolTable, ObjLocation},
     types_backend::AssemblyType,
 };
+use derive_more::Into;
 use std::collections::VecDeque;
 use std::rc::Rc;
 
@@ -16,6 +17,7 @@ impl AsmAstVariant for FinalizedAsmAst {
     type Operand = Operand;
 }
 
+#[derive(Into)]
 pub struct InstrsFinalizer {
     backend_symtab: Rc<BackendSymbolTable>,
 
@@ -30,7 +32,7 @@ impl InstrsFinalizer {
     }
 
     pub fn finalize_fun(
-        &mut self,
+        mut self,
         Function { ident, visibility, instrs }: Function<GeneratedAsmAst>,
     ) -> Function<FinalizedAsmAst> {
         let instrs = self.finalize_instrs(instrs.into_iter());
@@ -85,6 +87,16 @@ impl InstrsFinalizer {
                 let dst = self.convert_operand(dst);
                 Instruction::MovZeroExtend { src, dst }
             }
+            Instruction::Cvttsd2si { dst_asm_type, src, dst } => {
+                let src = self.convert_operand(src);
+                let dst = self.convert_operand(dst);
+                Instruction::Cvttsd2si { dst_asm_type, src, dst }
+            }
+            Instruction::Cvtsi2sd { src_asm_type, src, dst } => {
+                let src = self.convert_operand(src);
+                let dst = self.convert_operand(dst);
+                Instruction::Cvtsi2sd { src_asm_type, src, dst }
+            }
             Instruction::Unary(op, asm_type, operand) => {
                 let operand = self.convert_operand(operand);
                 Instruction::Unary(op, asm_type, operand)
@@ -129,14 +141,16 @@ impl InstrsFinalizer {
             PFO::ImmediateValue(i) => Operand::ImmediateValue(i),
             PFO::Register(r) => Operand::Register(r),
             PFO::StackPosition(s) => Operand::StackPosition(s),
+            PFO::Data(ident) => Operand::Data(ident),
             PFO::Pseudo(ident) => match self.backend_symtab.get(&ident) {
                 None => panic!("All pseudos are expected to have been added to the symbol table."),
-                Some(AsmEntry::Obj { asm_type, storage_duration }) => match storage_duration {
-                    StorageDuration::Automatic => self
+                Some(AsmEntry::Obj { asm_type, loc }) => match loc {
+                    ObjLocation::Stack => self
                         .var_to_stack_pos
                         .var_to_stack_pos(ident, *asm_type)
                         .into(),
-                    StorageDuration::Static => Operand::Data(ident),
+                    ObjLocation::StaticReadWrite => Operand::Data(ident),
+                    ObjLocation::StaticReadonly => Operand::Data(ident),
                 },
                 Some(AsmEntry::Fun { .. }) => {
                     panic!("All pseudos are expected to correspond to objs.")
