@@ -32,14 +32,13 @@ impl OperandFixer {
             }
             Instruction::Movsx { src, dst } => {
                 let src_to_reg1 = matches!(&src, Operand::ImmediateValue(_));
-                let dst_to_reg2 = false;
                 let reg2_to_dst = dst.is_on_mem();
                 let new_instr = |src: Operand, dst: Operand| Instruction::Movsx { src, dst };
                 Self::maybe_use_2_regs(
                     (AssemblyType::Longword, src),
                     (AssemblyType::Quadword, dst),
                     src_to_reg1,
-                    (dst_to_reg2, reg2_to_dst),
+                    (false, reg2_to_dst),
                     new_instr,
                 )
             }
@@ -67,18 +66,13 @@ impl OperandFixer {
                         && tgt.is_on_mem())
                     || (matches!(&asm_type, AssemblyType::Quadword)
                         && matches!(&arg, Operand::ImmediateValue(i) if i32::try_from(*i).is_err()));
-                let (dst_to_reg2, reg2_to_dst) =
-                    if matches!(&op, BinaryOperator::Mul) && tgt.is_on_mem() {
-                        (true, true)
-                    } else {
-                        (false, false)
-                    };
+                let dst_to_and_from_reg2 = matches!(&op, BinaryOperator::Mul) && tgt.is_on_mem();
                 let new_instr = |arg: Operand, tgt: Operand| Instruction::Binary { op, asm_type, arg, tgt };
                 Self::maybe_use_2_regs(
                     (asm_type, arg),
                     (asm_type,tgt),
                     src_to_reg1,
-                    (dst_to_reg2, reg2_to_dst),
+                    (dst_to_and_from_reg2, dst_to_and_from_reg2),
                     new_instr,
                 )
             }
@@ -87,13 +81,12 @@ impl OperandFixer {
                     (arg.is_on_mem() && tgt.is_on_mem())
                     || (matches!(&arg, Operand::ImmediateValue(i) if i32::try_from(*i).is_err()));
                 let dst_to_reg2 = matches!(&tgt, Operand::ImmediateValue(_));
-                let reg2_to_dst = false;
                 let new_instr = |arg: Operand, tgt: Operand| Instruction::Cmp { asm_type, arg, tgt };
                 Self::maybe_use_2_regs(
                     (asm_type, arg),
                     (asm_type,tgt),
                     src_to_reg1,
-                    (dst_to_reg2, reg2_to_dst),
+                    (dst_to_reg2, false),
                     new_instr,
                 )
             }
@@ -135,10 +128,10 @@ impl OperandFixer {
         (dst_to_reg2, reg2_to_dst): (bool, bool),
         new_instr: impl FnOnce(Operand, Operand) -> Instruction<FinalizedAsmAst>,
     ) -> Vec<Instruction<FinalizedAsmAst>> {
-        let reg1 = Register::R10;
-        let reg2 = Register::R11;
+        let reg1 = || Register::R10.into();
+        let reg2 = || Register::R11.into();
 
-        let new_mov = |asm_type: AssemblyType, src: Operand, dst: Operand| Instruction::Mov {
+        let mov = |asm_type: AssemblyType, src: Operand, dst: Operand| Instruction::Mov {
             asm_type,
             src,
             dst,
@@ -146,8 +139,8 @@ impl OperandFixer {
 
         let mut instr_to_reg1 = None;
         if src_to_reg1 {
-            instr_to_reg1 = Some(new_mov(src_asm_type, src, reg1.into()));
-            src = reg1.into();
+            instr_to_reg1 = Some(mov(src_asm_type, src, reg1()));
+            src = reg1();
         }
 
         let mut instr_to_reg2 = None;
@@ -155,17 +148,17 @@ impl OperandFixer {
         match (dst_to_reg2, reg2_to_dst) {
             (false, false) => { /* No-op. */ }
             (false, true) => {
-                instr_from_reg2 = Some(new_mov(dst_asm_type, reg2.into(), dst));
-                dst = reg2.into();
+                instr_from_reg2 = Some(mov(dst_asm_type, reg2(), dst));
+                dst = reg2();
             }
             (true, false) => {
-                instr_to_reg2 = Some(new_mov(dst_asm_type, dst, reg2.into()));
-                dst = reg2.into();
+                instr_to_reg2 = Some(mov(dst_asm_type, dst, reg2()));
+                dst = reg2();
             }
             (true, true) => {
-                instr_to_reg2 = Some(new_mov(dst_asm_type, dst.clone(), reg2.into()));
-                instr_from_reg2 = Some(new_mov(dst_asm_type, reg2.into(), dst));
-                dst = reg2.into();
+                instr_to_reg2 = Some(mov(dst_asm_type, dst.clone(), reg2()));
+                instr_from_reg2 = Some(mov(dst_asm_type, reg2(), dst));
+                dst = reg2();
             }
         }
 
