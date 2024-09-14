@@ -1,10 +1,12 @@
 use super::FunInstrsGenerator;
 use crate::{
-    common::types_frontend::{Const, VarType},
+    common::{
+        identifier::{JumpLabel, UniqueId},
+        types_frontend::{Const, VarType},
+    },
     stage2_parse::{c_ast as c, phase3_typecheck::TypeCheckedCAst},
     stage3_tacky::tacky_ast::*,
 };
-use derive_more::Display;
 use std::rc::Rc;
 
 impl<'a> FunInstrsGenerator<'a> {
@@ -62,13 +64,8 @@ impl<'a> FunInstrsGenerator<'a> {
         c::Binary { op: _, lhs, rhs }: c::Binary<TypeCheckedCAst>,
         out_typ: VarType,
     ) -> ReadableValue {
-        let result = self.symbol_table.declare_var_anon(out_typ);
-
-        let name = result.id().unwrap().as_int();
-        let label_shortcirc = Rc::new(LabelIdentifier::new(format!(
-            "{op_type}.{name:x}.shortcircuit",
-        )));
-        let label_end = Rc::new(LabelIdentifier::new(format!("{op_type}.{name:x}.end",)));
+        let [label_shortcirc, label_end] =
+            JumpLabel::create(UniqueId::new(), op_type.descr(), ["shortcircuit", "end"]);
 
         let new_shortcirc_jump_instr = |condition: ReadableValue| {
             let jump_crit = match op_type {
@@ -84,6 +81,8 @@ impl<'a> FunInstrsGenerator<'a> {
             ShortCircuitBOT::And => (new_out_const(0), new_out_const(1)),
             ShortCircuitBOT::Or => (new_out_const(1), new_out_const(0)),
         };
+
+        let result = self.symbol_table.declare_var_anon(out_typ);
 
         /* Begin instructions */
 
@@ -119,10 +118,17 @@ enum BinaryOperatorType {
     EvaluateBothHands(BinaryOperator),
     ShortCircuit(ShortCircuitBOT),
 }
-#[derive(Display)]
 enum ShortCircuitBOT {
     And,
     Or,
+}
+impl ShortCircuitBOT {
+    pub fn descr(&self) -> &'static str {
+        match self {
+            Self::And => "and",
+            Self::Or => "or",
+        }
+    }
 }
 
 fn convert_op_unary(c_unary_op: c::UnaryOperator) -> UnaryOperator {

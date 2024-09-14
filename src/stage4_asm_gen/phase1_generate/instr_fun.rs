@@ -1,6 +1,6 @@
 use super::{GeneratedAsmAst, InstrsGenerator};
 use crate::{
-    common::{identifier::UniqueIdentifier, types_backend::AssemblyType, types_frontend::VarType},
+    common::{identifier::SymbolIdentifier, types_backend::AssemblyType, types_frontend::VarType},
     stage3_tacky::tacky_ast as t,
     stage4_asm_gen::asm_ast::*,
 };
@@ -10,7 +10,7 @@ impl InstrsGenerator {
     /// See documentation at [`crate::stage4_asm_gen`].
     pub(super) fn gen_fun_instrs(
         &mut self,
-        param_idents: Vec<Rc<UniqueIdentifier>>,
+        param_idents: Vec<Rc<SymbolIdentifier>>,
         t_instrs: Vec<t::Instruction>,
     ) -> Vec<Instruction<GeneratedAsmAst>> {
         /* Instructions that copy incoming args into the current function's stack frame. */

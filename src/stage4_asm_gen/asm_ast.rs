@@ -1,10 +1,9 @@
 use crate::common::{
-    identifier::UniqueIdentifier,
+    identifier::{JumpLabel, SymbolIdentifier},
     symbol_table_frontend::StaticVisibility,
     types_backend::{Alignment, AssemblyType},
     types_frontend::Const,
 };
-pub use crate::stage3_tacky::tacky_ast::LabelIdentifier;
 use derive_more::{Deref, DerefMut, From};
 use std::fmt::Debug;
 use std::rc::Rc;
@@ -23,14 +22,14 @@ pub struct Program<T: AsmAstVariant> {
 
 #[derive(Debug)]
 pub struct StaticConstant {
-    pub ident: Rc<UniqueIdentifier>,
+    pub ident: Rc<SymbolIdentifier>,
     pub alignment: Alignment,
     pub init: Const,
 }
 
 #[derive(Debug)]
 pub struct StaticVariable {
-    pub ident: Rc<UniqueIdentifier>,
+    pub ident: Rc<SymbolIdentifier>,
     pub visibility: StaticVisibility,
     pub alignment: Alignment,
     pub init: Const,
@@ -38,7 +37,7 @@ pub struct StaticVariable {
 
 #[derive(Debug)]
 pub struct Function<T: AsmAstVariant> {
-    pub ident: Rc<UniqueIdentifier>,
+    pub ident: Rc<SymbolIdentifier>,
     pub visibility: StaticVisibility,
     pub instrs: T::Instructions,
 }
@@ -83,12 +82,12 @@ pub enum Instruction<T: AsmAstVariant> {
     Idiv(AssemblyType, T::Operand),
     Div(AssemblyType, T::Operand),
     Cdq(AssemblyType),
-    Jmp(Rc<LabelIdentifier>),
-    JmpCC(ConditionCode, Rc<LabelIdentifier>),
+    Jmp(Rc<JumpLabel>),
+    JmpCC(ConditionCode, Rc<JumpLabel>),
     SetCC(ConditionCode, T::Operand),
-    Label(Rc<LabelIdentifier>),
+    Label(Rc<JumpLabel>),
     Push(T::Operand),
-    Call(Rc<UniqueIdentifier>),
+    Call(Rc<SymbolIdentifier>),
     Ret,
 }
 
@@ -115,8 +114,8 @@ pub enum PreFinalOperand {
     ImmediateValue(u64),
     Register(Register),
     StackPosition(StackPosition),
-    Data(Rc<UniqueIdentifier>),
-    Pseudo(Rc<UniqueIdentifier>),
+    Data(Rc<SymbolIdentifier>),
+    Pseudo(Rc<SymbolIdentifier>),
 }
 
 #[derive(From, Clone, Debug)]
@@ -129,7 +128,7 @@ pub enum Operand {
     ImmediateValue(u64),
     Register(Register),
     StackPosition(StackPosition),
-    Data(Rc<UniqueIdentifier>),
+    Data(Rc<SymbolIdentifier>),
 }
 impl Operand {
     pub fn is_on_mem(&self) -> bool {

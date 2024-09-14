@@ -1,7 +1,7 @@
 use super::InstrsGenerator;
 use crate::{
     common::{
-        identifier::UniqueIdentifier,
+        identifier::SymbolIdentifier,
         types_backend::{Alignment, AssemblyType},
         types_frontend::{Const, VarType},
     },
@@ -59,7 +59,7 @@ impl InstrsGenerator {
         let ident = self
             .static_constants
             .entry((alignment, konst))
-            .or_insert_with(|| Rc::new(UniqueIdentifier::new_generated(None)));
+            .or_insert_with(|| Rc::new(SymbolIdentifier::new_generated()));
         PreFinalOperand::Data(Rc::clone(ident))
     }
 }

@@ -1,14 +1,13 @@
 pub use self::{declaration::*, expression::*, statement::*};
 use crate::common::{
+    identifier::UniqueId,
     symbol_table_frontend::StaticVisibility,
     types_frontend::{Const, FunType, VarType},
 };
 pub use crate::stage1_lex::tokens::StorageClassSpecifier;
 use derivative::Derivative;
-use getset::Getters;
 use std::fmt::Debug;
 use std::rc::Rc;
-use std::sync::atomic::{AtomicUsize, Ordering};
 
 pub trait CAstVariant {
     type FileScopeDeclaration: Debug;
@@ -118,20 +117,18 @@ mod statement {
         None,
     }
 
-    #[derive(Derivative, Getters, Debug)]
+    #[derive(Derivative, Debug)]
     #[derivative(PartialEq, Eq, Hash)]
-    #[getset(get = "pub")]
     pub struct LoopId {
-        id: usize,
+        pub id: UniqueId,
 
         #[derivative(PartialEq = "ignore", Hash = "ignore")]
-        descr: &'static str,
+        pub descr: &'static str,
     }
     impl LoopId {
         pub fn new(descr: &'static str) -> Self {
-            static NEXT_ID: AtomicUsize = AtomicUsize::new(0);
-            let curr_id = NEXT_ID.fetch_add(1, Ordering::SeqCst);
-            Self { id: curr_id, descr }
+            let id = UniqueId::new();
+            Self { id, descr }
         }
     }
 }

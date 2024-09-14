@@ -1,5 +1,5 @@
 use crate::common::{
-    identifier::UniqueIdentifier,
+    identifier::SymbolIdentifier,
     symbol_table_frontend::{Symbol, SymbolTable, VarAttrs},
     types_backend::AssemblyType,
 };
@@ -24,7 +24,7 @@ pub enum ObjLocation {
 
 #[derive(Deref, DerefMut)]
 pub struct BackendSymbolTable {
-    symbol_table: HashMap<Rc<UniqueIdentifier>, AsmEntry>,
+    symbol_table: HashMap<Rc<SymbolIdentifier>, AsmEntry>,
 }
 impl From<SymbolTable> for BackendSymbolTable {
     fn from(c_table: SymbolTable) -> Self {

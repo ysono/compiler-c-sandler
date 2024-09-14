@@ -1,5 +1,5 @@
-use crate::common::types_frontend::Const;
-use derive_more::{Deref, From};
+use crate::common::{identifier::RawIdentifier, types_frontend::Const};
+use derive_more::From;
 
 #[derive(From, PartialEq, Debug)]
 pub enum Token {
@@ -11,7 +11,7 @@ pub enum Token {
     Control(Control),
     Loop(Loop),
     Const(Const),
-    Identifier(Identifier),
+    Identifier(RawIdentifier),
 }
 #[derive(PartialEq, Debug)]
 pub enum Demarcator {
@@ -82,5 +82,3 @@ pub enum Loop {
     Break,
     Continue,
 }
-#[derive(Deref, PartialEq, Eq, Hash, Debug)]
-pub struct Identifier(pub(super) String);

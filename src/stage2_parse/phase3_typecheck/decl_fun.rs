@@ -1,7 +1,7 @@
 use super::{TypeCheckedCAst, TypeChecker, VarDeclScope};
 use crate::{
     common::{
-        identifier::UniqueIdentifier,
+        identifier::SymbolIdentifier,
         symbol_table_frontend::{FunAttrs, StaticVisibility, Symbol},
         types_frontend::FunType,
     },
@@ -108,7 +108,7 @@ impl TypeChecker {
     }
     fn insert_fun_decl(
         &mut self,
-        ident: Rc<UniqueIdentifier>,
+        ident: Rc<SymbolIdentifier>,
         new_viz: Viz,
         newly_defined: bool,
         new_typ: &Rc<FunType>,

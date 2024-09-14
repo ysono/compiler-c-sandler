@@ -13,7 +13,7 @@ mod exp;
 use self::{decl_fun::FunDeclScope, decl_var::VarDeclScope};
 use crate::{
     common::{
-        identifier::UniqueIdentifier, symbol_table_frontend::SymbolTable, types_frontend::FunType,
+        identifier::SymbolIdentifier, symbol_table_frontend::SymbolTable, types_frontend::FunType,
     },
     stage2_parse::{c_ast::*, phase2_resolve::ResolvedCAst},
 };
@@ -26,10 +26,10 @@ impl CAstVariant for TypeCheckedCAst {
     type FileScopeDeclaration = FunctionDefinition<Self>;
     type BlockScopeDeclaration = VariableDefinition<Self>;
     type ForInitDeclaration = VariableDefinition<Self>;
-    type Identifier = Rc<UniqueIdentifier>;
+    type Identifier = Rc<SymbolIdentifier>;
     type LoopId = Rc<LoopId>;
     type Expression = TypedExpression<Self>;
-    type Lvalue = Rc<UniqueIdentifier>;
+    type Lvalue = Rc<SymbolIdentifier>;
 }
 
 #[derive(Default)]

@@ -1,6 +1,9 @@
 use super::{ParsedCAst, Parser};
 use crate::{
-    common::types_frontend::{FunType, VarType},
+    common::{
+        identifier::RawIdentifier,
+        types_frontend::{FunType, VarType},
+    },
     stage1_lex::tokens as t,
     stage2_parse::c_ast::*,
 };
@@ -123,7 +126,7 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
         };
         inner().context("<declaration> specifiers")
     }
-    fn parse_param_list(&mut self) -> Result<(Vec<VarType>, Vec<t::Identifier>)> {
+    fn parse_param_list(&mut self) -> Result<(Vec<VarType>, Vec<RawIdentifier>)> {
         let mut inner = || -> Result<_> {
             match self.tokens.peek() {
                 Some(Ok(t::Token::Type(t::Type::Void))) => {

@@ -1,6 +1,7 @@
 use super::{GeneratedAsmAst, InstrsGenerator};
 use crate::{
     common::{
+        identifier::{JumpLabel, UniqueId},
         types_backend::AssemblyType,
         types_frontend::{Const, VarType},
     },
@@ -86,8 +87,8 @@ impl InstrsGenerator {
             let i64_ceil_as_f64 =
                 self.get_or_new_static_constant_operand(None, Const::Double(i64_ceil_as_f64));
 
-            let lbl_out_of_range = Rc::new(LabelIdentifier::new(String::from("f64_u64.oor")));
-            let lbl_end = Rc::new(LabelIdentifier::new(String::from("f64_u64.end")));
+            let [lbl_out_of_range, lbl_end] =
+                JumpLabel::create(UniqueId::new(), "f64_u64", ["oor", "end"]);
 
             let sse_reg = PreFinalOperand::Register(Register::XMM0);
 
@@ -151,8 +152,8 @@ impl InstrsGenerator {
             ]
         } else {
             /* Then, uint_var_type == VarType::ULong */
-            let lbl_out_of_range = Rc::new(LabelIdentifier::new(String::from("u64_f64.oor")));
-            let lbl_end = Rc::new(LabelIdentifier::new(String::from("u64_f64.end")));
+            let [lbl_out_of_range, lbl_end] =
+                JumpLabel::create(UniqueId::new(), "u64_f64", ["oor", "end"]);
 
             let gp_reg_1 = PreFinalOperand::Register(Register::AX);
             let gp_reg_2 = PreFinalOperand::Register(Register::DX);

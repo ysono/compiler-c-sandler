@@ -7,7 +7,7 @@ mod operand;
 
 use crate::{
     common::{
-        identifier::UniqueIdentifier, symbol_table_frontend::SymbolTable, types_backend::Alignment,
+        identifier::SymbolIdentifier, symbol_table_frontend::SymbolTable, types_backend::Alignment,
         types_frontend::Const,
     },
     stage3_tacky::tacky_ast as t,
@@ -28,7 +28,7 @@ impl AsmAstVariant for GeneratedAsmAst {
 pub struct InstrsGenerator {
     frontend_symtab: SymbolTable,
 
-    static_constants: HashMap<(Alignment, Const), Rc<UniqueIdentifier>>,
+    static_constants: HashMap<(Alignment, Const), Rc<SymbolIdentifier>>,
 }
 impl InstrsGenerator {
     pub fn new(frontend_symtab: SymbolTable) -> Self {

@@ -1,7 +1,7 @@
 use super::{label::LabelLocality, AsmCodeEmitter, TAB};
 use crate::{
     common::{
-        identifier::UniqueIdentifier,
+        identifier::SymbolIdentifier,
         symbol_table_backend::{AsmEntry, ObjLocation},
         types_backend::{AssemblyType, OperandByteLen},
     },
@@ -14,9 +14,9 @@ impl<W: Write> AsmCodeEmitter<W> {
         &mut self,
         Function { ident, visibility, instrs }: Function<FinalizedAsmAst>,
     ) -> Result<(), io::Error> {
-        self.write_label_visibility(&ident, visibility, LabelLocality::of_fun())?;
+        self.write_symbol_visibility(&ident, visibility, LabelLocality::OF_FUN)?;
         writeln!(&mut self.w, "{TAB}.text")?;
-        self.write_label_instance(&ident, LabelLocality::of_fun())?;
+        self.write_symbol_decl(&ident, LabelLocality::OF_FUN)?;
         writeln!(&mut self.w, "{TAB}pushq{TAB}%rbp")?;
         writeln!(&mut self.w, "{TAB}movq{TAB}%rsp, %rbp")?;
         for instr in instrs {
@@ -164,13 +164,13 @@ impl<W: Write> AsmCodeEmitter<W> {
             }
             Instruction::Jmp(lbl) => {
                 write!(&mut self.w, "{TAB}jmp{TAB}")?;
-                self.write_label_name(&lbl, LabelLocality::of_jump())?;
+                self.write_jump_name(&lbl)?;
                 writeln!(&mut self.w)?;
             }
             Instruction::JmpCC(cc, lbl) => {
                 let instr_sfx = Self::get_instr_sfx_condition(cc);
                 write!(&mut self.w, "{TAB}j{instr_sfx}{TAB}")?;
-                self.write_label_name(&lbl, LabelLocality::of_jump())?;
+                self.write_jump_name(&lbl)?;
                 writeln!(&mut self.w)?;
             }
             Instruction::SetCC(cc, operand) => {
@@ -179,7 +179,7 @@ impl<W: Write> AsmCodeEmitter<W> {
                 self.write_operand(operand, OperandByteLen::B1)?;
                 writeln!(&mut self.w)?;
             }
-            Instruction::Label(lbl) => self.write_label_instance(&lbl, LabelLocality::of_jump())?,
+            Instruction::Label(lbl) => self.write_jump_decl(&lbl)?,
             Instruction::Push(operand) => {
                 write!(&mut self.w, "{TAB}pushq{TAB}")?;
                 self.write_operand(operand, OperandByteLen::B8)?;
@@ -187,7 +187,7 @@ impl<W: Write> AsmCodeEmitter<W> {
             }
             Instruction::Call(ident) => {
                 write!(&mut self.w, "{TAB}call{TAB}")?;
-                self.write_label_name(&ident, LabelLocality::of_fun())?;
+                self.write_symbol_name(&ident, LabelLocality::OF_FUN)?;
                 self.write_fun_call_sfx(&ident)?;
                 writeln!(&mut self.w)?;
             }
@@ -282,10 +282,10 @@ impl<W: Write> AsmCodeEmitter<W> {
                         panic!("Operand::Data cannot refer to a stack-allocated var.")
                     }
                     ObjLocation::StaticReadWrite => {
-                        self.write_label_name(&ident, LabelLocality::of_static_var())?
+                        self.write_symbol_name(&ident, LabelLocality::OF_STATIC_VAR)?
                     }
                     ObjLocation::StaticReadonly => {
-                        self.write_label_name(&ident, LabelLocality::of_static_const())?
+                        self.write_symbol_name(&ident, LabelLocality::OF_STATIC_CONST)?
                     }
                 }
                 write!(&mut self.w, "(%rip)")?;
@@ -293,7 +293,7 @@ impl<W: Write> AsmCodeEmitter<W> {
         }
         Ok(())
     }
-    fn write_fun_call_sfx(&mut self, ident: &UniqueIdentifier) -> Result<(), io::Error> {
+    fn write_fun_call_sfx(&mut self, ident: &SymbolIdentifier) -> Result<(), io::Error> {
         if cfg!(target_os = "linux") {
             match self.backend_symtab.get(ident).unwrap() {
                 AsmEntry::Obj { .. } => { /* No-op. */ }

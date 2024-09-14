@@ -1,7 +1,7 @@
 use super::{TypeCheckedCAst, TypeChecker};
 use crate::{
     common::{
-        identifier::UniqueIdentifier,
+        identifier::SymbolIdentifier,
         symbol_table_frontend::{StaticInitialValue, StaticVisibility, Symbol, VarAttrs},
         types_frontend::{Const, VarType},
     },
@@ -118,7 +118,7 @@ impl TypeChecker {
     }
     fn insert_var_decl(
         &mut self,
-        ident: Rc<UniqueIdentifier>,
+        ident: Rc<SymbolIdentifier>,
         new_decl_summary: Decl,
         new_typ: VarType,
     ) -> Result<&VarAttrs> {
