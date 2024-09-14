@@ -10,7 +10,6 @@ use crate::{
 };
 use anyhow::{anyhow, Context, Result};
 use std::cmp;
-use std::rc::Rc;
 
 impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
     pub(super) fn maybe_parse_decl(&mut self) -> Result<Option<Declaration<ParsedCAst>>> {
@@ -62,9 +61,12 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
                         }
                     };
 
+                    let fun_type = FunType { params: param_typs, ret: typ };
+                    let fun_type = self.fun_type_repo.get_or_new(fun_type);
+
                     Ok(Some(Declaration::Fun(FunctionDeclaration {
                         ident,
-                        typ: Rc::new(FunType { params: param_typs, ret: typ }),
+                        typ: fun_type,
                         storage_class,
                         param_idents,
                         body,

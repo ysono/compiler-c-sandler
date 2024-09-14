@@ -3,7 +3,7 @@ use std::cmp::Ordering;
 use std::hash::{Hash, Hasher};
 use std::mem;
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum VarType {
     Int,
     Long,
@@ -42,7 +42,7 @@ impl VarType {
     }
 }
 
-#[derive(PartialEq, Eq, Debug)]
+#[derive(PartialEq, Eq, Hash, Debug)]
 pub struct FunType {
     pub params: Vec<VarType>,
     pub ret: VarType,

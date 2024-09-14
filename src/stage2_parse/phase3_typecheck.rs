@@ -15,6 +15,7 @@ use crate::{
     common::{
         identifier::SymbolIdentifier, symbol_table_frontend::SymbolTable, types_frontend::FunType,
     },
+    ds_n_a::singleton::Singleton,
     stage2_parse::{c_ast::*, phase2_resolve::ResolvedCAst},
 };
 use anyhow::Result;
@@ -36,7 +37,7 @@ impl CAstVariant for TypeCheckedCAst {
 pub struct TypeChecker {
     symbol_table: SymbolTable,
 
-    curr_fun_type: Option<Rc<FunType>>,
+    curr_fun_type: Option<Singleton<FunType>>,
 }
 impl TypeChecker {
     pub fn typecheck_prog(

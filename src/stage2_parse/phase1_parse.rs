@@ -5,7 +5,11 @@ mod exp;
 mod stmt;
 
 use crate::{
-    common::identifier::RawIdentifier, stage1_lex::tokens as t, stage2_parse::c_ast::*, utils::noop,
+    common::{identifier::RawIdentifier, types_frontend::FunType},
+    ds_n_a::singleton::SingletonRepository,
+    stage1_lex::tokens as t,
+    stage2_parse::c_ast::*,
+    utils::noop,
 };
 use anyhow::{anyhow, Context, Result};
 use std::iter::Peekable;
@@ -24,10 +28,15 @@ impl CAstVariant for ParsedCAst {
 
 pub struct Parser<T: Iterator<Item = Result<t::Token>>> {
     tokens: Peekable<T>,
+
+    fun_type_repo: SingletonRepository<FunType>,
 }
 impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
     pub fn new(tokens: T) -> Self {
-        Self { tokens: tokens.peekable() }
+        Self {
+            tokens: tokens.peekable(),
+            fun_type_repo: Default::default(),
+        }
     }
 
     pub fn parse_program(&mut self) -> Result<Program<ParsedCAst>> {

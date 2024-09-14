@@ -1,6 +1,9 @@
-use crate::common::{
-    identifier::SymbolIdentifier,
-    types_frontend::{Const, FunType, VarType},
+use crate::{
+    common::{
+        identifier::SymbolIdentifier,
+        types_frontend::{Const, FunType, VarType},
+    },
+    ds_n_a::singleton::Singleton,
 };
 use anyhow::{anyhow, Result};
 use derive_more::{AsMut, Deref, Into};
@@ -9,8 +12,14 @@ use std::rc::Rc;
 
 #[derive(Debug)]
 pub enum Symbol {
-    Var { typ: VarType, attrs: VarAttrs },
-    Fun { typ: Rc<FunType>, attrs: FunAttrs },
+    Var {
+        typ: VarType,
+        attrs: VarAttrs,
+    },
+    Fun {
+        typ: Singleton<FunType>,
+        attrs: FunAttrs,
+    },
 }
 
 #[derive(Debug)]
@@ -69,7 +78,7 @@ impl SymbolTable {
             _ => Err(anyhow!("Not variable. {ident:?} {symbol:?}")),
         }
     }
-    pub fn get_fun_type(&self, ident: &SymbolIdentifier) -> Result<&Rc<FunType>> {
+    pub fn get_fun_type(&self, ident: &SymbolIdentifier) -> Result<&Singleton<FunType>> {
         let symbol = self.get(ident)?;
         match symbol {
             Symbol::Fun { typ, .. } => Ok(typ),

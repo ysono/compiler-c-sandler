@@ -4,7 +4,6 @@ use crate::{
     stage2_parse::{c_ast::*, phase2_resolve::ResolvedCAst},
 };
 use anyhow::{anyhow, Result};
-use std::rc::Rc;
 
 impl TypeChecker {
     /// + Validate the input types.
@@ -106,7 +105,7 @@ impl TypeChecker {
                         "Mismatched signature. {ident:?} : {fun_typ:?} vs {args:?}"
                     ));
                 }
-                let fun_typ = Rc::clone(fun_typ);
+                let fun_typ = fun_typ.clone();
 
                 let mut out_args = Vec::with_capacity(args.len());
                 for (param_typ, arg_exp) in fun_typ.params.iter().cloned().zip(args.into_iter()) {
