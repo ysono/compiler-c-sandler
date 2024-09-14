@@ -1,7 +1,7 @@
 use super::{ParsedCAst, Parser};
 use crate::{stage1_lex::tokens as t, stage2_parse::c_ast::*};
 use anyhow::{anyhow, Context, Result};
-use derive_more::Add;
+use std::borrow::Borrow;
 
 impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
     pub(super) fn parse_exp(&mut self) -> Result<Expression<ParsedCAst>> {
@@ -172,12 +172,12 @@ impl BinaryOperatorInfo {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Add)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 struct BinaryOperatorPrecedence(u8);
-impl<'a> From<&'a BinaryOperatorInfo> for BinaryOperatorPrecedence {
-    fn from(boi: &'a BinaryOperatorInfo) -> Self {
+impl<B: Borrow<BinaryOperatorInfo>> From<B> for BinaryOperatorPrecedence {
+    fn from(boi: B) -> Self {
         use BinaryOperator as BO;
-        match boi {
+        match boi.borrow() {
             BinaryOperatorInfo::Generic(bo) => match bo {
                 BO::Mul | BO::Div | BO::Rem => Self(50),
                 BO::Sub | BO::Add => Self(45),
