@@ -47,13 +47,13 @@ impl<'a> FunInstrsGenerator<'a> {
         c::Binary { op: _, lhs, rhs }: c::Binary<TypeCheckedCAst>,
         out_typ: VarType,
     ) -> ReadableValue {
-        let src1 = self.gen_exp(*lhs);
-        let src2 = self.gen_exp(*rhs);
+        let lhs = self.gen_exp(*lhs);
+        let rhs = self.gen_exp(*rhs);
         let dst = self.symbol_table.declare_var_anon(out_typ);
         self.instrs.push(Instruction::Binary(Binary {
             op,
-            src1,
-            src2,
+            lhs,
+            rhs,
             dst: Rc::clone(&dst),
         }));
         ReadableValue::Variable(dst)

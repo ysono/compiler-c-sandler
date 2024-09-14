@@ -1,4 +1,4 @@
-pub use self::instruction::*;
+pub use self::{instruction::*, operator::*};
 use crate::common::{
     identifier::{JumpLabel, SymbolIdentifier},
     symbol_table_frontend::StaticVisibility,
@@ -66,8 +66,8 @@ mod instruction {
     #[derive(Debug)]
     pub struct Binary {
         pub op: BinaryOperator,
-        pub src1: ReadableValue,
-        pub src2: ReadableValue,
+        pub lhs: ReadableValue,
+        pub rhs: ReadableValue,
         pub dst: Rc<SymbolIdentifier>,
     }
 
@@ -91,49 +91,53 @@ mod instruction {
     }
 }
 
-#[derive(Debug)]
-pub enum UnaryOperator {
-    Numeric(NumericUnaryOperator),
-    Comparison(ComparisonUnaryOperator),
-}
-#[derive(Clone, Copy, Debug)]
-pub enum NumericUnaryOperator {
-    /* integer -> integer */
-    Complement,
-    /* integer -> integer or floating-pt -> floating-pt */
-    Negate,
-}
-#[derive(Clone, Copy, Debug)]
-pub enum ComparisonUnaryOperator {
-    /* integer or floating-pt -> bool */
-    Not,
-}
+mod operator {
+    use super::*;
 
-#[derive(From, Debug)]
-pub enum BinaryOperator {
-    Arithmetic(ArithmeticBinaryOperator),
-    DivRem(DivRemBinaryOperator),
-    Comparison(ComparisonBinaryOperator),
-}
-#[derive(Clone, Copy, Debug)]
-pub enum ArithmeticBinaryOperator {
-    Sub,
-    Add,
-    Mul,
-}
-#[derive(Clone, Copy, Debug)]
-pub enum DivRemBinaryOperator {
-    Div,
-    Rem,
-}
-#[derive(Clone, Copy, Debug)]
-pub enum ComparisonBinaryOperator {
-    Eq,
-    Neq,
-    Lt,
-    Lte,
-    Gt,
-    Gte,
+    #[derive(Debug)]
+    pub enum UnaryOperator {
+        Numeric(NumericUnaryOperator),
+        Comparison(ComparisonUnaryOperator),
+    }
+    #[derive(Clone, Copy, Debug)]
+    pub enum NumericUnaryOperator {
+        /* integer -> integer */
+        Complement,
+        /* integer -> integer or floating-pt -> floating-pt */
+        Negate,
+    }
+    #[derive(Clone, Copy, Debug)]
+    pub enum ComparisonUnaryOperator {
+        /* integer or floating-pt -> bool */
+        Not,
+    }
+
+    #[derive(From, Debug)]
+    pub enum BinaryOperator {
+        Arithmetic(ArithmeticBinaryOperator),
+        DivRem(DivRemBinaryOperator),
+        Comparison(ComparisonBinaryOperator),
+    }
+    #[derive(Clone, Copy, Debug)]
+    pub enum ArithmeticBinaryOperator {
+        Sub,
+        Add,
+        Mul,
+    }
+    #[derive(Clone, Copy, Debug)]
+    pub enum DivRemBinaryOperator {
+        Div,
+        Rem,
+    }
+    #[derive(Clone, Copy, Debug)]
+    pub enum ComparisonBinaryOperator {
+        Eq,
+        Neq,
+        Lt,
+        Lte,
+        Gt,
+        Gte,
+    }
 }
 
 #[derive(From, Debug)]

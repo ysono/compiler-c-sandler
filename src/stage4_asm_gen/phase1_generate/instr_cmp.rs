@@ -25,13 +25,13 @@ impl InstrsGenerator {
     pub(super) fn gen_binary_comparison_instrs(
         &mut self,
         t_op: t::ComparisonBinaryOperator,
-        t::Binary { op: _, src1, src2, dst }: t::Binary,
+        t::Binary { op: _, lhs, rhs, dst }: t::Binary,
     ) -> Vec<Instruction<GeneratedAsmAst>> {
         use t::ComparisonBinaryOperator as TBOC;
         use ConditionCode as CC;
 
-        let (src1, src_var_type, src_asm_type) = self.convert_value(src1);
-        let (src2, _, _) = self.convert_value(src2);
+        let (lhs, src_var_type, src_asm_type) = self.convert_value(lhs);
+        let (rhs, _, _) = self.convert_value(rhs);
         let (dst, _, dst_asm_type) = self.convert_value(dst);
 
         let cc_is_lg_family = match src_var_type {
@@ -55,8 +55,8 @@ impl InstrsGenerator {
 
         let mut asm_instrs = vec![Instruction::Cmp {
             asm_type: src_asm_type,
-            tgt: src1,
-            arg: src2,
+            tgt: lhs,
+            arg: rhs,
         }];
         asm_instrs.extend(Self::gen_setcc(cc, dst, dst_asm_type));
         asm_instrs

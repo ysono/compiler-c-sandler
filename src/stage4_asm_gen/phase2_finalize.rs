@@ -49,16 +49,13 @@ impl InstrsFinalizer {
         &mut self,
         in_instrs: impl Iterator<Item = Instruction<GeneratedAsmAst>>,
     ) -> VecDeque<Instruction<FinalizedAsmAst>> {
-        let instrs = self.convert_operands(in_instrs);
+        let instrs = self.convert_instrs(in_instrs);
         let instrs = OperandFixer::fix_invalid_operands(instrs);
         let mut out_instrs = instrs.collect::<VecDeque<_>>();
 
-        /* We must read `self.last_used_stack_pos` strictly after the iterator of `Instruction`s has been completely traversed. */
+        /* We must read `last_used_stack_pos` strictly after the iterator of `Instruction`s has been completely traversed. */
         let mut stack_frame_bytelen = self.var_to_stack_pos.last_used_stack_pos().0 * -1;
-        let rem = stack_frame_bytelen % 16;
-        if rem != 0 {
-            stack_frame_bytelen += 16 - rem;
-        }
+        stack_frame_bytelen = ((stack_frame_bytelen + 15) / 16) * 16;
 
         if stack_frame_bytelen > 0 {
             out_instrs.push_front(Instruction::Binary {
@@ -72,7 +69,7 @@ impl InstrsFinalizer {
         out_instrs
     }
 
-    fn convert_operands<'a>(
+    fn convert_instrs<'a>(
         &'a mut self,
         in_instrs: impl 'a + Iterator<Item = Instruction<GeneratedAsmAst>>,
     ) -> impl 'a + Iterator<Item = Instruction<FinalizedAsmAst>> {

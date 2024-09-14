@@ -30,15 +30,15 @@ impl VarToStackPos {
         asm_type: AssemblyType,
     ) -> StackPosition {
         let pos = self.var_to_stack_pos.entry(ident).or_insert_with(|| {
+            let mut pos = self.last_used_stack_pos.0;
+
             let alloc = OperandByteLen::from(asm_type) as i64;
-            self.last_used_stack_pos.0 -= alloc;
+            pos -= alloc;
 
-            let alignment = Alignment::default_of(asm_type) as i64;
-            let rem = self.last_used_stack_pos.0 % alignment;
-            if rem != 0 {
-                self.last_used_stack_pos.0 -= alignment + rem;
-            }
+            let align = Alignment::default_of(asm_type) as i64;
+            pos = ((pos - (align - 1)) / align) * align;
 
+            self.last_used_stack_pos.0 = pos;
             self.last_used_stack_pos
         });
         *pos

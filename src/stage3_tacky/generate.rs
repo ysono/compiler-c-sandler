@@ -109,12 +109,8 @@ impl<'a> FunInstrsGenerator<'a> {
         The return type of the `main` function must be `int`.
         The return type of any non-`main` function that lacks a `return` statement is undefined.
         Therefore, it's correct to always return `int`. */
-        let konst = Const::Int(0);
-        let ret_stmt = c::Statement::Return(c::TypedExpression {
-            exp: c::Expression::Const(konst),
-            typ: konst.var_type(),
-        });
-        self.gen_stmt(ret_stmt);
+        let val = ReadableValue::Constant(Const::Int(0));
+        self.instrs.push(Instruction::Return(val));
 
         Function {
             ident,
