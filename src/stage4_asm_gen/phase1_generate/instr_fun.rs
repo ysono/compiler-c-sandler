@@ -1,6 +1,10 @@
 use super::{GeneratedAsmAst, InstrsGenerator};
 use crate::{
-    common::{identifier::SymbolIdentifier, types_backend::AssemblyType, types_frontend::VarType},
+    common::{
+        identifier::SymbolIdentifier,
+        types_backend::{AssemblyType, OperandByteLen},
+        types_frontend::VarType,
+    },
     stage3_tacky::tacky_ast as t,
     stage4_asm_gen::asm_ast::*,
 };
@@ -24,10 +28,10 @@ impl InstrsGenerator {
                 let arg_reg = arg_reg_resolver.next_reg(arg_type);
 
                 let src = match arg_reg {
-                    Some(reg) => PreFinalOperand::Register(reg),
+                    Some(reg) => Operand::Register(reg).into(),
                     None => {
                         *extra_arg_stack_pos += 8;
-                        PreFinalOperand::StackPosition(extra_arg_stack_pos)
+                        Operand::StackPosition(extra_arg_stack_pos).into()
                     }
                 };
                 let (dst, _, asm_type) = self.convert_value(param_ident);
@@ -46,9 +50,6 @@ impl InstrsGenerator {
         &mut self,
         t::FunCall { ident, args, dst }: t::FunCall,
     ) -> Vec<Instruction<GeneratedAsmAst>> {
-        use AssemblyType as AT;
-        use PreFinalOperand as PFO;
-
         let mut asm_instrs = vec![];
 
         /* Push arg-copying instructions in the _reverse_ order. */
@@ -71,28 +72,28 @@ impl InstrsGenerator {
                     asm_instrs.push(Instruction::Mov {
                         asm_type: arg_asm_type,
                         src: arg_operand,
-                        dst: PreFinalOperand::Register(reg),
+                        dst: Operand::Register(reg).into(),
                     });
                 }
                 None => {
                     stack_args_count += 1;
 
-                    match (&arg_operand, arg_asm_type) {
-                        (PFO::ImmediateValue(_) | PFO::Register(_), _)
-                        | (_, AT::Quadword | AT::Double) => {
+                    match (arg_operand.is_on_mem(), OperandByteLen::from(arg_asm_type)) {
+                        (false, _) | (true, OperandByteLen::B8) => {
                             asm_instrs.push(Instruction::Push(arg_operand));
                         }
-                        (PFO::Pseudo(_) | PFO::StackPosition(_) | PFO::Data(_), AT::Longword) => {
+                        (true, OperandByteLen::B4 | OperandByteLen::B1) => {
                             /* `pushq` operation always reads and pushes 8 bytes.
                             In case (arg's memory address + (8-1)) lies outside the readable memory, we cannot `pushq` directly. */
+                            let reg = || Operand::Register(Register::AX).into();
                             asm_instrs.extend(
                                 [
                                     Instruction::Mov {
                                         asm_type: arg_asm_type,
                                         src: arg_operand,
-                                        dst: PreFinalOperand::Register(Register::AX),
+                                        dst: reg(),
                                     },
-                                    Instruction::Push(PreFinalOperand::Register(Register::AX)),
+                                    Instruction::Push(reg()),
                                 ]
                                 .into_iter()
                                 .rev(),
@@ -111,8 +112,8 @@ impl InstrsGenerator {
             asm_instrs.push(Instruction::Binary {
                 op: BinaryOperator::Sub,
                 asm_type: AssemblyType::Quadword,
-                tgt: PreFinalOperand::Register(Register::SP),
-                arg: PreFinalOperand::ImmediateValue(stack_padding_bytelen),
+                tgt: Operand::Register(Register::SP).into(),
+                arg: Operand::ImmediateValue(stack_padding_bytelen).into(),
             });
         }
 
@@ -128,8 +129,8 @@ impl InstrsGenerator {
             asm_instrs.push(Instruction::Binary {
                 op: BinaryOperator::Add,
                 asm_type: AssemblyType::Quadword,
-                tgt: PreFinalOperand::Register(Register::SP),
-                arg: PreFinalOperand::ImmediateValue(stack_pop_bytelen),
+                tgt: Operand::Register(Register::SP).into(),
+                arg: Operand::ImmediateValue(stack_pop_bytelen).into(),
             });
         }
 
@@ -138,7 +139,7 @@ impl InstrsGenerator {
         let ret_reg = derive_return_register(dst_asm_type);
         asm_instrs.push(Instruction::Mov {
             asm_type: dst_asm_type,
-            src: PreFinalOperand::Register(ret_reg),
+            src: Operand::Register(ret_reg).into(),
             dst,
         });
 
@@ -154,7 +155,7 @@ impl InstrsGenerator {
         let asm_instr_1 = Instruction::Mov {
             asm_type,
             src,
-            dst: PreFinalOperand::Register(ret_reg),
+            dst: Operand::Register(ret_reg).into(),
         };
 
         let asm_instr_2 = Instruction::Ret;

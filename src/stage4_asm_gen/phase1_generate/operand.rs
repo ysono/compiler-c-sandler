@@ -40,7 +40,7 @@ impl InstrsGenerator {
         match t_val {
             t::ReadableValue::Constant(konst) => match konst {
                 Const::Int(_) | Const::Long(_) | Const::UInt(_) | Const::ULong(_) => {
-                    PreFinalOperand::ImmediateValue(konst.as_bits())
+                    Operand::ImmediateValue(konst.as_bits()).into()
                 }
                 Const::Double(_) => self.get_or_new_static_constant_operand(None, konst),
             },
@@ -60,6 +60,6 @@ impl InstrsGenerator {
             .static_constants
             .entry((alignment, konst))
             .or_insert_with(|| Rc::new(SymbolIdentifier::new_generated()));
-        PreFinalOperand::Data(Rc::clone(ident))
+        Operand::Data(Rc::clone(ident)).into()
     }
 }

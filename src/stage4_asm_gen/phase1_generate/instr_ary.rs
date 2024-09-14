@@ -142,15 +142,15 @@ impl InstrsGenerator {
         let asm_instr_1 = Instruction::Mov {
             asm_type,
             src: lhs,
-            dst: PreFinalOperand::Register(Register::AX),
+            dst: Operand::Register(Register::AX).into(),
         };
         let asm_instr_2 = if var_type.is_signed() {
             Instruction::Cdq(asm_type)
         } else {
             Instruction::Mov {
                 asm_type,
-                src: PreFinalOperand::ImmediateValue(0),
-                dst: PreFinalOperand::Register(Register::DX),
+                src: Operand::ImmediateValue(0).into(),
+                dst: Operand::Register(Register::DX).into(),
             }
         };
         let asm_instr_3 = if var_type.is_signed() {
@@ -160,7 +160,7 @@ impl InstrsGenerator {
         };
         let asm_instr_4 = Instruction::Mov {
             asm_type,
-            src: PreFinalOperand::Register(ans_reg),
+            src: Operand::Register(ans_reg).into(),
             dst,
         };
         vec![asm_instr_1, asm_instr_2, asm_instr_3, asm_instr_4]

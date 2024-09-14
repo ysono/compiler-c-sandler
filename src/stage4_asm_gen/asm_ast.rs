@@ -131,13 +131,18 @@ mod operator {
 mod operand {
     use super::*;
 
-    #[derive(Clone, Debug)]
+    #[derive(From, Clone, Debug)]
     pub enum PreFinalOperand {
-        ImmediateValue(u64),
-        Register(Register),
-        StackPosition(StackPosition),
-        Data(Rc<SymbolIdentifier>),
+        O(Operand),
         Pseudo(Rc<SymbolIdentifier>),
+    }
+    impl PreFinalOperand {
+        pub fn is_on_mem(&self) -> bool {
+            match self {
+                Self::O(o) => o.is_on_mem(),
+                Self::Pseudo(_) => true,
+            }
+        }
     }
 
     #[derive(From, Clone, Debug)]

@@ -87,13 +87,13 @@ impl InstrsGenerator {
                 vec![Instruction::Cmp {
                     asm_type: src_asm_type,
                     tgt: src,
-                    arg: PreFinalOperand::ImmediateValue(0),
+                    arg: Operand::ImmediateValue(0).into(),
                     /* On each integer variant of the `cmp*` instr,
                     operand #2 (ie `tgt`) must eventually _not_ be an immediate value. */
                 }]
             }
             AssemblyType::Double => {
-                let reg = || PreFinalOperand::Register(Register::XMM0);
+                let reg = || Operand::Register(Register::XMM0).into();
                 vec![
                     Instruction::Binary {
                         op: BinaryOperator::Xor,
@@ -121,7 +121,7 @@ impl InstrsGenerator {
         vec![
             Instruction::Mov {
                 asm_type: dst_asm_type,
-                src: PreFinalOperand::ImmediateValue(0),
+                src: Operand::ImmediateValue(0).into(),
                 dst: dst.clone(),
             },
             Instruction::SetCC(cc, dst),
