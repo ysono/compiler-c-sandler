@@ -1,5 +1,6 @@
 use anyhow::{anyhow, Result};
 use derive_more::Deref;
+use std::borrow::Borrow;
 use std::ffi::OsStr;
 use std::path::PathBuf;
 
@@ -18,9 +19,9 @@ impl TryFrom<PathBuf> for SrcFilepath {
 
 #[derive(Deref, Debug)]
 pub struct AsmFilepath(PathBuf);
-impl<'a> From<&'a SrcFilepath> for AsmFilepath {
-    fn from(src_filepath: &'a SrcFilepath) -> Self {
-        let mut asm_filepath = PathBuf::from(src_filepath as &PathBuf);
+impl<S: Borrow<SrcFilepath>> From<S> for AsmFilepath {
+    fn from(src_filepath: S) -> Self {
+        let mut asm_filepath = PathBuf::from(src_filepath.borrow() as &PathBuf);
         asm_filepath.set_extension("s");
         Self(asm_filepath)
     }
@@ -28,9 +29,9 @@ impl<'a> From<&'a SrcFilepath> for AsmFilepath {
 
 #[derive(Deref, Debug)]
 pub struct ObjectFilepath(PathBuf);
-impl<'a> From<&'a AsmFilepath> for ObjectFilepath {
-    fn from(asm_filepath: &'a AsmFilepath) -> Self {
-        let mut obj_filepath = PathBuf::from(asm_filepath as &PathBuf);
+impl<A: Borrow<AsmFilepath>> From<A> for ObjectFilepath {
+    fn from(asm_filepath: A) -> Self {
+        let mut obj_filepath = PathBuf::from(asm_filepath.borrow() as &PathBuf);
         obj_filepath.set_extension("o");
         Self(obj_filepath)
     }
@@ -38,9 +39,9 @@ impl<'a> From<&'a AsmFilepath> for ObjectFilepath {
 
 #[derive(Deref, Debug)]
 pub struct ProgramFilepath(PathBuf);
-impl<'a> From<&'a AsmFilepath> for ProgramFilepath {
-    fn from(asm_filepath: &'a AsmFilepath) -> Self {
-        let mut prog_filepath = PathBuf::from(asm_filepath as &PathBuf);
+impl<A: Borrow<AsmFilepath>> From<A> for ProgramFilepath {
+    fn from(asm_filepath: A) -> Self {
+        let mut prog_filepath = PathBuf::from(asm_filepath.borrow() as &PathBuf);
         prog_filepath.set_extension("");
         Self(prog_filepath)
     }
