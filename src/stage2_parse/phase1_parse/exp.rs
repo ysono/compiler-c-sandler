@@ -4,7 +4,10 @@ use anyhow::{anyhow, Context, Result};
 use derive_more::Add;
 
 impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
-    pub(super) fn parse_exp(
+    pub(super) fn parse_exp(&mut self) -> Result<Expression<ParsedCAst>> {
+        self.do_parse_exp(BinaryOperatorPrecedence::min())
+    }
+    fn do_parse_exp(
         &mut self,
         min_prec: BinaryOperatorPrecedence,
     ) -> Result<Expression<ParsedCAst>> {
@@ -24,7 +27,7 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
                         match boi {
                             BinaryOperatorInfo::Generic(c_op) => {
                                 let beyond_prec = nxt_prec.inc1(); // Left associative
-                                let rhs = self.parse_exp(beyond_prec)?;
+                                let rhs = self.do_parse_exp(beyond_prec)?;
 
                                 lhs = Expression::Binary(Binary {
                                     op: c_op,
@@ -33,12 +36,12 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
                                 });
                             }
                             BinaryOperatorInfo::ControlQuestion => {
-                                let then = self.parse_exp(BinaryOperatorPrecedence::min())?;
+                                let then = self.do_parse_exp(BinaryOperatorPrecedence::min())?;
 
                                 self.expect_exact(&[t::Operator::Colon.into()])?;
 
                                 let beyond_prec = nxt_prec; // Right associative
-                                let elze = self.parse_exp(beyond_prec)?;
+                                let elze = self.do_parse_exp(beyond_prec)?;
 
                                 lhs = Expression::Conditional(Conditional {
                                     condition: Box::new(lhs),
@@ -48,7 +51,7 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
                             }
                             BinaryOperatorInfo::Assign => {
                                 let beyond_prec = nxt_prec; // Right associative
-                                let rhs = self.parse_exp(beyond_prec)?;
+                                let rhs = self.do_parse_exp(beyond_prec)?;
 
                                 lhs = Expression::Assignment(Assignment {
                                     lhs: Box::new(lhs),
@@ -101,7 +104,7 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
                         }
                         Some(actual) => return Err(anyhow!("{actual:?}")),
                         None => {
-                            let exp = self.parse_exp(BinaryOperatorPrecedence::min())?;
+                            let exp = self.do_parse_exp(BinaryOperatorPrecedence::min())?;
                             self.expect_exact(&[t::Demarcator::ParenClose.into()])?;
                             return Ok(exp);
                         }
@@ -128,7 +131,7 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
                             self.expect_exact(&[t::Demarcator::Comma.into()])?;
                         }
 
-                        let arg = self.parse_exp(BinaryOperatorPrecedence::min())?;
+                        let arg = self.do_parse_exp(BinaryOperatorPrecedence::min())?;
                         args.push(arg);
                     }
                 }
@@ -170,7 +173,7 @@ impl BinaryOperatorInfo {
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Add)]
-pub struct BinaryOperatorPrecedence(u8);
+struct BinaryOperatorPrecedence(u8);
 impl<'a> From<&'a BinaryOperatorInfo> for BinaryOperatorPrecedence {
     fn from(boi: &'a BinaryOperatorInfo) -> Self {
         use BinaryOperator as BO;
@@ -189,7 +192,7 @@ impl<'a> From<&'a BinaryOperatorInfo> for BinaryOperatorPrecedence {
     }
 }
 impl BinaryOperatorPrecedence {
-    pub fn min() -> Self {
+    fn min() -> Self {
         Self(0)
     }
     fn inc1(&self) -> Self {

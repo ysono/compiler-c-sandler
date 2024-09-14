@@ -4,7 +4,6 @@ mod decl;
 mod exp;
 mod stmt;
 
-use self::exp::BinaryOperatorPrecedence;
 use crate::{stage1_lex::tokens as t, stage2_parse::c_ast::*};
 use anyhow::{anyhow, Context, Result};
 use std::iter::Peekable;

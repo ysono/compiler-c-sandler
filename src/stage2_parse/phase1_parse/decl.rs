@@ -1,4 +1,4 @@
-use super::{BinaryOperatorPrecedence, ParsedCAst, Parser};
+use super::{ParsedCAst, Parser};
 use crate::{
     common::types_frontend::{FunType, VarType},
     stage1_lex::tokens as t,
@@ -31,7 +31,7 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
                     })))
                 }
                 Some(Ok(t::Token::Operator(t::Operator::Assign))) => {
-                    let init = self.parse_exp(BinaryOperatorPrecedence::min())?;
+                    let init = self.parse_exp()?;
 
                     self.expect_exact(&[t::Demarcator::Semicolon.into()])?;
 
