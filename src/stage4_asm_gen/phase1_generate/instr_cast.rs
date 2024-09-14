@@ -15,16 +15,16 @@ impl InstrsGenerator {
         &mut self,
         t::SrcDst { src, dst }: t::SrcDst,
     ) -> Vec<Instruction<GeneratedAsmAst>> {
-        let (src, _, _) = self.convert_value(src);
-        let (dst, _, _) = self.convert_value(dst);
+        let src = self.value_to_operand(src);
+        let dst = self.value_to_operand(dst);
         vec![Instruction::Movsx { src, dst }]
     }
     pub(super) fn gen_truncate_instrs(
         &mut self,
         t::SrcDst { src, dst }: t::SrcDst,
     ) -> Vec<Instruction<GeneratedAsmAst>> {
-        let (src, _, _) = self.convert_value(src);
-        let (dst, _, _) = self.convert_value(dst);
+        let src = self.value_to_operand(src);
+        let dst = self.value_to_operand(dst);
         vec![Instruction::Mov {
             asm_type: AssemblyType::Longword,
             src,
@@ -35,16 +35,16 @@ impl InstrsGenerator {
         &mut self,
         t::SrcDst { src, dst }: t::SrcDst,
     ) -> Vec<Instruction<GeneratedAsmAst>> {
-        let (src, _, _) = self.convert_value(src);
-        let (dst, _, _) = self.convert_value(dst);
+        let src = self.value_to_operand(src);
+        let dst = self.value_to_operand(dst);
         vec![Instruction::MovZeroExtend { src, dst }]
     }
     pub(super) fn gen_double_to_int_instrs(
         &mut self,
         t::SrcDst { src, dst }: t::SrcDst,
     ) -> Vec<Instruction<GeneratedAsmAst>> {
-        let (src, _, _) = self.convert_value(src);
-        let (dst, _, dst_asm_type) = self.convert_value(dst);
+        let src = self.value_to_operand(src);
+        let (dst, _, dst_asm_type) = self.value_to_operand_and_type(dst);
         vec![Instruction::Cvttsd2si { dst_asm_type, src, dst }]
         /* If the src float value is out of the range of the dst int type,
         the result is the special "indefinite integer" value, which is the minimum value the dst int type supports,
@@ -56,16 +56,16 @@ impl InstrsGenerator {
         &mut self,
         t::SrcDst { src, dst }: t::SrcDst,
     ) -> Vec<Instruction<GeneratedAsmAst>> {
-        let (src, _, src_asm_type) = self.convert_value(src);
-        let (dst, _, _) = self.convert_value(dst);
+        let (src, _, src_asm_type) = self.value_to_operand_and_type(src);
+        let dst = self.value_to_operand(dst);
         vec![Instruction::Cvtsi2sd { src_asm_type, src, dst }]
     }
     pub(super) fn gen_double_to_uint_instrs(
         &mut self,
         t::SrcDst { src, dst }: t::SrcDst,
     ) -> Vec<Instruction<GeneratedAsmAst>> {
-        let (src, _, _) = self.convert_value(src);
-        let (dst, _, uint_asm_type) = self.convert_value(dst);
+        let src = self.value_to_operand(src);
+        let (dst, _, uint_asm_type) = self.value_to_operand_and_type(dst);
         match uint_asm_type {
             AssemblyType::Longword => {
                 let gp_reg = || Operand::Register(Register::AX).into();
@@ -143,8 +143,8 @@ impl InstrsGenerator {
         &mut self,
         t::SrcDst { src, dst }: t::SrcDst,
     ) -> Vec<Instruction<GeneratedAsmAst>> {
-        let (src, _, uint_asm_type) = self.convert_value(src);
-        let (dst, _, _) = self.convert_value(dst);
+        let (src, _, uint_asm_type) = self.value_to_operand_and_type(src);
+        let dst = self.value_to_operand(dst);
         match uint_asm_type {
             AssemblyType::Longword => {
                 let gp_reg = || Operand::Register(Register::AX).into();

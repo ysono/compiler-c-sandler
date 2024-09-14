@@ -2,7 +2,7 @@ use super::{GeneratedAsmAst, InstrsGenerator};
 use crate::{
     common::{
         types_backend::{Alignment, AssemblyType},
-        types_frontend::{Const, VarType},
+        types_frontend::Const,
     },
     stage3_tacky::tacky_ast as t,
     stage4_asm_gen::asm_ast::*,
@@ -25,8 +25,8 @@ impl InstrsGenerator {
         t_op: t::NumericUnaryOperator,
         t::Unary { op: _, src, dst }: t::Unary,
     ) -> Vec<Instruction<GeneratedAsmAst>> {
-        let (src, _, asm_type) = self.convert_value(src);
-        let (dst, _, _) = self.convert_value(dst);
+        let (src, _, asm_type) = self.value_to_operand_and_type(src);
+        let dst = self.value_to_operand(dst);
 
         let asm_instr_1 = Instruction::Mov { asm_type, src, dst: dst.clone() };
         let asm_instr_2 = match asm_type {
@@ -88,9 +88,9 @@ impl InstrsGenerator {
         asm_op: BinaryOperator,
         t::Binary { op: _, lhs, rhs, dst }: t::Binary,
     ) -> Vec<Instruction<GeneratedAsmAst>> {
-        let (lhs, _, asm_type) = self.convert_value(lhs);
-        let (rhs, _, _) = self.convert_value(rhs);
-        let (dst, _, _) = self.convert_value(dst);
+        let (lhs, _, asm_type) = self.value_to_operand_and_type(lhs);
+        let rhs = self.value_to_operand(rhs);
+        let dst = self.value_to_operand(dst);
 
         let asm_instr_1 = Instruction::Mov {
             asm_type,
@@ -110,16 +110,16 @@ impl InstrsGenerator {
         t_op: t::DivRemBinaryOperator,
         t_binary: t::Binary,
     ) -> Vec<Instruction<GeneratedAsmAst>> {
-        let var_type = self.frontend_symtab.get_var_type(&t_binary.dst).unwrap();
-        match var_type {
-            VarType::Int | VarType::Long | VarType::UInt | VarType::ULong => {
+        let (_, asm_type) = self.value_to_type(&t_binary.lhs);
+        match asm_type {
+            AssemblyType::Longword | AssemblyType::Quadword => {
                 self.do_gen_integer_divrem_instrs(t_op, t_binary)
             }
-            VarType::Double => {
+            AssemblyType::Double => {
                 let asm_op = match t_op {
                     t::DivRemBinaryOperator::Div => BinaryOperator::DivDouble,
                     t::DivRemBinaryOperator::Rem => {
-                        unreachable!("Invalid operation {t_op:?} {var_type:?}")
+                        unreachable!("Invalid operation {t_op:?} {t_binary:?}")
                     }
                 };
                 self.do_gen_binary_arithmetic_instrs(asm_op, t_binary)
@@ -135,9 +135,9 @@ impl InstrsGenerator {
             t::DivRemBinaryOperator::Div => Register::AX,
             t::DivRemBinaryOperator::Rem => Register::DX,
         };
-        let (lhs, var_type, asm_type) = self.convert_value(lhs);
-        let (rhs, _, _) = self.convert_value(rhs);
-        let (dst, _, _) = self.convert_value(dst);
+        let (lhs, var_type, asm_type) = self.value_to_operand_and_type(lhs);
+        let rhs = self.value_to_operand(rhs);
+        let dst = self.value_to_operand(dst);
 
         let asm_instr_1 = Instruction::Mov {
             asm_type,

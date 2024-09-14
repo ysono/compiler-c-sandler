@@ -11,8 +11,8 @@ impl InstrsGenerator {
         t_op: t::ComparisonUnaryOperator,
         t::Unary { op: _, src, dst }: t::Unary,
     ) -> Vec<Instruction<GeneratedAsmAst>> {
-        let (src, _, src_asm_type) = self.convert_value(src);
-        let (dst, _, dst_asm_type) = self.convert_value(dst);
+        let (src, _, src_asm_type) = self.value_to_operand_and_type(src);
+        let (dst, _, dst_asm_type) = self.value_to_operand_and_type(dst);
         let cc = match t_op {
             t::ComparisonUnaryOperator::Not => ConditionCode::E,
         };
@@ -30,9 +30,9 @@ impl InstrsGenerator {
         use t::ComparisonBinaryOperator as TBOC;
         use ConditionCode as CC;
 
-        let (lhs, src_var_type, src_asm_type) = self.convert_value(lhs);
-        let (rhs, _, _) = self.convert_value(rhs);
-        let (dst, _, dst_asm_type) = self.convert_value(dst);
+        let (lhs, src_var_type, src_asm_type) = self.value_to_operand_and_type(lhs);
+        let rhs = self.value_to_operand(rhs);
+        let (dst, _, dst_asm_type) = self.value_to_operand_and_type(dst);
 
         let cc_is_lg_family = match src_var_type {
             VarType::Int | VarType::Long | VarType::UInt | VarType::ULong => {
@@ -66,7 +66,7 @@ impl InstrsGenerator {
         &mut self,
         t::JumpIf { condition, jump_crit, lbl }: t::JumpIf,
     ) -> Vec<Instruction<GeneratedAsmAst>> {
-        let (condition, _, asm_type) = self.convert_value(condition);
+        let (condition, _, asm_type) = self.value_to_operand_and_type(condition);
 
         let cc = match jump_crit {
             t::JumpCriterion::JumpIfZero => ConditionCode::E,
