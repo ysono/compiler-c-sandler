@@ -1,6 +1,6 @@
 use crate::{
     common::{
-        symbol_table_backend::{AsmEntry, BackendSymbolTable, ObjLocation},
+        symbol_table_backend::{AsmObj, BackendSymbolTable, ObjLocation},
         symbol_table_frontend::SymbolTable,
         types_backend::{Alignment, AssemblyType},
     },
@@ -94,12 +94,10 @@ impl AsmCodeGenerator {
         let static_consts = static_consts
             .into_iter()
             .map(|((alignment, init), ident)| {
-                backend_symtab.insert(
+                backend_symtab.objs_mut().insert(
                     Rc::clone(&ident),
-                    AsmEntry::Obj {
+                    AsmObj {
                         asm_type: AssemblyType::from(init.var_type()),
-                        // storage_duration: StorageDuration::Static,
-                        // constness: Constness::Const,
                         loc: ObjLocation::StaticReadonly,
                     },
                 );
