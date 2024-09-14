@@ -7,6 +7,8 @@ use anyhow::{anyhow, Result};
 use std::rc::Rc;
 
 impl TypeChecker {
+    /// + Validate the input types.
+    /// + Annotate the output type.
     pub(super) fn typecheck_exp(
         &mut self,
         exp: Expression<ResolvedCAst>,
@@ -18,7 +20,7 @@ impl TypeChecker {
                 TypedExpression { typ, exp }
             }
             Expression::Var(ident) => {
-                let typ = self.symbol_table.use_var(&ident)?;
+                let typ = self.symbol_table.get_var_type(&ident)?;
                 let exp = Expression::Var(ident);
                 TypedExpression { typ, exp }
             }
@@ -75,7 +77,7 @@ impl TypeChecker {
                 TypedExpression { typ: out_typ, exp: out_exp }
             }
             Expression::Assignment(Assignment { lhs, rhs }) => {
-                let typ = self.symbol_table.use_var(&lhs)?;
+                let typ = self.symbol_table.get_var_type(&lhs)?;
                 let rhs = self.typecheck_exp(*rhs)?;
                 let rhs = Self::maybe_cast_exp(rhs, typ);
                 let exp = Expression::Assignment(Assignment { lhs, rhs: Box::new(rhs) });
@@ -97,11 +99,14 @@ impl TypeChecker {
                 });
                 TypedExpression { typ, exp }
             }
-            Expression::FunctionCall(fun_call) => {
-                let fun_typ = self.symbol_table.call_fun(&fun_call)?;
+            Expression::FunctionCall(FunctionCall { ident, args }) => {
+                let fun_typ = self.symbol_table.get_fun_type(&ident)?;
+                if fun_typ.params.len() != args.len() {
+                    return Err(anyhow!(
+                        "Mismatched signature. {ident:?} : {fun_typ:?} vs {args:?}"
+                    ));
+                }
                 let fun_typ = Rc::clone(fun_typ);
-
-                let FunctionCall { ident, args } = fun_call;
 
                 let mut out_args = Vec::with_capacity(args.len());
                 for (param_typ, arg_exp) in fun_typ.params.iter().cloned().zip(args.into_iter()) {

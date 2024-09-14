@@ -12,63 +12,52 @@ use std::collections::hash_map::Entry;
 use std::rc::Rc;
 
 impl TypeChecker {
-    pub(super) fn typecheck_decl_fundecl(
+    /// Resolve a function declaration, in the symbol table.
+    ///
+    /// @return `Some(_)` iff the function is defined.
+    pub(super) fn typecheck_decl_fun(
         &mut self,
         decl: FunctionDeclaration<ResolvedCAst>,
         scope: FunDeclScope,
-    ) -> Result<FunctionDeclaration<TypeCheckedCAst>> {
-        self.declare_fun(scope, &decl, None)?;
+    ) -> Result<Option<FunctionDefinition<TypeCheckedCAst>>> {
+        /* Visibility never changes following the first declaration. */
+        let visibility = self.declare_fun(scope, &decl)?;
 
         let FunctionDeclaration {
             ident,
-            param_idents,
             typ,
-            storage_class,
-        } = decl;
-        let decl = FunctionDeclaration {
-            ident,
+            storage_class: _,
             param_idents,
-            typ,
-            storage_class,
-        };
-
-        Ok(decl)
-    }
-    pub(super) fn typecheck_decl_fundefn(
-        &mut self,
-        FunctionDefinition { decl, body }: FunctionDefinition<ResolvedCAst>,
-        scope: FunDeclScope,
-    ) -> Result<FunctionDefinition<TypeCheckedCAst>> {
-        self.declare_fun(scope, &decl, Some(&body))?;
-
-        let FunctionDeclaration {
-            ident,
-            param_idents,
-            typ,
-            storage_class,
+            body,
         } = decl;
 
         for (ident, typ) in param_idents.iter().zip(typ.params.iter()) {
             let mock_var_decl = VariableDeclaration {
                 ident: Rc::clone(ident),
-                init: None,
                 typ: *typ,
                 storage_class: None,
+                init: None,
             };
-            self.declare_var(VarDeclScope::Paren, &mock_var_decl)?;
+            let param_defn = self.typecheck_decl_var(mock_var_decl, VarDeclScope::Paren)?;
+            debug_assert!(param_defn.is_none());
         }
 
-        self.curr_fun_type = Some(Rc::clone(&typ));
-        let body = self.typecheck_block(body)?;
-        self.curr_fun_type = None;
+        let defn = match body {
+            None => None,
+            Some(body) => {
+                self.curr_fun_type = Some(Rc::clone(&typ));
+                let body = self.typecheck_block(body)?;
+                self.curr_fun_type = None;
 
-        let decl = FunctionDeclaration {
-            ident,
-            param_idents,
-            typ,
-            storage_class,
+                Some(FunctionDefinition {
+                    ident,
+                    visibility,
+                    param_idents,
+                    body,
+                })
+            }
         };
-        Ok(FunctionDefinition { decl, body })
+        Ok(defn)
     }
 
     fn declare_fun(
@@ -76,20 +65,21 @@ impl TypeChecker {
         new_scope: FunDeclScope,
         new_decl @ FunctionDeclaration {
             ident,
-            param_idents: _, // Params are not handled by this API.
             typ: new_typ,
             storage_class: new_sc,
+            param_idents: _, // Params are not handled by this API.
+            body: new_body,
         }: &FunctionDeclaration<ResolvedCAst>,
-        new_body: Option<&Block<ResolvedCAst>>,
-    ) -> Result<()> {
+    ) -> Result<StaticVisibility> {
         let mut inner = || {
-            let new_viz = Self::derive_fun_decl_visibility(new_scope, new_sc.as_ref(), new_body)?;
+            let new_viz =
+                Self::derive_fun_decl_visibility(new_scope, new_sc.as_ref(), new_body.as_ref())?;
 
             let newly_defined = new_body.is_some();
 
             self.insert_fun_decl(Rc::clone(ident), new_viz, newly_defined, new_typ)
         };
-        inner().with_context(|| anyhow!("{new_scope:?}, {new_decl:?}, {new_body:?}"))
+        inner().with_context(|| anyhow!("{new_scope:?}, {new_decl:?}"))
     }
     fn derive_fun_decl_visibility(
         new_scope: FunDeclScope,
@@ -103,7 +93,7 @@ impl TypeChecker {
             (DS::File, None | Some(SCS::Extern), _) => Viz::PrevOrGlobal,
             (DS::File, Some(SCS::Static), _) => Viz::TranslUnit,
             (DS::Block, None | Some(SCS::Extern), None) => Viz::PrevOrGlobal,
-            (DS::Block, None | Some(SCS::Extern), Some(_)) => {
+            (DS::Block, _, Some(_)) => {
                 return Err(anyhow!(
                     "At scope=block, type=fun cannot have a definition."
                 ))
@@ -122,8 +112,8 @@ impl TypeChecker {
         new_viz: Viz,
         newly_defined: bool,
         new_typ: &Rc<FunType>,
-    ) -> Result<()> {
-        match self.symbol_table.entry(ident) {
+    ) -> Result<StaticVisibility> {
+        match self.symbol_table.as_mut().entry(ident) {
             Entry::Vacant(entry) => {
                 let visibility = match new_viz {
                     Viz::PrevOrGlobal => StaticVisibility::Global,
@@ -136,7 +126,7 @@ impl TypeChecker {
                         is_defined: newly_defined,
                     },
                 });
-                Ok(())
+                Ok(visibility)
             }
             Entry::Occupied(mut entry) => {
                 let prev_symbol = entry.get_mut();
@@ -149,7 +139,7 @@ impl TypeChecker {
                             if typ != new_typ {
                                 return Err(anyhow!("Cannot declare with 2+ types."));
                             }
-                            match (visibility, new_viz) {
+                            match (*visibility, new_viz) {
                                 (_, Viz::PrevOrGlobal) => { /* No-op. */ }
                                 (StaticVisibility::NonGlobal, Viz::TranslUnit) => { /* No-op. */ }
                                 (StaticVisibility::Global, Viz::TranslUnit) => {
@@ -162,7 +152,7 @@ impl TypeChecker {
 
                             *is_defined |= newly_defined;
 
-                            return Ok(());
+                            return Ok(*visibility);
                         }
                         _ => return Err(anyhow!("Cannot declare with 2+ types.")),
                     }
@@ -174,7 +164,7 @@ impl TypeChecker {
 }
 
 #[derive(Clone, Copy, Debug)]
-pub enum FunDeclScope {
+pub(super) enum FunDeclScope {
     File,
     Block,
 }

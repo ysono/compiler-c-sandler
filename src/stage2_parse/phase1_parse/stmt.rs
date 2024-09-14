@@ -23,6 +23,7 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
                 Some(Ok(t::Token::Control(t::Control::If))) => self.parse_stmt_if(),
                 Some(Ok(t::Token::Demarcator(t::Demarcator::BraceOpen))) => {
                     let block = self.parse_block()?;
+
                     Ok(Statement::Compound(block))
                 }
                 Some(Ok(t::Token::Loop(t::Loop::Break))) => {
@@ -125,9 +126,8 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
             self.expect_exact(&[t::Loop::For.into(), t::Demarcator::ParenOpen.into()])?;
 
             let init = match self.maybe_parse_decl()? {
-                Some(Declaration::VarDecl(vd)) => ForInit::Decl(vd),
-                Some(Declaration::FunDecl(fd)) => return Err(anyhow!("{fd:?}")),
-                Some(Declaration::FunDefn(fd)) => return Err(anyhow!("{fd:?}")),
+                Some(Declaration::Var(vd)) => ForInit::Decl(vd),
+                Some(Declaration::Fun(fd)) => return Err(anyhow!("{fd:?}")),
                 None => match self.tokens.peek() {
                     Some(Ok(t::Token::Demarcator(t::Demarcator::Semicolon))) => {
                         self.tokens.next();

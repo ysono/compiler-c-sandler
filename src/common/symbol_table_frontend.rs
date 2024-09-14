@@ -1,12 +1,9 @@
-use crate::{
-    common::{
-        identifier::{IdentifierId, UniqueIdentifier},
-        types_frontend::{Const, FunType, VarType},
-    },
-    stage2_parse::{c_ast::FunctionCall, phase2_resolve::ResolvedCAst},
+use crate::common::{
+    identifier::{IdentifierId, UniqueIdentifier},
+    types_frontend::{Const, FunType, VarType},
 };
 use anyhow::{anyhow, Result};
-use derive_more::{Deref, DerefMut, Into};
+use derive_more::{AsMut, Deref, Into};
 use std::collections::HashMap;
 use std::rc::Rc;
 
@@ -40,10 +37,10 @@ pub struct FunAttrs {
 #[derive(Clone, Copy, Debug)]
 pub enum StaticVisibility {
     Global,    // Visible to other translation units.
-    NonGlobal, // Visible within translation unit (eg within block).
+    NonGlobal, // Visible within translation unit (eg within file; eg within block).
 }
 
-#[derive(Default, Into, Deref, DerefMut, Debug)]
+#[derive(Default, Into, Deref, AsMut, Debug)]
 pub struct SymbolTable {
     symbol_table: HashMap<Rc<UniqueIdentifier>, Symbol>,
 }
@@ -63,36 +60,23 @@ impl SymbolTable {
         ident
     }
 
-    pub fn use_var(&self, ident: &UniqueIdentifier) -> Result<VarType> {
-        let prev_symbol = self
-            .symbol_table
+    pub fn get(&self, ident: &UniqueIdentifier) -> Result<&Symbol> {
+        self.symbol_table
             .get(ident)
-            .ok_or_else(|| anyhow!("Cannot use non-declared {ident:?}."))?;
-        match prev_symbol {
+            .ok_or_else(|| anyhow!("Not declared. {ident:?}"))
+    }
+    pub fn get_var_type(&self, ident: &UniqueIdentifier) -> Result<VarType> {
+        let symbol = self.get(ident)?;
+        match symbol {
             Symbol::Var { typ, .. } => Ok(*typ),
-            Symbol::Fun { .. } => Err(anyhow!(
-                "Cannot use {ident:?} typed {prev_symbol:?} as var."
-            )),
+            _ => Err(anyhow!("Not variable. {ident:?} {symbol:?}")),
         }
     }
-
-    pub fn call_fun(
-        &self,
-        FunctionCall { ident, args }: &FunctionCall<ResolvedCAst>,
-    ) -> Result<&Rc<FunType>> {
-        let prev_symbol = self
-            .symbol_table
-            .get(ident)
-            .ok_or_else(|| anyhow!("Cannot call non-declared {ident:?}."))?;
-        match prev_symbol {
-            Symbol::Fun { typ, .. } => {
-                if typ.params.len() != args.len() {
-                    return Err(anyhow!("Cannot call {ident:?} using mismatched signature. {prev_symbol:?} vs {args:?}"));
-                }
-                /* We don't compare arg or ret types, b/c all var types are convertible into one another. */
-                Ok(typ)
-            }
-            _ => Err(anyhow!("Cannot call {ident:?}. {prev_symbol:?}")),
+    pub fn get_fun_type(&self, ident: &UniqueIdentifier) -> Result<&Rc<FunType>> {
+        let symbol = self.get(ident)?;
+        match symbol {
+            Symbol::Fun { typ, .. } => Ok(typ),
+            _ => Err(anyhow!("Not function. {ident:?} {symbol:?}")),
         }
     }
 }

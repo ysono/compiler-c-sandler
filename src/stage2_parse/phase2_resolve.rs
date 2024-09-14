@@ -1,5 +1,5 @@
-//! - Identifier resolution
-//! - Loop labelling
+//! + Resolve raw identifiers into unique identifiers.
+//! + Attach loop IDs to relevant nodes.
 
 mod ident_resolver;
 
@@ -14,10 +14,12 @@ use std::rc::Rc;
 #[derive(Debug)]
 pub struct ResolvedCAst(());
 impl CAstVariant for ResolvedCAst {
+    type FileScopeDeclaration = Declaration<Self>;
+    type BlockScopeDeclaration = Declaration<Self>;
+    type ForInitDeclaration = VariableDeclaration<Self>;
     type Identifier = Rc<UniqueIdentifier>;
-    type BlockScopeDeclaration = BlockScopeDeclaration<ResolvedCAst>;
     type LoopId = Rc<LoopId>;
-    type Expression = Expression<ResolvedCAst>;
+    type Expression = Expression<Self>;
     type Lvalue = Rc<UniqueIdentifier>;
 }
 
@@ -39,7 +41,7 @@ impl CAstValidator {
                 .collect::<Result<Vec<_>>>()?;
             Ok(Program { decls })
         };
-        inner().context("c_ast validator on <program>")
+        inner().context("c_ast resolver on <program>")
     }
 
     /* Declaration */
@@ -47,36 +49,15 @@ impl CAstValidator {
     fn resolve_decl(&mut self, decl: Declaration<ParsedCAst>) -> Result<Declaration<ResolvedCAst>> {
         let inner = || -> Result<_> {
             match decl {
-                Declaration::VarDecl(var_decl) => {
-                    self.resolve_decl_var(var_decl).map(Declaration::VarDecl)
-                }
-                Declaration::FunDecl(fun_decl) => self.resolve_decl_fun(fun_decl, None),
-                Declaration::FunDefn(FunctionDefinition { decl, body }) => {
-                    self.resolve_decl_fun(decl, Some(body))
-                }
+                Declaration::Var(vd) => self.resolve_decl_var(vd).map(Declaration::Var),
+                Declaration::Fun(fd) => self.resolve_decl_fun(fd).map(Declaration::Fun),
             }
         };
         inner().context("<declaration>")
     }
-    fn resolve_decl_block_scope(
-        &mut self,
-        decl: Declaration<ParsedCAst>,
-    ) -> Result<BlockScopeDeclaration<ResolvedCAst>> {
-        let inner = || -> Result<_> {
-            let decl = match self.resolve_decl(decl)? {
-                Declaration::VarDecl(vd) => BlockScopeDeclaration::VarDecl(vd),
-                Declaration::FunDecl(fd) => BlockScopeDeclaration::FunDecl(fd),
-                Declaration::FunDefn(_fd) => {
-                    return Err(anyhow!("Cannot define function in any block scope."))
-                }
-            };
-            Ok(decl)
-        };
-        inner().context("<declaration> at block scope")
-    }
     fn resolve_decl_var(
         &mut self,
-        VariableDeclaration { ident, init, typ, storage_class }: VariableDeclaration<ParsedCAst>,
+        VariableDeclaration { ident, typ, storage_class, init }: VariableDeclaration<ParsedCAst>,
     ) -> Result<VariableDeclaration<ResolvedCAst>> {
         let inner = || -> Result<_> {
             let ident = self
@@ -85,7 +66,7 @@ impl CAstValidator {
 
             let init = init.map(|exp| self.resolve_exp(exp)).transpose()?;
 
-            Ok(VariableDeclaration { ident, init, typ, storage_class })
+            Ok(VariableDeclaration { ident, typ, storage_class, init })
         };
         inner().context("<variable-declaration>")
     }
@@ -93,12 +74,12 @@ impl CAstValidator {
         &mut self,
         FunctionDeclaration {
             ident,
-            param_idents,
             typ,
             storage_class,
+            param_idents,
+            body,
         }: FunctionDeclaration<ParsedCAst>,
-        body: Option<Block<ParsedCAst>>,
-    ) -> Result<Declaration<ResolvedCAst>> {
+    ) -> Result<FunctionDeclaration<ResolvedCAst>> {
         let inner = || -> Result<_> {
             let ident = self.ident_resolver.declare_fun(ident)?;
 
@@ -112,24 +93,19 @@ impl CAstValidator {
                 })
                 .collect::<Result<Vec<_>>>()?;
 
-            let fun_decl = FunctionDeclaration {
-                ident,
-                param_idents,
-                typ,
-                storage_class,
-            };
-
-            let decl = match body {
-                None => Declaration::FunDecl(fun_decl),
-                Some(body) => {
-                    let body = self.resolve_block(body, false)?;
-                    Declaration::FunDefn(FunctionDefinition { decl: fun_decl, body })
-                }
-            };
+            let body = body
+                .map(|body| self.resolve_block(body, false))
+                .transpose()?;
 
             self.ident_resolver.pop_scope();
 
-            Ok(decl)
+            Ok(FunctionDeclaration {
+                ident,
+                typ,
+                storage_class,
+                param_idents,
+                body,
+            })
         };
         inner().context("<function-declaration>")
     }
@@ -165,9 +141,7 @@ impl CAstValidator {
     ) -> Result<BlockItem<ResolvedCAst>> {
         let inner = || -> Result<_> {
             match item {
-                BlockItem::Declaration(decl) => self
-                    .resolve_decl_block_scope(decl)
-                    .map(BlockItem::Declaration),
+                BlockItem::Declaration(decl) => self.resolve_decl(decl).map(BlockItem::Declaration),
                 BlockItem::Statement(stmt) => self.resolve_stmt(stmt).map(BlockItem::Statement),
             }
         };
@@ -240,19 +214,16 @@ impl CAstValidator {
         descr: &'static str,
         CondBody { condition, body }: CondBody<ParsedCAst>,
     ) -> Result<(Rc<LoopId>, CondBody<ResolvedCAst>)> {
-        let inner = || -> Result<_> {
-            let condition = self.resolve_exp(condition)?;
+        let condition = self.resolve_exp(condition)?;
 
-            let loop_id = Rc::new(LoopId::new(descr));
-            self.loop_ids_stack.push(loop_id);
+        let loop_id = Rc::new(LoopId::new(descr));
+        self.loop_ids_stack.push(loop_id);
 
-            let body = Box::new(self.resolve_stmt(*body)?);
+        let body = Box::new(self.resolve_stmt(*body)?);
 
-            let loop_id = self.loop_ids_stack.pop().unwrap();
+        let loop_id = self.loop_ids_stack.pop().unwrap();
 
-            Ok((loop_id, CondBody { condition, body }))
-        };
-        inner().context("condbody")
+        Ok((loop_id, CondBody { condition, body }))
     }
     fn resolve_stmt_for(
         &mut self,
@@ -262,7 +233,7 @@ impl CAstValidator {
             self.ident_resolver.push_new_scope();
 
             let init = match init {
-                ForInit::Decl(var_decl) => ForInit::Decl(self.resolve_decl_var(var_decl)?),
+                ForInit::Decl(vd) => ForInit::Decl(self.resolve_decl_var(vd)?),
                 ForInit::Exp(exp) => ForInit::Exp(self.resolve_exp(exp)?),
                 ForInit::None => ForInit::None,
             };

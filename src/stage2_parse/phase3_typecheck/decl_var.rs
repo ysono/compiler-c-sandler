@@ -13,37 +13,51 @@ use std::collections::hash_map::Entry;
 use std::rc::Rc;
 
 impl TypeChecker {
+    /// Resolve a variable declaration, in the symbol table.
+    ///
+    /// @return `Some(_)` iff the variable is initialized at run-time, rather than at compile-time.
     pub(super) fn typecheck_decl_var(
         &mut self,
         decl: VariableDeclaration<ResolvedCAst>,
         scope: VarDeclScope,
-    ) -> Result<VariableDeclaration<TypeCheckedCAst>> {
-        self.declare_var(scope, &decl)?;
+    ) -> Result<Option<VariableDefinition<TypeCheckedCAst>>> {
+        let var_attrs = self.declare_var(scope, &decl)?;
 
-        let VariableDeclaration { ident, init, typ, storage_class } = decl;
+        let defn = match var_attrs {
+            VarAttrs::StaticStorageDuration { .. } => None,
+            VarAttrs::AutomaticStorageDuration => {
+                let VariableDeclaration {
+                    ident,
+                    typ,
+                    storage_class: _,
+                    init,
+                } = decl;
 
-        let init = init
-            .map(|exp| -> Result<_> {
-                let exp = self.typecheck_exp(exp)?;
-                let exp = Self::maybe_cast_exp(exp, typ);
-                Ok(exp)
-            })
-            .transpose()?;
+                match init {
+                    None => None,
+                    Some(init) => {
+                        let init = self.typecheck_exp(init)?;
+                        let init = Self::maybe_cast_exp(init, typ);
 
-        Ok(VariableDeclaration { ident, init, typ, storage_class })
+                        Some(VariableDefinition { ident, init })
+                    }
+                }
+            }
+        };
+        Ok(defn)
     }
 
-    pub(super) fn declare_var(
+    fn declare_var(
         &mut self,
         new_scope: VarDeclScope,
         new_decl @ VariableDeclaration {
             ident,
-            init: new_init,
             typ: new_typ,
             storage_class: new_sc,
+            init: new_init,
         }: &VariableDeclaration<ResolvedCAst>,
-    ) -> Result<()> {
-        let mut inner = || {
+    ) -> Result<&VarAttrs> {
+        {
             let new_decl_summary = Self::derive_var_decl_summary(
                 new_scope,
                 new_sc.as_ref(),
@@ -52,8 +66,8 @@ impl TypeChecker {
             )?;
 
             self.insert_var_decl(Rc::clone(ident), new_decl_summary, *new_typ)
-        };
-        inner().with_context(|| anyhow!("{new_scope:?}, {new_decl:?}"))
+        }
+        .with_context(|| anyhow!("{new_scope:?}, {new_decl:?}"))
     }
     fn derive_var_decl_summary(
         new_scope: VarDeclScope,
@@ -107,10 +121,10 @@ impl TypeChecker {
         ident: Rc<UniqueIdentifier>,
         new_decl_summary: Decl,
         new_typ: VarType,
-    ) -> Result<()> {
+    ) -> Result<&VarAttrs> {
         use StaticInitialValue as SIV;
 
-        let entry = self.symbol_table.entry(ident);
+        let entry = self.symbol_table.as_mut().entry(ident);
         match (entry, new_decl_summary) {
             (Entry::Vacant(entry), new_decl_summary) => {
                 let typ = new_typ;
@@ -118,21 +132,22 @@ impl TypeChecker {
                     Decl::AutoStorDur => VarAttrs::AutomaticStorageDuration,
                     Decl::StaticStorDur(viz, initial_value) => {
                         let visibility = match viz {
-                            Viz::L(LViz::Global) | Viz::L(LViz::PrevOrGlobal) => {
-                                StaticVisibility::Global
-                            }
-                            Viz::L(LViz::TranslUnit) | Viz::Local => StaticVisibility::NonGlobal,
+                            Viz::Lkg(LViz::Global | LViz::PrevOrGlobal) => StaticVisibility::Global,
+                            Viz::Lkg(LViz::TranslUnit) | Viz::Local => StaticVisibility::NonGlobal,
                         };
                         VarAttrs::StaticStorageDuration { visibility, initial_value }
                     }
                 };
-                entry.insert(Symbol::Var { typ, attrs });
-                Ok(())
+                let new_symbol = entry.insert(Symbol::Var { typ, attrs });
+                match new_symbol {
+                    Symbol::Var { attrs, .. } => Ok(attrs),
+                    _ => unreachable!(),
+                }
             }
             (Entry::Occupied(_), Decl::AutoStorDur | Decl::StaticStorDur(Viz::Local, _)) => {
                 Err(anyhow!("Cannot declare same ident 2+ times."))
             }
-            (Entry::Occupied(mut entry), Decl::StaticStorDur(Viz::L(new_viz), new_init_val)) => {
+            (Entry::Occupied(mut entry), Decl::StaticStorDur(Viz::Lkg(new_viz), new_init_val)) => {
                 let prev_symbol = entry.get_mut();
                 let inner = || {
                     match prev_symbol {
@@ -144,9 +159,10 @@ impl TypeChecker {
                                 #[rustfmt::skip]
                                 VarAttrs::StaticStorageDuration { visibility, initial_value } => {
                                     match (visibility, new_viz) {
-                                        (StaticVisibility::NonGlobal, LViz::TranslUnit | LViz::PrevOrGlobal) => { /* No-op. */ }
+                                        (_, LViz::PrevOrGlobal) => { /* No-op. */ }
+                                        (StaticVisibility::NonGlobal, LViz::TranslUnit) => { /* No-op. */ }
                                         (StaticVisibility::NonGlobal, LViz::Global) => return Err(anyhow!("Cannot declare with 2+ visibilities.")),
-                                        (StaticVisibility::Global, LViz::Global | LViz::PrevOrGlobal) => { /* No-op. */ }
+                                        (StaticVisibility::Global, LViz::Global) => { /* No-op. */ }
                                         (StaticVisibility::Global, LViz::TranslUnit) => return Err(anyhow!("Cannot declare with 2+ visibilities.")),
                                     }
                                     match (&initial_value, &new_init_val) {
@@ -169,14 +185,19 @@ impl TypeChecker {
                         _ => return Err(anyhow!("Cannot declare with 2+ types.")),
                     }
                 };
-                inner().with_context(|| anyhow!("prev_symbol = {prev_symbol:?}"))
+                inner().with_context(|| anyhow!("prev_symbol = {prev_symbol:?}"))?;
+
+                match entry.into_mut() {
+                    Symbol::Var { attrs, .. } => Ok(attrs),
+                    _ => unreachable!(),
+                }
             }
         }
     }
 }
 
 #[derive(Clone, Copy, Debug)]
-pub enum VarDeclScope {
+pub(super) enum VarDeclScope {
     File,
     Block,
     Paren,
@@ -188,8 +209,8 @@ enum Decl {
 }
 #[derive(From)]
 enum Viz {
-    Local,   // No linkage
-    L(LViz), // Some linkage
+    Local,     // No linkage
+    Lkg(LViz), // Some linkage
 }
 enum LViz {
     TranslUnit,

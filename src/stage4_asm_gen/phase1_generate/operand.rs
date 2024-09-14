@@ -30,7 +30,7 @@ impl InstrsGenerator {
                 (var_type, asm_type)
             }
             t::ReadableValue::Variable(ident) => {
-                let var_type = self.frontend_symtab.use_var(ident).unwrap();
+                let var_type = self.frontend_symtab.get_var_type(ident).unwrap();
                 let asm_type = AssemblyType::from(var_type);
                 (var_type, asm_type)
             }

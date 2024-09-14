@@ -1,3 +1,10 @@
+//! + Resolve declarations, in the symbol table.
+//! + Retain the run-time portion of the C AST:
+//!     function definitions (which are not nested) and
+//!     non-static variable definitions.
+//! + At each Expression node, validate and annotate the output type.
+//! + Make implicit casts explicit.
+
 mod casting;
 mod decl_fun;
 mod decl_var;
@@ -16,10 +23,12 @@ use std::rc::Rc;
 #[derive(Debug)]
 pub struct TypeCheckedCAst(());
 impl CAstVariant for TypeCheckedCAst {
+    type FileScopeDeclaration = FunctionDefinition<Self>;
+    type BlockScopeDeclaration = VariableDefinition<Self>;
+    type ForInitDeclaration = VariableDefinition<Self>;
     type Identifier = Rc<UniqueIdentifier>;
-    type BlockScopeDeclaration = BlockScopeDeclaration<TypeCheckedCAst>;
     type LoopId = Rc<LoopId>;
-    type Expression = TypedExpression<TypeCheckedCAst>;
+    type Expression = TypedExpression<Self>;
     type Lvalue = Rc<UniqueIdentifier>;
 }
 
@@ -34,21 +43,24 @@ impl TypeChecker {
         mut self,
         Program { decls }: Program<ResolvedCAst>,
     ) -> Result<(Program<TypeCheckedCAst>, SymbolTable)> {
-        let decls = decls
-            .into_iter()
-            .map(|decl| match decl {
-                Declaration::VarDecl(vd) => self
-                    .typecheck_decl_var(vd, VarDeclScope::File)
-                    .map(Declaration::VarDecl),
-                Declaration::FunDecl(fd) => self
-                    .typecheck_decl_fundecl(fd, FunDeclScope::File)
-                    .map(Declaration::FunDecl),
-                Declaration::FunDefn(fd) => self
-                    .typecheck_decl_fundefn(fd, FunDeclScope::File)
-                    .map(Declaration::FunDefn),
-            })
-            .collect::<Result<Vec<_>>>()?;
-        let program = Program { decls };
+        let mut fun_defns = Vec::with_capacity(decls.len());
+        for decl in decls {
+            match decl {
+                Declaration::Var(var_decl) => {
+                    let var_defn = self.typecheck_decl_var(var_decl, VarDeclScope::File)?;
+                    debug_assert!(var_defn.is_none());
+                }
+                Declaration::Fun(fun_decl) => {
+                    let fun_defn = self.typecheck_decl_fun(fun_decl, FunDeclScope::File)?;
+                    if let Some(fun_defn) = fun_defn {
+                        fun_defns.push(fun_defn)
+                    }
+                }
+            }
+        }
+
+        let program = Program { decls: fun_defns };
+
         Ok((program, self.symbol_table))
     }
 
@@ -58,29 +70,35 @@ impl TypeChecker {
         &mut self,
         Block { items }: Block<ResolvedCAst>,
     ) -> Result<Block<TypeCheckedCAst>> {
-        let items = items
-            .into_iter()
-            .map(|item| self.typecheck_block_item(item))
-            .collect::<Result<Vec<_>>>()?;
-        Ok(Block { items })
+        let mut out_items = Vec::with_capacity(items.len());
+        for item in items {
+            let item = self.typecheck_block_item(item)?;
+            if let Some(item) = item {
+                out_items.push(item);
+            }
+        }
+        Ok(Block { items: out_items })
     }
     fn typecheck_block_item(
         &mut self,
         item: BlockItem<ResolvedCAst>,
-    ) -> Result<BlockItem<TypeCheckedCAst>> {
+    ) -> Result<Option<BlockItem<TypeCheckedCAst>>> {
         match item {
-            BlockItem::Declaration(decl) => {
-                let decl = match decl {
-                    BlockScopeDeclaration::VarDecl(vd) => self
-                        .typecheck_decl_var(vd, VarDeclScope::Block)
-                        .map(BlockScopeDeclaration::VarDecl),
-                    BlockScopeDeclaration::FunDecl(fd) => self
-                        .typecheck_decl_fundecl(fd, FunDeclScope::Block)
-                        .map(BlockScopeDeclaration::FunDecl),
-                };
-                decl.map(BlockItem::Declaration)
+            BlockItem::Declaration(decl) => match decl {
+                Declaration::Var(var_decl) => {
+                    let var_defn = self.typecheck_decl_var(var_decl, VarDeclScope::Block)?;
+                    Ok(var_defn.map(BlockItem::Declaration))
+                }
+                Declaration::Fun(fun_decl) => {
+                    let fun_defn = self.typecheck_decl_fun(fun_decl, FunDeclScope::Block)?;
+                    debug_assert!(fun_defn.is_none());
+                    Ok(None)
+                }
+            },
+            BlockItem::Statement(stmt) => {
+                let stmt = self.typecheck_stmt(stmt)?;
+                Ok(Some(BlockItem::Statement(stmt)))
             }
-            BlockItem::Statement(stmt) => self.typecheck_stmt(stmt).map(BlockItem::Statement),
         }
     }
 
@@ -124,9 +142,13 @@ impl TypeChecker {
             }
             Statement::For(loop_id, For { init, condition, post, body }) => {
                 let init = match init {
-                    ForInit::Decl(var_decl) => self
-                        .typecheck_decl_var(var_decl, VarDeclScope::Paren)
-                        .map(ForInit::Decl)?,
+                    ForInit::Decl(var_decl) => {
+                        let var_defn = self.typecheck_decl_var(var_decl, VarDeclScope::Paren)?;
+                        match var_defn {
+                            Some(var_defn) => ForInit::Decl(var_defn),
+                            None => ForInit::None,
+                        }
+                    }
                     ForInit::Exp(exp) => self.typecheck_exp(exp).map(ForInit::Exp)?,
                     ForInit::None => ForInit::None,
                 };

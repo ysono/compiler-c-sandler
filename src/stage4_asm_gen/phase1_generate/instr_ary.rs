@@ -114,7 +114,7 @@ impl InstrsGenerator {
         t_op: t::DivRemBinaryOperator,
         t_binary: t::Binary,
     ) -> Vec<Instruction<GeneratedAsmAst>> {
-        let var_type = self.frontend_symtab.use_var(&t_binary.dst).unwrap();
+        let var_type = self.frontend_symtab.get_var_type(&t_binary.dst).unwrap();
         match var_type {
             VarType::Int | VarType::Long | VarType::UInt | VarType::ULong => {
                 self.do_gen_integer_divrem_instrs(t_op, t_binary)
