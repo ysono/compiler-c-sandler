@@ -99,14 +99,14 @@ impl InstrsGenerator {
                     arg: i64_ceil_as_f64.clone(),
                 },
                 Instruction::JmpCC(ConditionCode::Ae, Rc::clone(&lbl_out_of_range)),
-                /* Below: src f64 < (1<<63) */
+                /* Below: iff src f64 < (1<<63) */
                 Instruction::Cvttsd2si {
                     dst_asm_type: AssemblyType::Quadword,
                     src: src.clone(),
                     dst: dst.clone(),
                 },
                 Instruction::Jmp(Rc::clone(&lbl_end)),
-                /* Below: src f64 >= (1<<63) */
+                /* Below: iff src f64 >= (1<<63) */
                 Instruction::Label(lbl_out_of_range),
                 Instruction::Mov {
                     asm_type: AssemblyType::Double,
@@ -129,9 +129,11 @@ impl InstrsGenerator {
                     asm_type: AssemblyType::Quadword,
                     tgt: dst,
                     arg: PreFinalOperand::ImmediateValue(i64_ceil_as_u64),
-                }, // (i64 as u64) + (1<<63)
+                }, // (i64 as u64) + (1<<63)u64
                 Instruction::Label(lbl_end),
             ]
+            /* The final Binary instruction is condensed from two Binary instructions as printed in the book.
+            See https://norasandler.com/book/#errata for explanation. */
         }
     }
     pub(super) fn gen_uint_to_double_instrs(
@@ -148,7 +150,7 @@ impl InstrsGenerator {
                     src_asm_type: AssemblyType::Quadword,
                     src: gp_reg(),
                     dst,
-                }, // i64 to f64
+                }, // (u64 as i64) to f64
             ]
         } else {
             /* Then, uint_var_type == VarType::ULong */
@@ -165,14 +167,14 @@ impl InstrsGenerator {
                     arg: PreFinalOperand::ImmediateValue(0),
                 },
                 Instruction::JmpCC(ConditionCode::L, Rc::clone(&lbl_out_of_range)),
-                /* Below: src i64 >= 0, ie u64 < (1<<63) */
+                /* Below: iff src i64 >= 0, ie u64 < (1<<63) */
                 Instruction::Cvtsi2sd {
                     src_asm_type: AssemblyType::Quadword,
                     src: src.clone(),
                     dst: dst.clone(),
                 },
                 Instruction::Jmp(Rc::clone(&lbl_end)),
-                /* Below: src i64 < 0, ie u64 >= (1<<63) */
+                /* Below: iff src i64 < 0, ie u64 >= (1<<63) */
                 Instruction::Label(lbl_out_of_range),
                 Instruction::Mov {
                     asm_type: AssemblyType::Quadword,
@@ -201,13 +203,13 @@ impl InstrsGenerator {
                     src_asm_type: AssemblyType::Quadword,
                     src: gp_reg_2,
                     dst: dst.clone(),
-                },
+                }, // ( (src u64 >> 1) | (src u64 & 1) ) as f64
                 Instruction::Binary {
                     op: BinaryOperator::Add,
                     asm_type: AssemblyType::Double,
                     arg: dst.clone(),
                     tgt: dst,
-                },
+                }, // f64 * 2
                 Instruction::Label(lbl_end),
             ]
         }

@@ -1,3 +1,5 @@
+//! Ensure that each x86-64 instruction accesses operands in an allowed way.
+
 use crate::{
     common::types_backend::AssemblyType,
     stage4_asm_gen::{asm_ast::*, phase2_finalize::FinalizedAsmAst},

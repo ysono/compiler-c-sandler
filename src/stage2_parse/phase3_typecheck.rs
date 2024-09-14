@@ -47,10 +47,12 @@ impl TypeChecker {
         for decl in decls {
             match decl {
                 Declaration::Var(var_decl) => {
+                    // Does transform.
                     let var_defn = self.typecheck_decl_var(var_decl, VarDeclScope::File)?;
                     debug_assert!(var_defn.is_none());
                 }
                 Declaration::Fun(fun_decl) => {
+                    // Does transform.
                     let fun_defn = self.typecheck_decl_fun(fun_decl, FunDeclScope::File)?;
                     if let Some(fun_defn) = fun_defn {
                         fun_defns.push(fun_defn)
@@ -86,10 +88,12 @@ impl TypeChecker {
         match item {
             BlockItem::Declaration(decl) => match decl {
                 Declaration::Var(var_decl) => {
+                    // Does transform.
                     let var_defn = self.typecheck_decl_var(var_decl, VarDeclScope::Block)?;
                     Ok(var_defn.map(BlockItem::Declaration))
                 }
                 Declaration::Fun(fun_decl) => {
+                    // Does transform.
                     let fun_defn = self.typecheck_decl_fun(fun_decl, FunDeclScope::Block)?;
                     debug_assert!(fun_defn.is_none());
                     Ok(None)
@@ -112,6 +116,7 @@ impl TypeChecker {
             Statement::Return(exp) => {
                 let exp = self.typecheck_exp(exp)?;
 
+                // Does transform.
                 let ret_type = self.curr_fun_type.as_ref().unwrap().ret;
                 let exp = Self::maybe_cast_exp(exp, ret_type);
 
@@ -143,6 +148,7 @@ impl TypeChecker {
             Statement::For(loop_id, For { init, condition, post, body }) => {
                 let init = match init {
                     ForInit::Decl(var_decl) => {
+                        // Does transform.
                         let var_defn = self.typecheck_decl_var(var_decl, VarDeclScope::Paren)?;
                         match var_defn {
                             Some(var_defn) => ForInit::Decl(var_defn),

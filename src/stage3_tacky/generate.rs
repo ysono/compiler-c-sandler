@@ -1,3 +1,8 @@
+//! + Translate each function from a tree to a linear sequence of abstract assembly-like instructions and jumps,
+//!     where each instruction operates on values that exist at abstract locations.
+//! + Give each new intermediary value its own abstract location,
+//!     by registering it as a new symbol, alongside the symbols that are declared in the C src code.
+
 mod ary;
 mod conditional;
 mod looping;
@@ -69,7 +74,8 @@ impl Tackifier {
     }
 }
 
-struct FunInstrsGenerator<'a> {
+// `pub` for rustdoc.
+pub(crate) struct FunInstrsGenerator<'a> {
     symbol_table: &'a mut SymbolTable,
 
     loop_id_to_labels: LoopIdToLabels,

@@ -87,9 +87,9 @@ impl AsmCodeGenerator {
 
         /* Static consts */
 
-        let mut backend_symtab = Rc::try_unwrap(backend_symtab).ok().unwrap();
+        let mut backend_symtab = Rc::try_unwrap(backend_symtab).unwrap();
 
-        /* It's not necessary to add static consts into the backend symbol table earlier, b/c
+        /* It's not necessary to have added static consts into the backend symbol table earlier, b/c
         they aren't read by the finalizer (phase 2) and the fixer (phase 3). */
         let static_consts = static_consts
             .into_iter()

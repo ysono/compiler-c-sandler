@@ -1,4 +1,7 @@
-pub mod var_to_stack_pos;
+//! + Translate each remaining abstract operand location into a concrete location.
+//! + Derive the stack frame length; and allocate the frame.
+
+pub(crate) mod var_to_stack_pos; // `pub` for rustdoc.
 
 use self::var_to_stack_pos::VarToStackPos;
 use crate::{
