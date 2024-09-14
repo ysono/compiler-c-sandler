@@ -85,7 +85,7 @@ impl<'a> FunInstrsGenerator<'a> {
         /* Begin instructions */
 
         match init {
-            c::ForInit::Decl(c_var_decl) => self.gen_decl_var_block_scope(c_var_decl),
+            c::ForInit::Decl(c_var_defn) => self.gen_var_defn(c_var_defn),
             c::ForInit::Exp(c_exp) => {
                 self.gen_exp(c_exp);
             }

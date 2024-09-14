@@ -7,7 +7,7 @@ mod obj;
 use self::looping::LoopIdToLabels;
 use crate::{
     common::{
-        symbol_table_frontend::{FunAttrs, StaticInitialValue, Symbol, SymbolTable, VarAttrs},
+        symbol_table_frontend::{StaticInitialValue, Symbol, SymbolTable, VarAttrs},
         types_frontend::Const,
     },
     stage2_parse::{c_ast as c, phase3_typecheck::TypeCheckedCAst},
@@ -18,10 +18,10 @@ use std::rc::Rc;
 pub struct Tackifier {}
 impl Tackifier {
     pub fn tackify_program(
-        c::Program { decls: c_decls }: c::Program<TypeCheckedCAst>,
+        c::Program { decls }: c::Program<TypeCheckedCAst>,
         symbol_table: &mut SymbolTable,
     ) -> Program {
-        let funs = Self::tackify_decls(c_decls, symbol_table);
+        let funs = Self::tackify_funs(decls, symbol_table);
 
         /* Book ch10 Tacky page 235:
         ```
@@ -31,23 +31,17 @@ impl Tackifier {
 
         Program { static_vars, funs }
     }
-    fn tackify_decls(
-        c_decls: Vec<c::Declaration<TypeCheckedCAst>>,
+    fn tackify_funs(
+        c_funs: Vec<c::FunctionDefinition<TypeCheckedCAst>>,
         symbol_table: &mut SymbolTable,
     ) -> Vec<Function> {
-        let mut funs = vec![];
-        for c_decl in c_decls {
-            match c_decl {
-                c::Declaration::VarDecl(_) => { /* No-op. */ }
-                c::Declaration::FunDecl(_) => { /* No-op. */ }
-                c::Declaration::FunDefn(fd) => {
-                    let gen = FunInstrsGenerator::new(symbol_table);
-                    let fun = gen.tackify_fun_defn(fd);
-                    funs.push(fun);
-                }
-            }
-        }
-        funs
+        c_funs
+            .into_iter()
+            .map(|c_fun| {
+                let gen = FunInstrsGenerator::new(symbol_table);
+                gen.tackify_fun_defn(c_fun)
+            })
+            .collect()
     }
     fn tackify_static_vars(symbol_table: &SymbolTable) -> Vec<StaticVariable> {
         let mut static_vars = vec![];
@@ -91,30 +85,17 @@ impl<'a> FunInstrsGenerator<'a> {
         }
     }
 
-    /* Declaration, Definition */
+    /* Definition */
 
     fn tackify_fun_defn(
         mut self,
         c::FunctionDefinition {
-            decl:
-                c::FunctionDeclaration {
-                    ident,
-                    param_idents,
-                    typ: _,
-                    storage_class: _,
-                },
+            ident,
+            visibility,
+            param_idents,
             body,
         }: c::FunctionDefinition<TypeCheckedCAst>,
     ) -> Function {
-        let symbol = self.symbol_table.get(&ident).unwrap();
-        let visibility = match symbol {
-            Symbol::Var { .. } => panic!("Impossible."),
-            Symbol::Fun {
-                attrs: FunAttrs { visibility, .. },
-                ..
-            } => *visibility,
-        };
-
         self.gen_block(body);
 
         /* This below fill-in implicit return statement is required for each function,
@@ -136,31 +117,11 @@ impl<'a> FunInstrsGenerator<'a> {
             instrs: self.instrs,
         }
     }
-    fn gen_decl_block_scope(&mut self, c_decl: c::BlockScopeDeclaration<TypeCheckedCAst>) {
-        match c_decl {
-            c::BlockScopeDeclaration::VarDecl(c_var_decl) => {
-                self.gen_decl_var_block_scope(c_var_decl)
-            }
-            c::BlockScopeDeclaration::FunDecl(_c_fun_decl) => { /* No-op. */ }
-        }
-    }
-    fn gen_decl_var_block_scope(
+    fn gen_var_defn(
         &mut self,
-        c::VariableDeclaration {
-            ident,
-            init,
-            typ: _,
-            storage_class,
-        }: c::VariableDeclaration<TypeCheckedCAst>,
+        c::VariableDefinition { ident, init }: c::VariableDefinition<TypeCheckedCAst>,
     ) {
-        /* Iff this var has storage_duration=automatic and initializer=some, then initialize at runtime.
-        As a performance improvement, we infer storage duration from storage class specifier, rather than from the symbol table. */
-        match (storage_class, init) {
-            (None, Some(init_exp)) => {
-                self.gen_exp_assignment(ident, init_exp);
-            }
-            _ => { /* No-op. */ }
-        }
+        self.gen_exp_assignment(ident, init);
     }
 
     /* Block, Statement, Expression */
@@ -168,7 +129,7 @@ impl<'a> FunInstrsGenerator<'a> {
     fn gen_block(&mut self, c_block: c::Block<TypeCheckedCAst>) {
         for c_item in c_block.items {
             match c_item {
-                c::BlockItem::Declaration(c_decl) => self.gen_decl_block_scope(c_decl),
+                c::BlockItem::Declaration(c_var_defn) => self.gen_var_defn(c_var_defn),
                 c::BlockItem::Statement(c_stmt) => self.gen_stmt(c_stmt),
             }
         }

@@ -23,11 +23,11 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
 
             match self.tokens.next() {
                 Some(Ok(t::Token::Demarcator(t::Demarcator::Semicolon))) => {
-                    Ok(Some(Declaration::VarDecl(VariableDeclaration {
+                    Ok(Some(Declaration::Var(VariableDeclaration {
                         ident,
-                        init: None,
                         typ,
                         storage_class,
+                        init: None,
                     })))
                 }
                 Some(Ok(t::Token::Operator(t::Operator::Assign))) => {
@@ -35,11 +35,11 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
 
                     self.expect_exact(&[t::Demarcator::Semicolon.into()])?;
 
-                    Ok(Some(Declaration::VarDecl(VariableDeclaration {
+                    Ok(Some(Declaration::Var(VariableDeclaration {
                         ident,
-                        init: Some(init),
                         typ,
                         storage_class,
+                        init: Some(init),
                     })))
                 }
                 Some(Ok(t::Token::Demarcator(t::Demarcator::ParenOpen))) => {
@@ -47,27 +47,24 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
 
                     self.expect_exact(&[t::Demarcator::ParenClose.into()])?;
 
-                    let decl = FunctionDeclaration {
-                        ident,
-                        param_idents,
-                        typ: Rc::new(FunType { params: param_typs, ret: typ }),
-                        storage_class,
-                    };
-
-                    let decl = match self.tokens.peek() {
+                    let body = match self.tokens.peek() {
                         Some(Ok(t::Token::Demarcator(t::Demarcator::Semicolon))) => {
                             self.tokens.next();
-
-                            Declaration::FunDecl(decl)
+                            None
                         }
                         _ => {
                             let body = self.parse_block()?;
-
-                            Declaration::FunDefn(FunctionDefinition { decl, body })
+                            Some(body)
                         }
                     };
 
-                    Ok(Some(decl))
+                    Ok(Some(Declaration::Fun(FunctionDeclaration {
+                        ident,
+                        typ: Rc::new(FunType { params: param_typs, ret: typ }),
+                        storage_class,
+                        param_idents,
+                        body,
+                    })))
                 }
                 actual => Err(anyhow!("{actual:?}")),
             }

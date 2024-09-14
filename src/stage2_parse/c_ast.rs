@@ -1,7 +1,8 @@
-pub use self::declaration::*;
-pub use self::expression::*;
-pub use self::statement::*;
-use crate::common::types_frontend::{Const, FunType, VarType};
+pub use self::{declaration::*, expression::*, statement::*};
+use crate::common::{
+    symbol_table_frontend::StaticVisibility,
+    types_frontend::{Const, FunType, VarType},
+};
 pub use crate::stage1_lex::tokens::StorageClassSpecifier;
 use derivative::Derivative;
 use getset::Getters;
@@ -10,8 +11,10 @@ use std::rc::Rc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 pub trait CAstVariant {
-    type Identifier: Debug;
+    type FileScopeDeclaration: Debug;
     type BlockScopeDeclaration: Debug;
+    type ForInitDeclaration: Debug;
+    type Identifier: Debug;
     type LoopId: Debug;
     type Expression: Debug;
     type Lvalue: Debug;
@@ -19,19 +22,13 @@ pub trait CAstVariant {
 
 #[derive(Debug)]
 pub struct Program<T: CAstVariant> {
-    pub decls: Vec<Declaration<T>>,
+    pub decls: Vec<T::FileScopeDeclaration>,
 }
 
 #[derive(Debug)]
 pub enum Declaration<T: CAstVariant> {
-    VarDecl(VariableDeclaration<T>),
-    FunDecl(FunctionDeclaration<T>),
-    FunDefn(FunctionDefinition<T>),
-}
-#[derive(Debug)]
-pub enum BlockScopeDeclaration<T: CAstVariant> {
-    VarDecl(VariableDeclaration<T>),
-    FunDecl(FunctionDeclaration<T>),
+    Var(VariableDeclaration<T>),
+    Fun(FunctionDeclaration<T>),
 }
 mod declaration {
     use super::*;
@@ -39,22 +36,29 @@ mod declaration {
     #[derive(Debug)]
     pub struct VariableDeclaration<T: CAstVariant> {
         pub ident: T::Identifier,
-        pub init: Option<T::Expression>,
         pub typ: VarType,
         pub storage_class: Option<StorageClassSpecifier>,
+        pub init: Option<T::Expression>,
+    }
+    #[derive(Debug)]
+    pub struct VariableDefinition<T: CAstVariant> {
+        pub ident: T::Identifier,
+        pub init: T::Expression,
     }
 
     #[derive(Debug)]
     pub struct FunctionDeclaration<T: CAstVariant> {
         pub ident: T::Identifier,
-        pub param_idents: Vec<T::Identifier>,
         pub typ: Rc<FunType>,
         pub storage_class: Option<StorageClassSpecifier>,
+        pub param_idents: Vec<T::Identifier>,
+        pub body: Option<Block<T>>,
     }
-
     #[derive(Debug)]
     pub struct FunctionDefinition<T: CAstVariant> {
-        pub decl: FunctionDeclaration<T>,
+        pub ident: T::Identifier,
+        pub visibility: StaticVisibility,
+        pub param_idents: Vec<T::Identifier>,
         pub body: Block<T>,
     }
 }
@@ -109,7 +113,7 @@ mod statement {
 
     #[derive(Debug)]
     pub enum ForInit<T: CAstVariant> {
-        Decl(VariableDeclaration<T>),
+        Decl(T::ForInitDeclaration),
         Exp(T::Expression),
         None,
     }

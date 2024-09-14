@@ -19,7 +19,7 @@ impl InstrsGenerator {
         let mut asm_instrs = param_idents
             .into_iter()
             .map(|param_ident| {
-                let arg_type = self.frontend_symtab.use_var(&param_ident).unwrap();
+                let arg_type = self.frontend_symtab.get_var_type(&param_ident).unwrap();
 
                 let arg_reg = arg_reg_resolver.next_reg(arg_type);
 
@@ -56,7 +56,9 @@ impl InstrsGenerator {
         for arg_val in args {
             let arg_var_type = match &arg_val {
                 t::ReadableValue::Constant(konst) => konst.var_type(),
-                t::ReadableValue::Variable(ident) => self.frontend_symtab.use_var(ident).unwrap(),
+                t::ReadableValue::Variable(ident) => {
+                    self.frontend_symtab.get_var_type(ident).unwrap()
+                }
             };
 
             let arg_reg = arg_reg_resolver.next_reg(arg_var_type);
