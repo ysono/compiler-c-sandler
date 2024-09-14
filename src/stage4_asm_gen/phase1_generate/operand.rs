@@ -11,18 +11,18 @@ use crate::{
 use std::rc::Rc;
 
 impl InstrsGenerator {
-    /* Tacky Value -> Asm Operand and other info */
+    /* Tacky Value -> Asm Operand and type info */
 
-    pub(super) fn convert_value<V: Into<t::ReadableValue>>(
+    pub(super) fn value_to_operand_and_type<V: Into<t::ReadableValue>>(
         &mut self,
         t_val: V,
     ) -> (PreFinalOperand, VarType, AssemblyType) {
         let t_val = t_val.into();
-        let (var_type, asm_type) = self.convert_value_to_type_info(&t_val);
-        let operand = self.convert_value_to_operand(t_val);
+        let (var_type, asm_type) = self.value_to_type(&t_val);
+        let operand = self.value_to_operand(t_val);
         (operand, var_type, asm_type)
     }
-    fn convert_value_to_type_info(&self, t_val: &t::ReadableValue) -> (VarType, AssemblyType) {
+    pub(super) fn value_to_type(&self, t_val: &t::ReadableValue) -> (VarType, AssemblyType) {
         match t_val {
             t::ReadableValue::Constant(konst) => {
                 let var_type = konst.var_type();
@@ -36,8 +36,11 @@ impl InstrsGenerator {
             }
         }
     }
-    fn convert_value_to_operand(&mut self, t_val: t::ReadableValue) -> PreFinalOperand {
-        match t_val {
+    pub(super) fn value_to_operand<V: Into<t::ReadableValue>>(
+        &mut self,
+        t_val: V,
+    ) -> PreFinalOperand {
+        match t_val.into() {
             t::ReadableValue::Constant(konst) => match konst {
                 Const::Int(_) | Const::Long(_) | Const::UInt(_) | Const::ULong(_) => {
                     Operand::ImmediateValue(konst.as_bits()).into()

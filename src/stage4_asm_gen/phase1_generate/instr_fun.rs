@@ -3,7 +3,6 @@ use crate::{
     common::{
         identifier::SymbolIdentifier,
         types_backend::{AssemblyType, OperandByteLen},
-        types_frontend::VarType,
     },
     stage3_tacky::tacky_ast as t,
     stage4_asm_gen::asm_ast::*,
@@ -23,9 +22,9 @@ impl InstrsGenerator {
         let mut asm_instrs = param_idents
             .into_iter()
             .map(|param_ident| {
-                let arg_type = self.frontend_symtab.get_var_type(&param_ident).unwrap();
+                let (dst, _, asm_type) = self.value_to_operand_and_type(param_ident);
 
-                let arg_reg = arg_reg_resolver.next_reg(arg_type);
+                let arg_reg = arg_reg_resolver.next_reg(asm_type);
 
                 let src = match arg_reg {
                     Some(reg) => Operand::Register(reg).into(),
@@ -34,7 +33,7 @@ impl InstrsGenerator {
                         Operand::StackPosition(extra_arg_stack_pos).into()
                     }
                 };
-                let (dst, _, asm_type) = self.convert_value(param_ident);
+
                 Instruction::Mov { asm_type, src, dst }
             })
             .collect::<Vec<_>>();
@@ -56,16 +55,9 @@ impl InstrsGenerator {
         let mut arg_reg_resolver = ArgRegResolver::default();
         let mut stack_args_count = 0;
         for arg_val in args {
-            let arg_var_type = match &arg_val {
-                t::ReadableValue::Constant(konst) => konst.var_type(),
-                t::ReadableValue::Variable(ident) => {
-                    self.frontend_symtab.get_var_type(ident).unwrap()
-                }
-            };
+            let (arg_operand, _, arg_asm_type) = self.value_to_operand_and_type(arg_val);
 
-            let arg_reg = arg_reg_resolver.next_reg(arg_var_type);
-
-            let (arg_operand, _, arg_asm_type) = self.convert_value(arg_val);
+            let arg_reg = arg_reg_resolver.next_reg(arg_asm_type);
 
             match arg_reg {
                 Some(reg) => {
@@ -135,7 +127,7 @@ impl InstrsGenerator {
         }
 
         /* Push the instruction that `mov`s the return value. */
-        let (dst, _, dst_asm_type) = self.convert_value(dst);
+        let (dst, _, dst_asm_type) = self.value_to_operand_and_type(dst);
         let ret_reg = derive_return_register(dst_asm_type);
         asm_instrs.push(Instruction::Mov {
             asm_type: dst_asm_type,
@@ -150,7 +142,7 @@ impl InstrsGenerator {
         &mut self,
         t_val: t::ReadableValue,
     ) -> Vec<Instruction<GeneratedAsmAst>> {
-        let (src, _, asm_type) = self.convert_value(t_val);
+        let (src, _, asm_type) = self.value_to_operand_and_type(t_val);
         let ret_reg = derive_return_register(asm_type);
         let asm_instr_1 = Instruction::Mov {
             asm_type,
@@ -197,14 +189,14 @@ impl Default for ArgRegResolver {
     }
 }
 impl ArgRegResolver {
-    fn next_reg(&mut self, arg_type: VarType) -> Option<Register> {
-        match arg_type {
-            VarType::Int | VarType::Long | VarType::UInt | VarType::ULong => {
+    fn next_reg(&mut self, asm_type: AssemblyType) -> Option<Register> {
+        match asm_type {
+            AssemblyType::Longword | AssemblyType::Quadword => {
                 let ret = INT_ARG_REGS.get(self.int_args_count).cloned();
                 self.int_args_count += 1;
                 ret
             }
-            VarType::Double => {
+            AssemblyType::Double => {
                 let ret = FLOAT_ARG_REGS.get(self.float_args_count).cloned();
                 self.float_args_count += 1;
                 ret
