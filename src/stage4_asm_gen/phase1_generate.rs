@@ -1,15 +1,17 @@
-mod ary;
-mod comparison;
-mod fun;
-mod txform;
+mod instr_ary;
+mod instr_cast;
+mod instr_cmp;
+mod instr_fun;
+mod instr_misc;
+mod operand;
 
 use crate::{
-    identifier::UniqueIdentifier,
+    common::{
+        identifier::UniqueIdentifier, symbol_table_frontend::SymbolTable, types_backend::Alignment,
+        types_frontend::Const,
+    },
     stage3_tacky::tacky_ast as t,
     stage4_asm_gen::asm_ast::*,
-    symbol_table_frontend::SymbolTable,
-    types_backend::{Alignment, AssemblyType},
-    types_frontend::{Const, VarType},
 };
 use derive_more::Into;
 use std::collections::HashMap;
@@ -74,87 +76,5 @@ impl InstrsGenerator {
             t::Instruction::Label(lbl) => vec![Instruction::Label(lbl)],
             t::Instruction::FunCall(t_fun_call) => self.gen_funcall_instrs(t_fun_call),
         })
-    }
-
-    /* Tacky Return */
-
-    fn gen_return_instrs(&mut self, t_val: t::ReadableValue) -> Vec<Instruction<GeneratedAsmAst>> {
-        let (src, _, asm_type) = self.convert_value(t_val);
-        let dst_reg = match asm_type {
-            AssemblyType::Longword | AssemblyType::Quadword => Register::AX,
-            AssemblyType::Double => Register::XMM0,
-        };
-        let asm_instr_1 = Instruction::Mov {
-            asm_type,
-            src,
-            dst: PreFinalOperand::Register(dst_reg),
-        };
-
-        let asm_instr_2 = Instruction::Ret;
-
-        vec![asm_instr_1, asm_instr_2]
-    }
-
-    /* Tacky Copy */
-
-    fn gen_copy_instrs(
-        &mut self,
-        t::SrcDst { src, dst }: t::SrcDst,
-    ) -> Vec<Instruction<GeneratedAsmAst>> {
-        let (src, _, asm_type) = self.convert_value(src);
-        let (dst, _, _) = self.convert_value(dst);
-        vec![Instruction::Mov { asm_type, src, dst }]
-    }
-
-    /* Tacky Value -> Asm Operand and other info */
-
-    fn convert_value<V: Into<t::ReadableValue>>(
-        &mut self,
-        t_val: V,
-    ) -> (PreFinalOperand, VarType, AssemblyType) {
-        let t_val = t_val.into();
-        let (var_type, asm_type) = self.convert_value_to_type_info(&t_val);
-        let operand = self.convert_value_to_operand(t_val);
-        (operand, var_type, asm_type)
-    }
-    fn convert_value_to_type_info(&self, t_val: &t::ReadableValue) -> (VarType, AssemblyType) {
-        match t_val {
-            t::ReadableValue::Constant(konst) => {
-                let var_type = konst.var_type();
-                let asm_type = AssemblyType::from(var_type);
-                (var_type, asm_type)
-            }
-            t::ReadableValue::Variable(ident) => {
-                let var_type = self.frontend_symtab.use_var(ident).unwrap();
-                let asm_type = AssemblyType::from(var_type);
-                (var_type, asm_type)
-            }
-        }
-    }
-    fn convert_value_to_operand(&mut self, t_val: t::ReadableValue) -> PreFinalOperand {
-        match t_val {
-            t::ReadableValue::Constant(konst) => match konst {
-                Const::Int(_) | Const::Long(_) | Const::UInt(_) | Const::ULong(_) => {
-                    PreFinalOperand::ImmediateValue(konst.to_bits())
-                }
-                Const::Double(_) => self.get_or_new_static_constant_operand(None, konst),
-            },
-            t::ReadableValue::Variable(ident) => PreFinalOperand::Pseudo(ident),
-        }
-    }
-
-    /* Asm static constant */
-
-    fn get_or_new_static_constant_operand(
-        &mut self,
-        custom_alignment: Option<Alignment>,
-        konst: Const,
-    ) -> PreFinalOperand {
-        let alignment = custom_alignment.unwrap_or_else(|| Alignment::default_of(konst.var_type()));
-        let ident = self
-            .static_constants
-            .entry((alignment, konst))
-            .or_insert_with(|| Rc::new(UniqueIdentifier::new_generated(None)));
-        PreFinalOperand::Data(Rc::clone(ident))
     }
 }

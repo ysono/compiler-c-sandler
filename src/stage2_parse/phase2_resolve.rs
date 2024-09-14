@@ -5,7 +5,7 @@ mod ident_resolver;
 
 use self::ident_resolver::IdentResolver;
 use crate::{
-    identifier::UniqueIdentifier,
+    common::identifier::UniqueIdentifier,
     stage2_parse::{c_ast::*, phase1_parse::ParsedCAst},
 };
 use anyhow::{anyhow, Context, Result};

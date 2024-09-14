@@ -1,8 +1,8 @@
 pub use self::declaration::*;
 pub use self::expression::*;
 pub use self::statement::*;
+use crate::common::types_frontend::{Const, FunType, VarType};
 pub use crate::stage1_lex::tokens::StorageClassSpecifier;
-use crate::types_frontend::{Const, FunType, VarType};
 use derivative::Derivative;
 use getset::Getters;
 use std::fmt::Debug;

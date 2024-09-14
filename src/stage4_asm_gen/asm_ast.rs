@@ -1,10 +1,10 @@
-pub use crate::stage3_tacky::tacky_ast::LabelIdentifier;
-use crate::{
+use crate::common::{
     identifier::UniqueIdentifier,
     symbol_table_frontend::StaticVisibility,
     types_backend::{Alignment, AssemblyType},
     types_frontend::Const,
 };
+pub use crate::stage3_tacky::tacky_ast::LabelIdentifier;
 use derive_more::{Deref, DerefMut, From};
 use std::fmt::Debug;
 use std::rc::Rc;

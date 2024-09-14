@@ -1,4 +1,4 @@
-use crate::{stage1_lex::tokens::*, types_frontend::Const};
+use crate::{common::types_frontend::Const, stage1_lex::tokens::*};
 use anyhow::{anyhow, Context, Result};
 use regex::Regex;
 use std::collections::VecDeque;

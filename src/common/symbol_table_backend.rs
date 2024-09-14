@@ -1,4 +1,4 @@
-use crate::{
+use crate::common::{
     identifier::UniqueIdentifier,
     symbol_table_frontend::{Symbol, SymbolTable, VarAttrs},
     types_backend::AssemblyType,

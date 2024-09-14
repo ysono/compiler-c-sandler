@@ -1,4 +1,4 @@
-use crate::types_frontend::Const;
+use crate::common::types_frontend::Const;
 use derive_more::{Deref, From};
 
 #[derive(From, PartialEq, Debug)]

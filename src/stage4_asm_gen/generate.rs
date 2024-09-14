@@ -1,13 +1,15 @@
 use crate::{
+    common::{
+        symbol_table_backend::{AsmEntry, BackendSymbolTable, ObjLocation},
+        symbol_table_frontend::SymbolTable,
+        types_backend::{Alignment, AssemblyType},
+    },
     stage3_tacky::tacky_ast as t,
     stage4_asm_gen::{
         asm_ast::*,
         phase1_generate::InstrsGenerator,
         phase2_finalize::{FinalizedAsmAst, InstrsFinalizer},
     },
-    symbol_table_backend::{AsmEntry, BackendSymbolTable, ObjLocation},
-    symbol_table_frontend::SymbolTable,
-    types_backend::{Alignment, AssemblyType},
 };
 use std::rc::Rc;
 

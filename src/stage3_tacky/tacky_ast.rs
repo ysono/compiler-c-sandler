@@ -1,5 +1,5 @@
 pub use self::instruction::*;
-use crate::{
+use crate::common::{
     identifier::UniqueIdentifier,
     symbol_table_frontend::StaticVisibility,
     types_frontend::{Const, VarType},

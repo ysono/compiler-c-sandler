@@ -1,7 +1,9 @@
 use crate::{
-    identifier::UniqueIdentifier,
+    common::{
+        identifier::UniqueIdentifier,
+        types_backend::{Alignment, AssemblyType, OperandByteLen},
+    },
     stage4_asm_gen::asm_ast::StackPosition,
-    types_backend::{Alignment, AssemblyType, OperandByteLen},
 };
 use getset::Getters;
 use std::collections::HashMap;

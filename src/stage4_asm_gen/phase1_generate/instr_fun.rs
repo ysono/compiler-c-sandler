@@ -1,12 +1,8 @@
+use super::{GeneratedAsmAst, InstrsGenerator};
 use crate::{
-    identifier::UniqueIdentifier,
+    common::{identifier::UniqueIdentifier, types_backend::AssemblyType, types_frontend::VarType},
     stage3_tacky::tacky_ast as t,
-    stage4_asm_gen::{
-        asm_ast::*,
-        phase1_generate::{GeneratedAsmAst, InstrsGenerator},
-    },
-    types_backend::AssemblyType,
-    types_frontend::VarType,
+    stage4_asm_gen::asm_ast::*,
 };
 use std::rc::Rc;
 
@@ -146,6 +142,25 @@ impl InstrsGenerator {
         });
 
         asm_instrs
+    }
+    pub(super) fn gen_return_instrs(
+        &mut self,
+        t_val: t::ReadableValue,
+    ) -> Vec<Instruction<GeneratedAsmAst>> {
+        let (src, _, asm_type) = self.convert_value(t_val);
+        let dst_reg = match asm_type {
+            AssemblyType::Longword | AssemblyType::Quadword => Register::AX,
+            AssemblyType::Double => Register::XMM0,
+        };
+        let asm_instr_1 = Instruction::Mov {
+            asm_type,
+            src,
+            dst: PreFinalOperand::Register(dst_reg),
+        };
+
+        let asm_instr_2 = Instruction::Ret;
+
+        vec![asm_instr_1, asm_instr_2]
     }
 }
 

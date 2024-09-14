@@ -1,4 +1,4 @@
-use crate::types_frontend::VarType;
+use crate::common::types_frontend::VarType;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum AssemblyType {

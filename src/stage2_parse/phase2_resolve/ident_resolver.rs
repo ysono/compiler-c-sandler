@@ -1,5 +1,5 @@
 use crate::{
-    identifier::UniqueIdentifier, stage1_lex::tokens::Identifier,
+    common::identifier::UniqueIdentifier, stage1_lex::tokens::Identifier,
     stage2_parse::c_ast::StorageClassSpecifier,
 };
 use anyhow::{anyhow, Result};

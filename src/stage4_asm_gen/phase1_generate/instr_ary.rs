@@ -1,11 +1,11 @@
+use super::{GeneratedAsmAst, InstrsGenerator};
 use crate::{
-    stage3_tacky::tacky_ast as t,
-    stage4_asm_gen::{
-        asm_ast::*,
-        phase1_generate::{GeneratedAsmAst, InstrsGenerator},
+    common::{
+        types_backend::{Alignment, AssemblyType},
+        types_frontend::{Const, VarType},
     },
-    types_backend::{Alignment, AssemblyType},
-    types_frontend::{Const, VarType},
+    stage3_tacky::tacky_ast as t,
+    stage4_asm_gen::asm_ast::*,
 };
 
 impl InstrsGenerator {

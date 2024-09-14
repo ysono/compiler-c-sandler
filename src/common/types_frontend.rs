@@ -1,4 +1,4 @@
-use crate::types_backend::OperandByteLen;
+use crate::common::types_backend::OperandByteLen;
 use std::cmp::Ordering;
 use std::hash::{Hash, Hasher};
 use std::mem;
@@ -83,7 +83,7 @@ impl Const {
         }
     }
 
-    pub fn to_bits(&self) -> u64 {
+    pub fn as_bits(&self) -> u64 {
         match self {
             Const::Int(i) => *i as u64,
             Const::Long(i) => *i as u64,

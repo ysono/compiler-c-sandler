@@ -2,9 +2,11 @@ pub mod var_to_stack_pos;
 
 use self::var_to_stack_pos::VarToStackPos;
 use crate::{
+    common::{
+        symbol_table_backend::{AsmEntry, BackendSymbolTable, ObjLocation},
+        types_backend::AssemblyType,
+    },
     stage4_asm_gen::{asm_ast::*, phase1_generate::GeneratedAsmAst, phase3_fix::OperandFixer},
-    symbol_table_backend::{AsmEntry, BackendSymbolTable, ObjLocation},
-    types_backend::AssemblyType,
 };
 use derive_more::Into;
 use std::collections::VecDeque;

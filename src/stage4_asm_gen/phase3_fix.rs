@@ -1,6 +1,6 @@
 use crate::{
+    common::types_backend::AssemblyType,
     stage4_asm_gen::{asm_ast::*, phase2_finalize::FinalizedAsmAst},
-    types_backend::AssemblyType,
 };
 
 pub struct OperandFixer {}
