@@ -40,6 +40,7 @@ impl InstrsGenerator {
 
         asm_instrs
     }
+
     /// See documentation at [`crate::stage4_asm_gen`].
     pub(super) fn gen_funcall_instrs(
         &mut self,
@@ -105,6 +106,7 @@ impl InstrsGenerator {
         /* Evaluate the need for padding. */
         let stack_padding_bytelen = if (stack_args_count & 1) == 1 { 8 } else { 0 };
 
+        /* Potentially push the padding instruction. */
         if stack_padding_bytelen != 0 {
             asm_instrs.push(Instruction::Binary {
                 op: BinaryOperator::Sub,
@@ -117,10 +119,10 @@ impl InstrsGenerator {
         /* Finalize the order of the padding + arg-copying instructions. */
         asm_instrs.reverse();
 
-        /* The `call` instruction. */
+        /* Push the `call` instruction. */
         asm_instrs.push(Instruction::Call(ident));
 
-        /* Push the instruction that pops the current stack frame. */
+        /* Push the instruction that pops the padding + args. */
         let stack_pop_bytelen = 8 * (stack_args_count as u64) + stack_padding_bytelen;
         if stack_pop_bytelen != 0 {
             asm_instrs.push(Instruction::Binary {
@@ -145,6 +147,7 @@ impl InstrsGenerator {
 
         asm_instrs
     }
+
     pub(super) fn gen_return_instrs(
         &mut self,
         t_val: t::ReadableValue,

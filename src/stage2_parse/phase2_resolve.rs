@@ -60,6 +60,7 @@ impl CAstValidator {
         VariableDeclaration { ident, typ, storage_class, init }: VariableDeclaration<ParsedCAst>,
     ) -> Result<VariableDeclaration<ResolvedCAst>> {
         let inner = || -> Result<_> {
+            // Does transform.
             let ident = self
                 .ident_resolver
                 .declare_var(ident, storage_class.as_ref())?;
@@ -80,6 +81,7 @@ impl CAstValidator {
             body,
         }: FunctionDeclaration<ParsedCAst>,
     ) -> Result<FunctionDeclaration<ResolvedCAst>> {
+        // Does transform.
         let inner = || -> Result<_> {
             let ident = self.ident_resolver.declare_fun(ident)?;
 
@@ -115,10 +117,10 @@ impl CAstValidator {
     fn resolve_block(
         &mut self,
         Block { items }: Block<ParsedCAst>,
-        need_new_ident_scope: bool,
+        use_new_ident_scope: bool,
     ) -> Result<Block<ResolvedCAst>> {
         let inner = || -> Result<_> {
-            if need_new_ident_scope {
+            if use_new_ident_scope {
                 self.ident_resolver.push_new_scope();
             }
 
@@ -127,7 +129,7 @@ impl CAstValidator {
                 .map(|item| self.resolve_block_item(item))
                 .collect::<Result<Vec<_>>>()?;
 
-            if need_new_ident_scope {
+            if use_new_ident_scope {
                 self.ident_resolver.pop_scope();
             }
 
@@ -165,9 +167,11 @@ impl CAstValidator {
                     return Ok(Statement::If(If { condition, then, elze }));
                 }
                 Statement::Compound(block) => {
+                    // Does transform.
                     self.resolve_block(block, true).map(Statement::Compound)
                 }
                 Statement::Break(()) => {
+                    // Does transform.
                     let loop_id = self
                         .loop_ids_stack
                         .last()
@@ -175,15 +179,16 @@ impl CAstValidator {
                     Ok(Statement::Break(Rc::clone(loop_id)))
                 }
                 Statement::Continue(()) => {
+                    // Does transform.
                     let loop_id = self
                         .loop_ids_stack
                         .last()
                         .ok_or(anyhow!("Cannot continue outside loop scope"))?;
                     Ok(Statement::Continue(Rc::clone(loop_id)))
                 }
-                Statement::While((), condbody) => self.resolve_stmt_while(condbody),
-                Statement::DoWhile((), condbody) => self.resolve_stmt_dowhile(condbody),
-                Statement::For((), foor) => self.resolve_stmt_for(foor),
+                Statement::While((), condbody) => self.resolve_stmt_while(condbody), // Does transform.
+                Statement::DoWhile((), condbody) => self.resolve_stmt_dowhile(condbody), // Does transform.
+                Statement::For((), foor) => self.resolve_stmt_for(foor), // Does transform.
                 Statement::Null => Ok(Statement::Null),
             }
         };
@@ -264,6 +269,7 @@ impl CAstValidator {
             let exp = match exp {
                 Expression::Const(konst) => Expression::Const(konst),
                 Expression::Var(ident) => {
+                    // Does transform.
                     let ident = self.ident_resolver.get(&ident)?;
                     Expression::Var(ident)
                 }
@@ -281,6 +287,7 @@ impl CAstValidator {
                     Expression::Binary(Binary { op, lhs, rhs })
                 }
                 Expression::Assignment(Assignment { lhs, rhs }) => match *lhs {
+                    // Does transform.
                     Expression::Var(ident) => {
                         let lhs = self.ident_resolver.get(&ident)?;
                         let rhs = Box::new(self.resolve_exp(*rhs)?);
@@ -299,6 +306,7 @@ impl CAstValidator {
                     Expression::Conditional(Conditional { condition, then, elze })
                 }
                 Expression::FunctionCall(FunctionCall { ident, args }) => {
+                    // Does transform.
                     let ident = self.ident_resolver.get(&ident)?;
                     let args = args
                         .into_iter()
