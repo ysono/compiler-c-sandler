@@ -1,13 +1,15 @@
 pub use self::{declaration::*, expression::*, statement::*};
-use crate::common::{
-    identifier::UniqueId,
-    symbol_table_frontend::StaticVisibility,
-    types_frontend::{Const, FunType, VarType},
-};
 pub use crate::stage1_lex::tokens::StorageClassSpecifier;
+use crate::{
+    common::{
+        identifier::UniqueId,
+        symbol_table_frontend::StaticVisibility,
+        types_frontend::{Const, FunType, VarType},
+    },
+    ds_n_a::singleton::Singleton,
+};
 use derivative::Derivative;
 use std::fmt::Debug;
-use std::rc::Rc;
 
 pub trait CAstVariant {
     type FileScopeDeclaration: Debug;
@@ -48,7 +50,7 @@ mod declaration {
     #[derive(Debug)]
     pub struct FunctionDeclaration<T: CAstVariant> {
         pub ident: T::Identifier,
-        pub typ: Rc<FunType>,
+        pub typ: Singleton<FunType>,
         pub storage_class: Option<StorageClassSpecifier>,
         pub param_idents: Vec<T::Identifier>,
         pub body: Option<Block<T>>,

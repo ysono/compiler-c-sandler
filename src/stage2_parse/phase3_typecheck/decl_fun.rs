@@ -5,6 +5,7 @@ use crate::{
         symbol_table_frontend::{FunAttrs, StaticVisibility, Symbol},
         types_frontend::FunType,
     },
+    ds_n_a::singleton::Singleton,
     stage2_parse::{c_ast::*, phase2_resolve::ResolvedCAst},
     utils::noop,
 };
@@ -46,7 +47,7 @@ impl TypeChecker {
         let defn = match body {
             None => None,
             Some(body) => {
-                self.curr_fun_type = Some(Rc::clone(&typ));
+                self.curr_fun_type = Some(typ.clone());
                 let body = self.typecheck_block(body)?;
                 self.curr_fun_type = None;
 
@@ -112,7 +113,7 @@ impl TypeChecker {
         ident: Rc<SymbolIdentifier>,
         new_viz: Viz,
         newly_defined: bool,
-        new_typ: &Rc<FunType>,
+        new_typ: &Singleton<FunType>,
     ) -> Result<StaticVisibility> {
         match self.symbol_table.as_mut().entry(ident) {
             Entry::Vacant(entry) => {
@@ -121,7 +122,7 @@ impl TypeChecker {
                     Viz::TranslUnit => StaticVisibility::NonGlobal,
                 };
                 entry.insert(Symbol::Fun {
-                    typ: Rc::clone(new_typ),
+                    typ: new_typ.clone(),
                     attrs: FunAttrs {
                         visibility,
                         is_defined: newly_defined,
