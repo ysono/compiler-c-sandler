@@ -3,52 +3,56 @@ use crate::common::{
     symbol_table_frontend::{Symbol, SymbolTable, VarAttrs},
     types_backend::AssemblyType,
 };
-use derive_more::{Deref, DerefMut};
+use getset::{Getters, MutGetters};
 use std::collections::HashMap;
 use std::rc::Rc;
 
-pub enum AsmEntry {
-    Obj {
-        asm_type: AssemblyType,
-        loc: ObjLocation,
-    },
-    Fun {
-        is_defined: bool,
-    },
+#[derive(Debug)]
+pub struct AsmObj {
+    pub asm_type: AssemblyType,
+    pub loc: ObjLocation,
 }
+#[derive(Debug)]
 pub enum ObjLocation {
     Stack,
     StaticReadWrite,
     StaticReadonly,
 }
 
-#[derive(Deref, DerefMut)]
+#[derive(Debug)]
+pub struct AsmFun {
+    pub is_defined: bool,
+}
+
+#[derive(Getters, MutGetters, Debug)]
+#[getset(get = "pub", get_mut = "pub")]
 pub struct BackendSymbolTable {
-    symbol_table: HashMap<Rc<SymbolIdentifier>, AsmEntry>,
+    objs: HashMap<Rc<SymbolIdentifier>, AsmObj>,
+    funs: HashMap<Rc<SymbolIdentifier>, AsmFun>,
 }
 impl From<SymbolTable> for BackendSymbolTable {
     fn from(c_table: SymbolTable) -> Self {
+        let mut objs = HashMap::default();
+        let mut funs = HashMap::default();
+
         let c_table: HashMap<_, _> = c_table.into();
-        let asm_table = c_table
-            .into_iter()
-            .map(|(ident, symbol)| {
-                let asm_entry = match symbol {
-                    Symbol::Var { typ, attrs } => {
-                        let asm_type = AssemblyType::from(typ);
-                        let loc = match attrs {
-                            VarAttrs::AutomaticStorageDuration => ObjLocation::Stack,
-                            VarAttrs::StaticStorageDuration { .. } => ObjLocation::StaticReadWrite,
-                        };
-                        AsmEntry::Obj { asm_type, loc }
-                    }
-                    Symbol::Fun { typ: _, attrs } => {
-                        let is_defined = attrs.is_defined;
-                        AsmEntry::Fun { is_defined }
-                    }
-                };
-                (ident, asm_entry)
-            })
-            .collect::<HashMap<_, _>>();
-        Self { symbol_table: asm_table }
+        for (ident, symbol) in c_table.into_iter() {
+            match symbol {
+                Symbol::Var { typ, attrs } => {
+                    let asm_type = AssemblyType::from(typ);
+                    let loc = match attrs {
+                        VarAttrs::AutomaticStorageDuration => ObjLocation::Stack,
+                        VarAttrs::StaticStorageDuration { .. } => ObjLocation::StaticReadWrite,
+                        /* I wonder whether, if var_type==Double, we should be locating it on a readonly section. */
+                    };
+                    objs.insert(ident, AsmObj { asm_type, loc });
+                }
+                Symbol::Fun { typ: _, attrs } => {
+                    let is_defined = attrs.is_defined;
+                    funs.insert(ident, AsmFun { is_defined });
+                }
+            }
+        }
+        Self { objs, funs }
     }
 }

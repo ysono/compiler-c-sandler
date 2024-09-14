@@ -127,7 +127,7 @@ impl Driver {
 
         if self.args.until_parser_validate {
             println!("validated c_prog: {c_prog:#?}");
-            println!("symbol table: {frontend_symtab:#?}");
+            println!("frontend symbol table: {frontend_symtab:#?}");
             return Ok(None);
         }
 
@@ -141,6 +141,7 @@ impl Driver {
         let (asm_prog, backend_symtab) = asm_gen.gen_program(tacky_prog);
         if self.args.until_asm_codegen {
             println!("asm_prog: {asm_prog:#?}");
+            println!("backend symbol table: {backend_symtab:#?}");
             return Ok(None);
         }
 

@@ -3,7 +3,7 @@ pub mod var_to_stack_pos;
 use self::var_to_stack_pos::VarToStackPos;
 use crate::{
     common::{
-        symbol_table_backend::{AsmEntry, BackendSymbolTable, ObjLocation},
+        symbol_table_backend::{AsmObj, BackendSymbolTable, ObjLocation},
         types_backend::AssemblyType,
     },
     stage4_asm_gen::{asm_ast::*, phase1_generate::GeneratedAsmAst, phase3_fix::OperandFixer},
@@ -144,20 +144,17 @@ impl InstrsFinalizer {
             PFO::Register(r) => Operand::Register(r),
             PFO::StackPosition(s) => Operand::StackPosition(s),
             PFO::Data(ident) => Operand::Data(ident),
-            PFO::Pseudo(ident) => match self.backend_symtab.get(&ident) {
-                None => panic!("All pseudos are expected to have been added to the symbol table."),
-                Some(AsmEntry::Obj { asm_type, loc }) => match loc {
+            PreFinalOperand::Pseudo(ident) => {
+                let AsmObj { asm_type, loc } = self.backend_symtab.objs().get(&ident).unwrap();
+                match loc {
                     ObjLocation::Stack => self
                         .var_to_stack_pos
                         .var_to_stack_pos(ident, *asm_type)
                         .into(),
                     ObjLocation::StaticReadWrite => Operand::Data(ident),
                     ObjLocation::StaticReadonly => Operand::Data(ident),
-                },
-                Some(AsmEntry::Fun { .. }) => {
-                    panic!("All pseudos are expected to correspond to objs.")
                 }
-            },
+            }
         }
     }
 }

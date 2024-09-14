@@ -2,7 +2,7 @@ use super::{label::LabelLocality, AsmCodeEmitter, TAB};
 use crate::{
     common::{
         identifier::SymbolIdentifier,
-        symbol_table_backend::{AsmEntry, ObjLocation},
+        symbol_table_backend::{AsmFun, AsmObj, ObjLocation},
         types_backend::{AssemblyType, OperandByteLen},
     },
     stage4_asm_gen::{asm_ast::*, FinalizedAsmAst},
@@ -273,10 +273,7 @@ impl<W: Write> AsmCodeEmitter<W> {
                 write!(&mut self.w, "{}(%rbp)", *stkpos)?;
             }
             Operand::Data(ident) => {
-                let loc = match self.backend_symtab.get(&ident).unwrap() {
-                    AsmEntry::Obj { loc, .. } => loc,
-                    AsmEntry::Fun { .. } => panic!("Operand::Data cannot refer to a fun."),
-                };
+                let AsmObj { loc, .. } = self.backend_symtab.objs().get(&ident).unwrap();
                 match loc {
                     ObjLocation::Stack => {
                         panic!("Operand::Data cannot refer to a stack-allocated var.")
@@ -295,15 +292,11 @@ impl<W: Write> AsmCodeEmitter<W> {
     }
     fn write_fun_call_sfx(&mut self, ident: &SymbolIdentifier) -> Result<(), io::Error> {
         if cfg!(target_os = "linux") {
-            match self.backend_symtab.get(ident).unwrap() {
-                AsmEntry::Obj { .. } => { /* No-op. */ }
-                AsmEntry::Fun { is_defined } => {
-                    if *is_defined == false {
-                        /* This is required iff the identifier will be lazily bound by a dynamic linker.
-                        It doesn't hurt to specify even if the identifier's address offset will become statically known at link-time. */
-                        write!(&mut self.w, "@PLT")?;
-                    }
-                }
+            let AsmFun { is_defined } = self.backend_symtab.funs().get(ident).unwrap();
+            if *is_defined == false {
+                /* This is required iff the identifier will be lazily bound by a dynamic linker.
+                It doesn't hurt to specify even if the identifier's address offset will become statically known at link-time. */
+                write!(&mut self.w, "@PLT")?;
             }
         }
         Ok(())
