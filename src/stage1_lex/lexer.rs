@@ -1,4 +1,7 @@
-use crate::{common::types_frontend::Const, stage1_lex::tokens::*};
+use crate::{
+    common::{identifier::RawIdentifier, types_frontend::Const},
+    stage1_lex::tokens::*,
+};
 use anyhow::{anyhow, Context, Result};
 use regex::Regex;
 use std::collections::VecDeque;
@@ -92,7 +95,7 @@ impl<R: Read + BufRead> Lexer<R> {
                 "for"      => Loop::For.into(),
                 "break"    => Loop::Break.into(),
                 "continue" => Loop::Continue.into(),
-                s => Identifier(String::from(s)).into(),
+                s => RawIdentifier::new(String::from(s)).into(),
             };
             return Ok((mach.len(), token));
         }

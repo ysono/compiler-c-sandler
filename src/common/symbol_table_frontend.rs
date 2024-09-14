@@ -1,5 +1,5 @@
 use crate::common::{
-    identifier::{IdentifierId, UniqueIdentifier},
+    identifier::SymbolIdentifier,
     types_frontend::{Const, FunType, VarType},
 };
 use anyhow::{anyhow, Result};
@@ -42,14 +42,11 @@ pub enum StaticVisibility {
 
 #[derive(Default, Into, Deref, AsMut, Debug)]
 pub struct SymbolTable {
-    symbol_table: HashMap<Rc<UniqueIdentifier>, Symbol>,
+    symbol_table: HashMap<Rc<SymbolIdentifier>, Symbol>,
 }
 impl SymbolTable {
-    pub fn declare_var_anon(&mut self, typ: VarType) -> Rc<UniqueIdentifier> {
-        let ident = Rc::new(UniqueIdentifier::Generated {
-            id: IdentifierId::new(),
-            descr: None,
-        });
+    pub fn declare_var_anon(&mut self, typ: VarType) -> Rc<SymbolIdentifier> {
+        let ident = Rc::new(SymbolIdentifier::new_generated());
         self.symbol_table.insert(
             Rc::clone(&ident),
             Symbol::Var {
@@ -60,19 +57,19 @@ impl SymbolTable {
         ident
     }
 
-    pub fn get(&self, ident: &UniqueIdentifier) -> Result<&Symbol> {
+    pub fn get(&self, ident: &SymbolIdentifier) -> Result<&Symbol> {
         self.symbol_table
             .get(ident)
             .ok_or_else(|| anyhow!("Not declared. {ident:?}"))
     }
-    pub fn get_var_type(&self, ident: &UniqueIdentifier) -> Result<VarType> {
+    pub fn get_var_type(&self, ident: &SymbolIdentifier) -> Result<VarType> {
         let symbol = self.get(ident)?;
         match symbol {
             Symbol::Var { typ, .. } => Ok(*typ),
             _ => Err(anyhow!("Not variable. {ident:?} {symbol:?}")),
         }
     }
-    pub fn get_fun_type(&self, ident: &UniqueIdentifier) -> Result<&Rc<FunType>> {
+    pub fn get_fun_type(&self, ident: &SymbolIdentifier) -> Result<&Rc<FunType>> {
         let symbol = self.get(ident)?;
         match symbol {
             Symbol::Fun { typ, .. } => Ok(typ),

@@ -1,10 +1,10 @@
 pub use self::instruction::*;
 use crate::common::{
-    identifier::UniqueIdentifier,
+    identifier::{JumpLabel, SymbolIdentifier},
     symbol_table_frontend::StaticVisibility,
     types_frontend::{Const, VarType},
 };
-use derive_more::{Deref, From};
+use derive_more::From;
 use std::rc::Rc;
 
 #[derive(Debug)]
@@ -15,7 +15,7 @@ pub struct Program {
 
 #[derive(Debug)]
 pub struct StaticVariable {
-    pub ident: Rc<UniqueIdentifier>,
+    pub ident: Rc<SymbolIdentifier>,
     pub visibility: StaticVisibility,
     pub typ: VarType,
     pub init: Const,
@@ -23,9 +23,9 @@ pub struct StaticVariable {
 
 #[derive(Debug)]
 pub struct Function {
-    pub ident: Rc<UniqueIdentifier>,
+    pub ident: Rc<SymbolIdentifier>,
     pub visibility: StaticVisibility,
-    pub param_idents: Vec<Rc<UniqueIdentifier>>,
+    pub param_idents: Vec<Rc<SymbolIdentifier>>,
     pub instrs: Vec<Instruction>,
 }
 
@@ -42,9 +42,9 @@ pub enum Instruction {
     Unary(Unary),
     Binary(Binary),
     Copy(SrcDst),
-    Jump(Rc<LabelIdentifier>),
+    Jump(Rc<JumpLabel>),
     JumpIf(JumpIf),
-    Label(Rc<LabelIdentifier>),
+    Label(Rc<JumpLabel>),
     FunCall(FunCall),
 }
 mod instruction {
@@ -53,14 +53,14 @@ mod instruction {
     #[derive(Debug)]
     pub struct SrcDst {
         pub src: ReadableValue,
-        pub dst: Rc<UniqueIdentifier>,
+        pub dst: Rc<SymbolIdentifier>,
     }
 
     #[derive(Debug)]
     pub struct Unary {
         pub op: UnaryOperator,
         pub src: ReadableValue,
-        pub dst: Rc<UniqueIdentifier>,
+        pub dst: Rc<SymbolIdentifier>,
     }
 
     #[derive(Debug)]
@@ -68,14 +68,14 @@ mod instruction {
         pub op: BinaryOperator,
         pub src1: ReadableValue,
         pub src2: ReadableValue,
-        pub dst: Rc<UniqueIdentifier>,
+        pub dst: Rc<SymbolIdentifier>,
     }
 
     #[derive(Debug)]
     pub struct JumpIf {
         pub condition: ReadableValue,
         pub jump_crit: JumpCriterion,
-        pub lbl: Rc<LabelIdentifier>,
+        pub lbl: Rc<JumpLabel>,
     }
     #[derive(Debug)]
     pub enum JumpCriterion {
@@ -85,9 +85,9 @@ mod instruction {
 
     #[derive(Debug)]
     pub struct FunCall {
-        pub ident: Rc<UniqueIdentifier>,
+        pub ident: Rc<SymbolIdentifier>,
         pub args: Vec<ReadableValue>,
-        pub dst: Rc<UniqueIdentifier>,
+        pub dst: Rc<SymbolIdentifier>,
     }
 }
 
@@ -139,14 +139,5 @@ pub enum ComparisonBinaryOperator {
 #[derive(From, Debug)]
 pub enum ReadableValue {
     Constant(Const),
-    Variable(Rc<UniqueIdentifier>),
-}
-
-#[derive(Deref, Debug)]
-pub struct LabelIdentifier(UniqueIdentifier);
-impl LabelIdentifier {
-    pub fn new(descr: String) -> Self {
-        let ident = UniqueIdentifier::new_generated(Some(descr));
-        Self(ident)
-    }
+    Variable(Rc<SymbolIdentifier>),
 }

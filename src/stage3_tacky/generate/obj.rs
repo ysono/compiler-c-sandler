@@ -1,6 +1,6 @@
 use super::FunInstrsGenerator;
 use crate::{
-    common::identifier::UniqueIdentifier,
+    common::identifier::SymbolIdentifier,
     stage2_parse::{c_ast as c, phase3_typecheck::TypeCheckedCAst},
     stage3_tacky::tacky_ast::*,
 };
@@ -11,7 +11,7 @@ impl<'a> FunInstrsGenerator<'a> {
 
     pub(super) fn gen_exp_assignment(
         &mut self,
-        ident: Rc<UniqueIdentifier>,
+        ident: Rc<SymbolIdentifier>,
         rhs: c::TypedExpression<TypeCheckedCAst>,
     ) -> ReadableValue {
         let rhs = self.gen_exp(rhs);

@@ -1,40 +1,74 @@
-use crate::stage1_lex::tokens::Identifier;
 use derivative::Derivative;
+use derive_more::{Constructor, Deref};
+use std::borrow::Borrow;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicU64, Ordering};
 
+#[derive(Constructor, Deref, PartialEq, Eq, Hash, Debug)]
+pub struct RawIdentifier(String);
+
 #[derive(Derivative, Debug)]
 #[derivative(PartialEq, Eq, Hash)]
-pub enum UniqueIdentifier {
-    Exact(Rc<Identifier>),
+pub enum SymbolIdentifier {
+    Exact(Rc<RawIdentifier>),
     Generated {
-        id: IdentifierId,
+        id: UniqueId,
 
         #[derivative(PartialEq = "ignore", Hash = "ignore")]
-        descr: Option<String>,
+        descr: (),
+        /* We might let `descr` member be an `Option<String>`, hence this identifier type is non-`Clone`. */
     },
 }
-impl UniqueIdentifier {
-    pub fn new_generated(descr: Option<String>) -> Self {
-        Self::Generated { id: IdentifierId::new(), descr }
+impl SymbolIdentifier {
+    pub fn new_generated() -> Self {
+        Self::Generated { id: UniqueId::new(), descr: () }
     }
+}
 
-    pub fn id(&self) -> Option<&IdentifierId> {
-        match self {
-            Self::Generated { id, .. } => Some(id),
-            Self::Exact(..) => None,
-        }
+#[derive(Debug)]
+pub struct JumpLabel {
+    pub id: UniqueId,
+    pub descr1: &'static str,
+    pub descr2: &'static str,
+}
+impl JumpLabel {
+    /// @arg `descr2s` elements must be all distinct. (We ought to `static_assert` this.)
+    pub fn create<Uid, const LEN: usize, Out>(
+        id: Uid,
+        descr1: &'static str,
+        descr2s: [&'static str; LEN],
+    ) -> [Out; LEN]
+    where
+        Uid: Borrow<UniqueId>,
+        Out: From<Self> + std::fmt::Debug,
+    {
+        descr2s
+            .into_iter()
+            .map(|descr2| {
+                Self {
+                    id: id.borrow().unsafely_clone(),
+                    descr1,
+                    descr2,
+                }
+                .into()
+            })
+            .collect::<Vec<_>>()
+            .try_into()
+            .unwrap()
     }
 }
 
 #[derive(PartialEq, Eq, Hash, Debug)]
-pub struct IdentifierId(u64);
-impl IdentifierId {
+pub struct UniqueId(u64);
+impl UniqueId {
     #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
         static NEXT_ID: AtomicU64 = AtomicU64::new(0);
         let curr_id = NEXT_ID.fetch_add(1, Ordering::SeqCst);
         Self(curr_id)
+    }
+    fn unsafely_clone(&self) -> Self {
+        Self(self.0)
     }
     pub fn as_int(&self) -> u64 {
         self.0

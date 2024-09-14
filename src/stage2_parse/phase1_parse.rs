@@ -4,7 +4,7 @@ mod decl;
 mod exp;
 mod stmt;
 
-use crate::{stage1_lex::tokens as t, stage2_parse::c_ast::*};
+use crate::{common::identifier::RawIdentifier, stage1_lex::tokens as t, stage2_parse::c_ast::*};
 use anyhow::{anyhow, Context, Result};
 use std::iter::Peekable;
 
@@ -14,7 +14,7 @@ impl CAstVariant for ParsedCAst {
     type FileScopeDeclaration = Declaration<Self>;
     type BlockScopeDeclaration = Declaration<Self>;
     type ForInitDeclaration = VariableDeclaration<Self>;
-    type Identifier = t::Identifier;
+    type Identifier = RawIdentifier;
     type LoopId = ();
     type Expression = Expression<Self>;
     type Lvalue = Box<Expression<Self>>;

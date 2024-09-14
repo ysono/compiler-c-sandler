@@ -1,7 +1,7 @@
 use super::{label::LabelLocality, AsmCodeEmitter, TAB};
 use crate::{
     common::{
-        identifier::UniqueIdentifier,
+        identifier::SymbolIdentifier,
         symbol_table_frontend::StaticVisibility,
         types_backend::{Alignment, OperandByteLen},
         types_frontend::Const,
@@ -28,7 +28,7 @@ impl<W: Write> AsmCodeEmitter<W> {
         self.write_static_datum(
             &ident,
             visibility,
-            LabelLocality::of_static_var(),
+            LabelLocality::OF_STATIC_VAR,
             section,
             alignment,
             init,
@@ -50,7 +50,7 @@ impl<W: Write> AsmCodeEmitter<W> {
         self.write_static_datum(
             &ident,
             StaticVisibility::NonGlobal,
-            LabelLocality::of_static_const(),
+            LabelLocality::OF_STATIC_CONST,
             section,
             alignment,
             init,
@@ -58,17 +58,17 @@ impl<W: Write> AsmCodeEmitter<W> {
     }
     fn write_static_datum(
         &mut self,
-        ident: &UniqueIdentifier,
+        ident: &SymbolIdentifier,
         visibility: StaticVisibility,
         locality: LabelLocality,
         section: &'static str,
         alignment: Alignment,
         init: Const,
     ) -> Result<(), io::Error> {
-        self.write_label_visibility(ident, visibility, locality)?;
+        self.write_symbol_visibility(ident, visibility, locality)?;
         writeln!(&mut self.w, "{TAB}{section}")?;
         writeln!(&mut self.w, "{TAB}.balign {}", alignment as u8)?;
-        self.write_label_instance(ident, locality)?;
+        self.write_symbol_decl(ident, locality)?;
         if section == ".bss" {
             let bytelen = OperandByteLen::from(init.var_type()) as u8;
             writeln!(&mut self.w, "{TAB}.zero {bytelen}")?;

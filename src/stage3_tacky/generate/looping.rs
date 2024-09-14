@@ -1,5 +1,6 @@
 use super::FunInstrsGenerator;
 use crate::{
+    common::identifier::JumpLabel,
     stage2_parse::{c_ast as c, phase3_typecheck::TypeCheckedCAst},
     stage3_tacky::tacky_ast::*,
 };
@@ -8,12 +9,12 @@ use std::rc::Rc;
 
 impl<'a> FunInstrsGenerator<'a> {
     pub(super) fn gen_stmt_break(&mut self, loop_id: Rc<c::LoopId>) {
-        let lbls = self.loop_id_to_labels.get_or_insert(loop_id);
+        let lbls = self.loop_id_to_labels.get_or_new_lbls(loop_id);
         let lbl_break = Rc::clone(&lbls.lbl_break);
         self.instrs.push(Instruction::Jump(lbl_break))
     }
     pub(super) fn gen_stmt_continue(&mut self, loop_id: Rc<c::LoopId>) {
-        let lbls = self.loop_id_to_labels.get_or_insert(loop_id);
+        let lbls = self.loop_id_to_labels.get_or_new_lbls(loop_id);
         let lbl_cont = Rc::clone(&lbls.lbl_cont);
         self.instrs.push(Instruction::Jump(lbl_cont))
     }
@@ -22,7 +23,7 @@ impl<'a> FunInstrsGenerator<'a> {
         loop_id: Rc<c::LoopId>,
         c::CondBody { condition, body }: c::CondBody<TypeCheckedCAst>,
     ) {
-        let lbls = self.loop_id_to_labels.get_or_insert(loop_id);
+        let lbls = self.loop_id_to_labels.get_or_new_lbls(loop_id);
         let lbl_cont = Rc::clone(&lbls.lbl_cont);
         let lbl_break = Rc::clone(&lbls.lbl_break);
 
@@ -49,8 +50,8 @@ impl<'a> FunInstrsGenerator<'a> {
         loop_id: Rc<c::LoopId>,
         c::CondBody { body, condition }: c::CondBody<TypeCheckedCAst>,
     ) {
-        let lbl_start = Rc::new(LoopIdToLabels::get_lbl_start(&loop_id));
-        let lbls = self.loop_id_to_labels.get_or_insert(loop_id);
+        let lbl_start = Rc::new(LoopIdToLabels::new_lbl_start(&loop_id));
+        let lbls = self.loop_id_to_labels.get_or_new_lbls(loop_id);
         let lbl_cont = Rc::clone(&lbls.lbl_cont);
         let lbl_break = Rc::clone(&lbls.lbl_break);
 
@@ -77,8 +78,8 @@ impl<'a> FunInstrsGenerator<'a> {
         loop_id: Rc<c::LoopId>,
         c::For { init, condition, post, body }: c::For<TypeCheckedCAst>,
     ) {
-        let lbl_start = Rc::new(LoopIdToLabels::get_lbl_start(&loop_id));
-        let lbls = self.loop_id_to_labels.get_or_insert(loop_id);
+        let lbl_start = Rc::new(LoopIdToLabels::new_lbl_start(&loop_id));
+        let lbls = self.loop_id_to_labels.get_or_new_lbls(loop_id);
         let lbl_cont = Rc::clone(&lbls.lbl_cont);
         let lbl_break = Rc::clone(&lbls.lbl_break);
 
@@ -123,24 +124,22 @@ pub struct LoopIdToLabels {
     loop_id_to_labels: HashMap<Rc<c::LoopId>, Labels>,
 }
 impl LoopIdToLabels {
-    fn get_lbl_start(loop_id: &c::LoopId) -> LabelIdentifier {
-        let name_start = format!("{}.{}.start", loop_id.descr(), loop_id.id());
-        LabelIdentifier::new(name_start)
+    fn new_lbl_start(loop_id: &c::LoopId) -> JumpLabel {
+        let [lbl_start] = JumpLabel::create(&loop_id.id, loop_id.descr, ["start"]);
+        lbl_start
     }
-    fn get_or_insert(&mut self, loop_id: Rc<c::LoopId>) -> &Labels {
+    fn get_or_new_lbls(&mut self, loop_id: Rc<c::LoopId>) -> &Labels {
         self.loop_id_to_labels
             .entry(loop_id)
             .or_insert_with_key(|loop_id| {
-                let name_break = format!("{}.{}.break", loop_id.descr(), loop_id.id());
-                let name_cont = format!("{}.{}.cont", loop_id.descr(), loop_id.id());
-                let lbl_break = Rc::new(LabelIdentifier::new(name_break));
-                let lbl_cont = Rc::new(LabelIdentifier::new(name_cont));
+                let [lbl_break, lbl_cont] =
+                    JumpLabel::create(&loop_id.id, loop_id.descr, ["break", "cont"]);
                 Labels { lbl_break, lbl_cont }
             })
     }
 }
 
 struct Labels {
-    lbl_break: Rc<LabelIdentifier>,
-    lbl_cont: Rc<LabelIdentifier>,
+    lbl_break: Rc<JumpLabel>,
+    lbl_cont: Rc<JumpLabel>,
 }

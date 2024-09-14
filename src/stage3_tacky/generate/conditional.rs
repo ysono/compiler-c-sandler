@@ -1,6 +1,9 @@
 use super::FunInstrsGenerator;
 use crate::{
-    common::types_frontend::VarType,
+    common::{
+        identifier::{JumpLabel, UniqueId},
+        types_frontend::VarType,
+    },
     stage2_parse::{c_ast as c, phase3_typecheck::TypeCheckedCAst},
     stage3_tacky::tacky_ast::*,
 };
@@ -13,7 +16,7 @@ impl<'a> FunInstrsGenerator<'a> {
     ) {
         match elze {
             None => {
-                let label_end = Rc::new(LabelIdentifier::new("stmt_cond_end".to_string()));
+                let [label_end] = JumpLabel::create(UniqueId::new(), "stmt_cond", ["end"]);
 
                 /* Begin instructions */
 
@@ -30,9 +33,8 @@ impl<'a> FunInstrsGenerator<'a> {
                 self.instrs.push(Instruction::Label(label_end));
             }
             Some(elze) => {
-                let name = &*then as *const c::Statement<TypeCheckedCAst> as usize;
-                let label_else = Rc::new(LabelIdentifier::new(format!("stmt_cond.{name:x}.else")));
-                let label_end = Rc::new(LabelIdentifier::new(format!("stmt_cond.{name:x}.end")));
+                let [label_else, label_end] =
+                    JumpLabel::create(UniqueId::new(), "stmt_cond", ["else", "end"]);
 
                 /* Begin instructions */
 
@@ -61,11 +63,10 @@ impl<'a> FunInstrsGenerator<'a> {
         c::Conditional { condition, then, elze }: c::Conditional<TypeCheckedCAst>,
         out_typ: VarType,
     ) -> ReadableValue {
-        let result = self.symbol_table.declare_var_anon(out_typ);
+        let [label_else, label_end] =
+            JumpLabel::create(UniqueId::new(), "exp_cond", ["else", "end"]);
 
-        let name = result.id().unwrap().as_int();
-        let label_else = Rc::new(LabelIdentifier::new(format!("exp_cond.{name:x}.else")));
-        let label_end = Rc::new(LabelIdentifier::new(format!("exp_cond.{name:x}.end",)));
+        let result = self.symbol_table.declare_var_anon(out_typ);
 
         /* Begin instructions */
 

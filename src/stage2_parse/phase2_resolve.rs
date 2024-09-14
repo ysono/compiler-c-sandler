@@ -5,7 +5,7 @@ mod ident_resolver;
 
 use self::ident_resolver::IdentResolver;
 use crate::{
-    common::identifier::UniqueIdentifier,
+    common::identifier::SymbolIdentifier,
     stage2_parse::{c_ast::*, phase1_parse::ParsedCAst},
 };
 use anyhow::{anyhow, Context, Result};
@@ -17,10 +17,10 @@ impl CAstVariant for ResolvedCAst {
     type FileScopeDeclaration = Declaration<Self>;
     type BlockScopeDeclaration = Declaration<Self>;
     type ForInitDeclaration = VariableDeclaration<Self>;
-    type Identifier = Rc<UniqueIdentifier>;
+    type Identifier = Rc<SymbolIdentifier>;
     type LoopId = Rc<LoopId>;
     type Expression = Expression<Self>;
-    type Lvalue = Rc<UniqueIdentifier>;
+    type Lvalue = Rc<SymbolIdentifier>;
 }
 
 #[derive(Default)]
