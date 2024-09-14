@@ -152,7 +152,7 @@ impl Driver {
             .write(true)
             .open(&asm_filepath as &PathBuf)?;
         let asm_bw = BufWriter::new(asm_file);
-        let asm_emitter = AsmCodeEmitter::new(backend_symtab, asm_bw)?;
+        let asm_emitter = AsmCodeEmitter::new(backend_symtab, asm_bw);
         asm_emitter.emit_program(asm_prog)?;
         log::info!("Compiler done -> {asm_filepath:?}");
         if self.args.until_asm_emission {

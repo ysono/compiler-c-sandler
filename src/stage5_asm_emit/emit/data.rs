@@ -23,7 +23,7 @@ impl<W: Write> AsmCodeEmitter<W> {
         let section = match init {
             Const::Int(0) | Const::Long(0) | Const::UInt(0) | Const::ULong(0) => ".bss",
             Const::Int(_) | Const::Long(_) | Const::UInt(_) | Const::ULong(_) => ".data",
-            Const::Double(_) => ".data", // Even if val==0, we don't write to `.bss`.
+            Const::Double(_) => ".data", // Even if val==0.0, we don't write to `.bss`.
         };
         self.write_static_datum(
             &ident,

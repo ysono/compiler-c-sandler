@@ -30,20 +30,14 @@ impl<W: Write> AsmCodeEmitter<W> {
                 let instr_sfx = Self::get_instr_sfx_wordlen(asm_type);
                 let bytelen = OperandByteLen::from(asm_type);
 
-                write!(&mut self.w, "{TAB}mov{instr_sfx}{TAB}")?;
-                self.write_operand(src, bytelen)?;
-                write!(&mut self.w, ", ")?;
-                self.write_operand(dst, bytelen)?;
-                writeln!(&mut self.w)?;
+                self.write_instr_two_args(("mov", instr_sfx), (src, bytelen), (dst, bytelen))?;
             }
             Instruction::Movsx { src, dst } => {
-                let instr_sfx = "lq";
-
-                write!(&mut self.w, "{TAB}movs{instr_sfx}{TAB}")?;
-                self.write_operand(src, OperandByteLen::B4)?;
-                write!(&mut self.w, ", ")?;
-                self.write_operand(dst, OperandByteLen::B8)?;
-                writeln!(&mut self.w)?;
+                self.write_instr_two_args(
+                    ("movs", "lq"),
+                    (src, OperandByteLen::B4),
+                    (dst, OperandByteLen::B8),
+                )?;
             }
             Instruction::MovZeroExtend { .. } => { /* No-op, b/c this instruction type is strictly pre-final. */
             }
@@ -52,22 +46,22 @@ impl<W: Write> AsmCodeEmitter<W> {
                 let src_bytelen = OperandByteLen::from(AssemblyType::Double);
                 let dst_bytelen = OperandByteLen::from(dst_asm_type);
 
-                write!(&mut self.w, "{TAB}cvttsd2si{instr_sfx}{TAB}")?;
-                self.write_operand(src, src_bytelen)?;
-                write!(&mut self.w, ", ")?;
-                self.write_operand(dst, dst_bytelen)?;
-                writeln!(&mut self.w)?;
+                self.write_instr_two_args(
+                    ("cvttsd2si", instr_sfx),
+                    (src, src_bytelen),
+                    (dst, dst_bytelen),
+                )?;
             }
             Instruction::Cvtsi2sd { src_asm_type, src, dst } => {
                 let instr_sfx = Self::get_instr_sfx_wordlen(src_asm_type);
                 let src_bytelen = OperandByteLen::from(src_asm_type);
                 let dst_bytelen = OperandByteLen::from(AssemblyType::Double);
 
-                write!(&mut self.w, "{TAB}cvtsi2sd{instr_sfx}{TAB}")?;
-                self.write_operand(src, src_bytelen)?;
-                write!(&mut self.w, ", ")?;
-                self.write_operand(dst, dst_bytelen)?;
-                writeln!(&mut self.w)?;
+                self.write_instr_two_args(
+                    ("cvtsi2sd", instr_sfx),
+                    (src, src_bytelen),
+                    (dst, dst_bytelen),
+                )?;
             }
             Instruction::Unary(op, asm_type, operand) => {
                 let instr = match op {
@@ -78,11 +72,10 @@ impl<W: Write> AsmCodeEmitter<W> {
                 let instr_sfx = Self::get_instr_sfx_wordlen(asm_type);
                 let bytelen = OperandByteLen::from(asm_type);
 
-                write!(&mut self.w, "{TAB}{instr}{instr_sfx}{TAB}")?;
-                self.write_operand(operand, bytelen)?;
-                writeln!(&mut self.w)?;
+                self.write_instr_one_arg((instr, instr_sfx), (operand, bytelen))?;
             }
             Instruction::Binary { op, asm_type, arg, tgt } => {
+                let regular_instr_sfx = Self::get_instr_sfx_wordlen(asm_type);
                 let (instr, instr_sfx);
                 match asm_type {
                     AssemblyType::Longword | AssemblyType::Quadword => {
@@ -97,61 +90,46 @@ impl<W: Write> AsmCodeEmitter<W> {
                             BinaryOperator::Or => "or",
                             BinaryOperator::Xor => "xor",
                         };
-                        instr_sfx = Self::get_instr_sfx_wordlen(asm_type);
+                        instr_sfx = regular_instr_sfx;
                     }
                     AssemblyType::Double => {
-                        instr = match op {
-                            BinaryOperator::Add => "addsd",
-                            BinaryOperator::Sub => "subsd",
-                            BinaryOperator::Mul => "mulsd",
-                            BinaryOperator::DivDouble => "divsd",
-                            BinaryOperator::And => panic!("Invalid instr {op:?} {asm_type:?}"),
-                            BinaryOperator::Or => panic!("Invalid instr {op:?} {asm_type:?}"),
-                            BinaryOperator::Xor => "xorpd",
+                        (instr, instr_sfx) = match op {
+                            BinaryOperator::Add => ("add", regular_instr_sfx),
+                            BinaryOperator::Sub => ("sub", regular_instr_sfx),
+                            BinaryOperator::Mul => ("mul", regular_instr_sfx),
+                            BinaryOperator::DivDouble => ("div", regular_instr_sfx),
+                            BinaryOperator::And | BinaryOperator::Or => {
+                                panic!("Invalid instr {op:?} {asm_type:?}")
+                            }
+                            BinaryOperator::Xor => ("xor", "pd"),
                         };
-                        instr_sfx = "";
                     }
                 }
                 let bytelen = OperandByteLen::from(asm_type);
 
-                /* Begin emission */
-
-                write!(&mut self.w, "{TAB}{instr}{instr_sfx}{TAB}")?;
-                self.write_operand(arg, bytelen)?;
-                write!(&mut self.w, ", ")?;
-                self.write_operand(tgt, bytelen)?;
-                writeln!(&mut self.w)?;
+                self.write_instr_two_args((instr, instr_sfx), (arg, bytelen), (tgt, bytelen))?;
             }
             Instruction::Cmp { asm_type, arg, tgt } => {
-                let (instr, instr_sfx) = match asm_type {
-                    AssemblyType::Longword | AssemblyType::Quadword => {
-                        ("cmp", Self::get_instr_sfx_wordlen(asm_type))
-                    }
-                    AssemblyType::Double => ("comisd", ""),
+                let instr = match asm_type {
+                    AssemblyType::Longword | AssemblyType::Quadword => "cmp",
+                    AssemblyType::Double => "comi",
                 };
+                let instr_sfx = Self::get_instr_sfx_wordlen(asm_type);
                 let bytelen = OperandByteLen::from(asm_type);
 
-                write!(&mut self.w, "{TAB}{instr}{instr_sfx}{TAB}")?;
-                self.write_operand(arg, bytelen)?;
-                write!(&mut self.w, ", ")?;
-                self.write_operand(tgt, bytelen)?;
-                writeln!(&mut self.w)?;
+                self.write_instr_two_args((instr, instr_sfx), (arg, bytelen), (tgt, bytelen))?;
             }
             Instruction::Idiv(asm_type, operand) => {
                 let instr_sfx = Self::get_instr_sfx_wordlen(asm_type);
                 let bytelen = OperandByteLen::from(asm_type);
 
-                write!(&mut self.w, "{TAB}idiv{instr_sfx}{TAB}")?;
-                self.write_operand(operand, bytelen)?;
-                writeln!(&mut self.w)?;
+                self.write_instr_one_arg(("idiv", instr_sfx), (operand, bytelen))?;
             }
             Instruction::Div(asm_type, operand) => {
                 let instr_sfx = Self::get_instr_sfx_wordlen(asm_type);
                 let bytelen = OperandByteLen::from(asm_type);
 
-                write!(&mut self.w, "{TAB}div{instr_sfx}{TAB}")?;
-                self.write_operand(operand, bytelen)?;
-                writeln!(&mut self.w)?;
+                self.write_instr_one_arg(("div", instr_sfx), (operand, bytelen))?;
             }
             Instruction::Cdq(asm_type) => {
                 let instr = match asm_type {
@@ -169,21 +147,19 @@ impl<W: Write> AsmCodeEmitter<W> {
             }
             Instruction::JmpCC(cc, lbl) => {
                 let instr_sfx = Self::get_instr_sfx_condition(cc);
+
                 write!(&mut self.w, "{TAB}j{instr_sfx}{TAB}")?;
                 self.write_jump_name(&lbl)?;
                 writeln!(&mut self.w)?;
             }
             Instruction::SetCC(cc, operand) => {
                 let instr_sfx = Self::get_instr_sfx_condition(cc);
-                write!(&mut self.w, "{TAB}set{instr_sfx}{TAB}")?;
-                self.write_operand(operand, OperandByteLen::B1)?;
-                writeln!(&mut self.w)?;
+
+                self.write_instr_one_arg(("set", instr_sfx), (operand, OperandByteLen::B1))?;
             }
             Instruction::Label(lbl) => self.write_jump_decl(&lbl)?,
             Instruction::Push(operand) => {
-                write!(&mut self.w, "{TAB}pushq{TAB}")?;
-                self.write_operand(operand, OperandByteLen::B8)?;
-                writeln!(&mut self.w)?;
+                self.write_instr_one_arg(("push", "q"), (operand, OperandByteLen::B8))?;
             }
             Instruction::Call(ident) => {
                 write!(&mut self.w, "{TAB}call{TAB}")?;
@@ -199,6 +175,7 @@ impl<W: Write> AsmCodeEmitter<W> {
         }
         Ok(())
     }
+
     fn get_instr_sfx_wordlen(asm_type: AssemblyType) -> &'static str {
         match asm_type {
             AssemblyType::Longword => "l",
@@ -220,6 +197,38 @@ impl<W: Write> AsmCodeEmitter<W> {
             ConditionCode::Be => "be",
         }
     }
+
+    fn write_instr_one_arg(
+        &mut self,
+        instr: (&'static str, &'static str),
+        operand: (Operand, OperandByteLen),
+    ) -> Result<(), io::Error> {
+        self.do_write_instr(instr, operand, None)
+    }
+    fn write_instr_two_args(
+        &mut self,
+        instr: (&'static str, &'static str),
+        operand1: (Operand, OperandByteLen),
+        operand2: (Operand, OperandByteLen),
+    ) -> Result<(), io::Error> {
+        self.do_write_instr(instr, operand1, Some(operand2))
+    }
+    fn do_write_instr(
+        &mut self,
+        (instr, instr_sfx): (&'static str, &'static str),
+        (operand1, operand1_bytelen): (Operand, OperandByteLen),
+        operand2: Option<(Operand, OperandByteLen)>,
+    ) -> Result<(), io::Error> {
+        write!(&mut self.w, "{TAB}{instr}{instr_sfx}{TAB}")?;
+        self.write_operand(operand1, operand1_bytelen)?;
+        if let Some((operand2, operand2_bytelen)) = operand2 {
+            write!(&mut self.w, ", ")?;
+            self.write_operand(operand2, operand2_bytelen)?;
+        }
+        writeln!(&mut self.w)?;
+        Ok(())
+    }
+
     fn write_operand(&mut self, operand: Operand, obl: OperandByteLen) -> Result<(), io::Error> {
         use OperandByteLen as OBL;
         match operand {
@@ -290,6 +299,7 @@ impl<W: Write> AsmCodeEmitter<W> {
         }
         Ok(())
     }
+
     fn write_fun_call_sfx(&mut self, ident: &SymbolIdentifier) -> Result<(), io::Error> {
         if cfg!(target_os = "linux") {
             let AsmFun { is_defined } = self.backend_symtab.funs().get(ident).unwrap();
