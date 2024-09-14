@@ -3,6 +3,7 @@ use crate::{
     common::identifier::JumpLabel,
     stage2_parse::{c_ast as c, phase3_typecheck::TypeCheckedCAst},
     stage3_tacky::tacky_ast::*,
+    utils::noop,
 };
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -90,7 +91,7 @@ impl<'a> FunInstrsGenerator<'a> {
             c::ForInit::Exp(c_exp) => {
                 self.gen_exp(c_exp);
             }
-            c::ForInit::None => {}
+            c::ForInit::None => noop!(),
         }
 
         self.instrs.push(Instruction::Label(Rc::clone(&lbl_start)));

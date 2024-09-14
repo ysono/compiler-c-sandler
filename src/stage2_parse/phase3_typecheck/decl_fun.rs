@@ -6,6 +6,7 @@ use crate::{
         types_frontend::FunType,
     },
     stage2_parse::{c_ast::*, phase2_resolve::ResolvedCAst},
+    utils::noop,
 };
 use anyhow::{anyhow, Context, Result};
 use std::collections::hash_map::Entry;
@@ -130,32 +131,30 @@ impl TypeChecker {
             }
             Entry::Occupied(mut entry) => {
                 let prev_symbol = entry.get_mut();
-                let inner = || {
-                    match prev_symbol {
-                        Symbol::Fun {
-                            typ,
-                            attrs: FunAttrs { visibility, is_defined },
-                        } => {
-                            if typ != new_typ {
-                                return Err(anyhow!("Cannot declare with 2+ types."));
-                            }
-                            match (*visibility, new_viz) {
-                                (_, Viz::PrevOrGlobal) => { /* No-op. */ }
-                                (StaticVisibility::NonGlobal, Viz::TranslUnit) => { /* No-op. */ }
-                                (StaticVisibility::Global, Viz::TranslUnit) => {
-                                    return Err(anyhow!("Cannot declare with 2+ visibilities."));
-                                }
-                            };
-                            if *is_defined && newly_defined {
-                                return Err(anyhow!("Cannot define 2+ times."));
-                            }
-
-                            *is_defined |= newly_defined;
-
-                            return Ok(*visibility);
+                let inner = || match prev_symbol {
+                    Symbol::Fun {
+                        typ,
+                        attrs: FunAttrs { visibility, is_defined },
+                    } => {
+                        if typ != new_typ {
+                            return Err(anyhow!("Cannot declare with 2+ types."));
                         }
-                        _ => return Err(anyhow!("Cannot declare with 2+ types.")),
+                        match (*visibility, new_viz) {
+                            (_, Viz::PrevOrGlobal) => noop!(),
+                            (StaticVisibility::NonGlobal, Viz::TranslUnit) => noop!(),
+                            (StaticVisibility::Global, Viz::TranslUnit) => {
+                                return Err(anyhow!("Cannot declare with 2+ visibilities."));
+                            }
+                        };
+                        if *is_defined && newly_defined {
+                            return Err(anyhow!("Cannot define 2+ times."));
+                        }
+
+                        *is_defined |= newly_defined;
+
+                        return Ok(*visibility);
                     }
+                    _ => return Err(anyhow!("Cannot declare with 2+ types.")),
                 };
                 inner().with_context(|| anyhow!("prev_symbol = {prev_symbol:?}"))
             }

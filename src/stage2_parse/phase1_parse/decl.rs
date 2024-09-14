@@ -6,6 +6,7 @@ use crate::{
     },
     stage1_lex::tokens as t,
     stage2_parse::c_ast::*,
+    utils::noop,
 };
 use anyhow::{anyhow, Context, Result};
 use std::cmp;
@@ -79,7 +80,7 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
     ) -> Result<Option<(VarType, Option<StorageClassSpecifier>)>> {
         let mut inner = || -> Result<_> {
             match self.tokens.peek() {
-                Some(Ok(t::Token::Type(_) | t::Token::StorageClassSpecifier(_))) => { /* No-op. */ }
+                Some(Ok(t::Token::Type(_) | t::Token::StorageClassSpecifier(_))) => noop!(),
                 _ => return Ok(None),
             }
 
@@ -91,7 +92,7 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
                 match self.tokens.next().unwrap().unwrap() {
                     t::Token::Type(t_typ) => typs.push(t_typ),
                     t::Token::StorageClassSpecifier(scs) => scss.push(scs),
-                    _ => { /* Impossible. */ }
+                    _ => unreachable!(),
                 }
             }
 

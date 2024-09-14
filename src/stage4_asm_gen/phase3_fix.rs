@@ -3,6 +3,7 @@
 use crate::{
     common::types_backend::AssemblyType,
     stage4_asm_gen::{asm_ast::*, phase2_finalize::FinalizedAsmAst},
+    utils::noop,
 };
 
 pub struct OperandFixer {}
@@ -45,13 +46,7 @@ impl OperandFixer {
                 )
             }
             Instruction::MovZeroExtend { src, dst } => {
-                if matches!(&dst, Operand::Register(_)) {
-                    vec![Instruction::Mov{
-                        asm_type: AssemblyType::Longword,
-                        src,
-                        dst
-                    }]
-                } else { /* Then, the operand is on memory. */
+                if dst.is_on_mem() {
                     let reg = Register::R11;
                     let instr_at_reg = Instruction::Mov{
                         asm_type: AssemblyType::Quadword,
@@ -59,6 +54,12 @@ impl OperandFixer {
                         dst,
                     };
                     Self::to_reg(AssemblyType::Longword, src, reg, instr_at_reg)
+                } else {
+                    vec![Instruction::Mov{
+                        asm_type: AssemblyType::Longword,
+                        src,
+                        dst
+                    }]
                 }
             }
             Instruction::Cvttsd2si { dst_asm_type, src, dst } => {
@@ -201,7 +202,7 @@ impl OperandFixer {
         let mut instr_to_reg2 = None;
         let mut instr_from_reg2 = None;
         match (dst_to_reg2, reg2_to_dst) {
-            (false, false) => { /* No-op. */ }
+            (false, false) => noop!(),
             (false, true) => {
                 instr_from_reg2 = Some(mov(dst_asm_type, reg2(), dst));
                 dst = reg2();

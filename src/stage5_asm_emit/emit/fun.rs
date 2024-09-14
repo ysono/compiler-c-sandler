@@ -39,7 +39,8 @@ impl<W: Write> AsmCodeEmitter<W> {
                     (dst, OperandByteLen::B8),
                 )?;
             }
-            Instruction::MovZeroExtend { .. } => { /* No-op, b/c this instruction type is strictly pre-final. */
+            Instruction::MovZeroExtend { .. } => {
+                unreachable!("MovZeroExtend is a pre-final-only instruction.")
             }
             Instruction::Cvttsd2si { dst_asm_type, src, dst } => {
                 let instr_sfx = Self::get_instr_sfx_wordlen(dst_asm_type);
@@ -84,7 +85,7 @@ impl<W: Write> AsmCodeEmitter<W> {
                             BinaryOperator::Sub => "sub",
                             BinaryOperator::Mul => "imul",
                             BinaryOperator::DivDouble => {
-                                panic!("Invalid instr {op:?} {asm_type:?}")
+                                unreachable!("Invalid instr {op:?} {asm_type:?}")
                             }
                             BinaryOperator::And => "and",
                             BinaryOperator::Or => "or",
@@ -99,7 +100,7 @@ impl<W: Write> AsmCodeEmitter<W> {
                             BinaryOperator::Mul => ("mul", regular_instr_sfx),
                             BinaryOperator::DivDouble => ("div", regular_instr_sfx),
                             BinaryOperator::And | BinaryOperator::Or => {
-                                panic!("Invalid instr {op:?} {asm_type:?}")
+                                unreachable!("Invalid instr {op:?} {asm_type:?}")
                             }
                             BinaryOperator::Xor => ("xor", "pd"),
                         };
@@ -135,7 +136,7 @@ impl<W: Write> AsmCodeEmitter<W> {
                 let instr = match asm_type {
                     AssemblyType::Longword => "cdq",
                     AssemblyType::Quadword => "cqo",
-                    AssemblyType::Double => panic!("Invalid instr cdq {asm_type:?}"),
+                    AssemblyType::Double => unreachable!("Invalid instr cdq {asm_type:?}"),
                 };
 
                 writeln!(&mut self.w, "{TAB}{instr}")?;
@@ -285,7 +286,7 @@ impl<W: Write> AsmCodeEmitter<W> {
                 let AsmObj { loc, .. } = self.backend_symtab.objs().get(&ident).unwrap();
                 match loc {
                     ObjLocation::Stack => {
-                        panic!("Operand::Data cannot refer to a stack-allocated var.")
+                        unreachable!("Operand::Data cannot refer to a stack-allocated var.")
                     }
                     ObjLocation::StaticReadWrite => {
                         self.write_symbol_name(&ident, LabelLocality::OF_STATIC_VAR)?

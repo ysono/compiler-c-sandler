@@ -7,3 +7,11 @@ mod stage2_parse;
 mod stage3_tacky;
 mod stage4_asm_gen;
 mod stage5_asm_emit;
+
+mod utils {
+    macro_rules! noop {
+        ($($comment:literal)?) => {{}}; // Empty expression
+    }
+
+    pub(crate) use noop;
+}

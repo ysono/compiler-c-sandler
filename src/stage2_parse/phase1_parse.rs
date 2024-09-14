@@ -4,7 +4,9 @@ mod decl;
 mod exp;
 mod stmt;
 
-use crate::{common::identifier::RawIdentifier, stage1_lex::tokens as t, stage2_parse::c_ast::*};
+use crate::{
+    common::identifier::RawIdentifier, stage1_lex::tokens as t, stage2_parse::c_ast::*, utils::noop,
+};
 use anyhow::{anyhow, Context, Result};
 use std::iter::Peekable;
 
@@ -98,7 +100,7 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
     fn expect_exact(&mut self, next_tokens: &[t::Token]) -> Result<()> {
         for expected in next_tokens {
             match self.tokens.next() {
-                Some(Ok(actual)) if expected == &actual => {}
+                Some(Ok(actual)) if expected == &actual => noop!(),
                 actual => return Err(anyhow!("Expected {:?} but found {:?}", expected, actual)),
             }
         }
