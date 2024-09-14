@@ -15,7 +15,7 @@ impl OperandFixer {
                 if let (AssemblyType::Longword, Operand::ImmediateValue(i)) = (asm_type, &src) {
                     /* In case this `mov` is truncating from quadword to longword,
                     zero-out the most significant bytes, in order to prevent warning from gcc's assembler. */
-                    src = Operand::ImmediateValue(*i as u32 as u64);
+                    src = Operand::ImmediateValue(*i as u32 as i64);
                 }
 
                 let src_to_reg1 =
@@ -151,6 +151,7 @@ impl OperandFixer {
                 Operand::ImmediateValue(i) => {
                     /* We might choose to change `ImmediateValue`'s wrapped rust type, which represents bits.
                     Here, we explicitly cast the bits to i64, and then evaluate its compatibility with i32. */
+                    #[allow(clippy::unnecessary_cast)]
                     let i: i64 = *i as i64;
                     i32::try_from(i).is_err()
                 }
