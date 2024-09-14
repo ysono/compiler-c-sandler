@@ -147,12 +147,7 @@ mod operand {
 
     #[derive(From, Clone, Debug)]
     pub enum Operand {
-        /// The assmebler will translate each immediate value literal into bytes.
-        /// The literal's type will be discarded in the object file.
-        /// The byte length will be interpreted automatically, according to the instruction name suffix.
-        /// The immediate value literal text can be in various formats: integer, 1e2, ....
-        /// We arbitrarily choose to emit each immediate value as unsigned integer literal.
-        ImmediateValue(u64),
+        ImmediateValue(i64),
         Register(Register),
         StackPosition(StackPosition),
         Data(Rc<SymbolIdentifier>),

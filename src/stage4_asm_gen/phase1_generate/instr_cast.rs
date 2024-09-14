@@ -129,7 +129,7 @@ impl InstrsGenerator {
                         op: BinaryOperator::Add,
                         asm_type: AssemblyType::Quadword,
                         tgt: dst,
-                        arg: Operand::ImmediateValue(i64_ceil_as_u64).into(),
+                        arg: Operand::ImmediateValue(i64_ceil_as_u64 as i64).into(),
                     }, // (i64 as u64) + (1<<63)u64
                     Instruction::Label(lbl_end),
                 ]

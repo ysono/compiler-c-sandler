@@ -62,7 +62,7 @@ impl InstrsFinalizer {
                 op: BinaryOperator::Sub,
                 asm_type: AssemblyType::Quadword,
                 tgt: Operand::Register(Register::SP),
-                arg: Operand::ImmediateValue(stack_frame_bytelen as u64),
+                arg: Operand::ImmediateValue(stack_frame_bytelen),
             });
         }
 
