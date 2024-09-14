@@ -19,12 +19,12 @@ pub struct AsmCodeEmitter<W> {
     w: W,
 }
 impl<W: Write> AsmCodeEmitter<W> {
-    pub fn new(backend_symtab: BackendSymbolTable, w: W) -> Result<Self, io::Error> {
-        Ok(Self {
+    pub fn new(backend_symtab: BackendSymbolTable, w: W) -> Self {
+        Self {
             label_bad_char: Regex::new(r"[^a-zA-Z0-9._]").unwrap(),
             backend_symtab,
             w,
-        })
+        }
     }
 
     pub fn emit_program(
