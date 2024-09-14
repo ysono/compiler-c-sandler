@@ -17,6 +17,7 @@ use crate::{
     },
     stage2_parse::{c_ast as c, phase3_typecheck::TypeCheckedCAst},
     stage3_tacky::tacky_ast::*,
+    utils::noop,
 };
 use std::rc::Rc;
 
@@ -154,7 +155,7 @@ impl<'a> FunInstrsGenerator<'a> {
                 self.gen_stmt_dowhile(loop_id, c_condbody)
             }
             c::Statement::For(loop_id, foor) => self.gen_stmt_for(loop_id, foor),
-            c::Statement::Null => { /* No-op. */ }
+            c::Statement::Null => noop!(),
         }
     }
     fn gen_exp(

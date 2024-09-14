@@ -6,6 +6,7 @@ use crate::{
         types_frontend::{Const, VarType},
     },
     stage2_parse::{c_ast::*, phase2_resolve::ResolvedCAst},
+    utils::noop,
 };
 use anyhow::{anyhow, Context, Result};
 use derive_more::From;
@@ -149,41 +150,37 @@ impl TypeChecker {
             }
             (Entry::Occupied(mut entry), Decl::StaticStorDur(Viz::Lkg(new_viz), new_init_val)) => {
                 let prev_symbol = entry.get_mut();
-                let inner = || {
-                    match prev_symbol {
-                        Symbol::Var { typ, attrs } => {
-                            if typ != &new_typ {
-                                return Err(anyhow!("Cannot declare with 2+ types."));
-                            }
-                            match attrs {
-                                #[rustfmt::skip]
+                let inner = || match prev_symbol {
+                    Symbol::Var { typ, attrs } => {
+                        if typ != &new_typ {
+                            return Err(anyhow!("Cannot declare with 2+ types."));
+                        }
+                        match attrs {
+                            #[rustfmt::skip]
                                 VarAttrs::StaticStorageDuration { visibility, initial_value } => {
                                     match (visibility, new_viz) {
-                                        (_, LViz::PrevOrGlobal) => { /* No-op. */ }
-                                        (StaticVisibility::NonGlobal, LViz::TranslUnit) => { /* No-op. */ }
+                                        (_, LViz::PrevOrGlobal) => noop!(),
+                                        (StaticVisibility::NonGlobal, LViz::TranslUnit) => noop!(),
                                         (StaticVisibility::NonGlobal, LViz::Global) => return Err(anyhow!("Cannot declare with 2+ visibilities.")),
-                                        (StaticVisibility::Global, LViz::Global) => { /* No-op. */ }
+                                        (StaticVisibility::Global, LViz::Global) => noop!(),
                                         (StaticVisibility::Global, LViz::TranslUnit) => return Err(anyhow!("Cannot declare with 2+ visibilities.")),
                                     }
                                     match (&initial_value, &new_init_val) {
-                                        (SIV::NoInitializer, SIV::NoInitializer) => { /* No-op. */ }
+                                        (SIV::NoInitializer, SIV::NoInitializer) => noop!(),
                                         (SIV::NoInitializer, SIV::Tentative | SIV::Initial(_)) => { *initial_value = new_init_val }
-                                        (SIV::Tentative, SIV::NoInitializer | SIV::Tentative) => { /* No-op. */ }
+                                        (SIV::Tentative, SIV::NoInitializer | SIV::Tentative) => noop!(),
                                         (SIV::Tentative, SIV::Initial(_)) => { *initial_value = new_init_val }
-                                        (SIV::Initial(_), SIV::NoInitializer | SIV::Tentative) => { /* No-op. */ }
+                                        (SIV::Initial(_), SIV::NoInitializer | SIV::Tentative) => noop!(),
                                         (SIV::Initial(_), SIV::Initial(_)) => return Err(anyhow!("Cannot initialize 2+ times.")),
                                     };
                                 }
-                                VarAttrs::AutomaticStorageDuration { .. } => {
-                                    return Err(anyhow!(
-                                        "Cannot declare with 2+ storage durations."
-                                    ))
-                                }
+                            VarAttrs::AutomaticStorageDuration { .. } => {
+                                return Err(anyhow!("Cannot declare with 2+ storage durations."))
                             }
-                            Ok(())
                         }
-                        _ => return Err(anyhow!("Cannot declare with 2+ types.")),
+                        Ok(())
                     }
+                    _ => return Err(anyhow!("Cannot declare with 2+ types.")),
                 };
                 inner().with_context(|| anyhow!("prev_symbol = {prev_symbol:?}"))?;
 

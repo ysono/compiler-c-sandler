@@ -1,7 +1,10 @@
 use super::{AsmCodeEmitter, TAB};
-use crate::common::{
-    identifier::{JumpLabel, SymbolIdentifier},
-    symbol_table_frontend::StaticVisibility,
+use crate::{
+    common::{
+        identifier::{JumpLabel, SymbolIdentifier},
+        symbol_table_frontend::StaticVisibility,
+    },
+    utils::noop,
 };
 use std::io::{self, Write};
 
@@ -25,7 +28,7 @@ impl<W: Write> AsmCodeEmitter<W> {
                 self.write_symbol_name(ident, locality)?;
                 writeln!(&mut self.w)?;
             }
-            StaticVisibility::NonGlobal => { /* No-op. */ }
+            StaticVisibility::NonGlobal => noop!(),
         }
         Ok(())
     }

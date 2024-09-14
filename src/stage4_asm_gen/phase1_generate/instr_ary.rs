@@ -40,7 +40,7 @@ impl InstrsGenerator {
             AssemblyType::Double => {
                 let asm_op = match t_op {
                     t::NumericUnaryOperator::Complement => {
-                        panic!("Invalid operation {t_op:?} {asm_type:?}")
+                        unreachable!("Invalid operation {t_op:?} {asm_type:?}")
                     }
                     t::NumericUnaryOperator::Negate => BinaryOperator::Xor,
                 };
@@ -119,7 +119,7 @@ impl InstrsGenerator {
                 let asm_op = match t_op {
                     t::DivRemBinaryOperator::Div => BinaryOperator::DivDouble,
                     t::DivRemBinaryOperator::Rem => {
-                        panic!("Invalid operation {t_op:?} {var_type:?}")
+                        unreachable!("Invalid operation {t_op:?} {var_type:?}")
                     }
                 };
                 self.do_gen_binary_arithmetic_instrs(asm_op, t_binary)
