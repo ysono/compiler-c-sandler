@@ -135,10 +135,7 @@ impl InstrsGenerator {
 
         /* Push the instruction that `mov`s the return value. */
         let (dst, _, dst_asm_type) = self.convert_value(dst);
-        let ret_reg = match dst_asm_type {
-            AssemblyType::Longword | AssemblyType::Quadword => Register::AX,
-            AssemblyType::Double => Register::XMM0,
-        };
+        let ret_reg = derive_return_register(dst_asm_type);
         asm_instrs.push(Instruction::Mov {
             asm_type: dst_asm_type,
             src: PreFinalOperand::Register(ret_reg),
@@ -153,14 +150,11 @@ impl InstrsGenerator {
         t_val: t::ReadableValue,
     ) -> Vec<Instruction<GeneratedAsmAst>> {
         let (src, _, asm_type) = self.convert_value(t_val);
-        let dst_reg = match asm_type {
-            AssemblyType::Longword | AssemblyType::Quadword => Register::AX,
-            AssemblyType::Double => Register::XMM0,
-        };
+        let ret_reg = derive_return_register(asm_type);
         let asm_instr_1 = Instruction::Mov {
             asm_type,
             src,
-            dst: PreFinalOperand::Register(dst_reg),
+            dst: PreFinalOperand::Register(ret_reg),
         };
 
         let asm_instr_2 = Instruction::Ret;
@@ -189,15 +183,15 @@ const FLOAT_ARG_REGS: [Register; 8] = [
 ];
 
 struct ArgRegResolver {
-    int_regs_count: usize,
-    float_regs_count: usize,
+    int_args_count: usize,
+    float_args_count: usize,
 }
 #[allow(clippy::derivable_impls)]
 impl Default for ArgRegResolver {
     fn default() -> Self {
         Self {
-            int_regs_count: 0,
-            float_regs_count: 0,
+            int_args_count: 0,
+            float_args_count: 0,
         }
     }
 }
@@ -205,15 +199,22 @@ impl ArgRegResolver {
     fn next_reg(&mut self, arg_type: VarType) -> Option<Register> {
         match arg_type {
             VarType::Int | VarType::Long | VarType::UInt | VarType::ULong => {
-                let ret = INT_ARG_REGS.get(self.int_regs_count).cloned();
-                self.int_regs_count += 1;
+                let ret = INT_ARG_REGS.get(self.int_args_count).cloned();
+                self.int_args_count += 1;
                 ret
             }
             VarType::Double => {
-                let ret = FLOAT_ARG_REGS.get(self.float_regs_count).cloned();
-                self.float_regs_count += 1;
+                let ret = FLOAT_ARG_REGS.get(self.float_args_count).cloned();
+                self.float_args_count += 1;
                 ret
             }
         }
+    }
+}
+
+fn derive_return_register(asm_type: AssemblyType) -> Register {
+    match asm_type {
+        AssemblyType::Longword | AssemblyType::Quadword => Register::AX,
+        AssemblyType::Double => Register::XMM0,
     }
 }
