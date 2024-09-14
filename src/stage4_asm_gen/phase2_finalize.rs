@@ -61,7 +61,7 @@ impl InstrsFinalizer {
             out_instrs.push_front(Instruction::Binary {
                 op: BinaryOperator::Sub,
                 asm_type: AssemblyType::Quadword,
-                tgt: Register::SP.into(),
+                tgt: Operand::Register(Register::SP),
                 arg: Operand::ImmediateValue(stack_frame_bytelen as u64),
             });
         }
@@ -138,12 +138,8 @@ impl InstrsFinalizer {
         })
     }
     fn convert_operand(&mut self, pfo: PreFinalOperand) -> Operand {
-        use PreFinalOperand as PFO;
         match pfo {
-            PFO::ImmediateValue(i) => Operand::ImmediateValue(i),
-            PFO::Register(r) => Operand::Register(r),
-            PFO::StackPosition(s) => Operand::StackPosition(s),
-            PFO::Data(ident) => Operand::Data(ident),
+            PreFinalOperand::O(operand) => operand,
             PreFinalOperand::Pseudo(ident) => {
                 let AsmObj { asm_type, loc } = self.backend_symtab.objs().get(&ident).unwrap();
                 match loc {

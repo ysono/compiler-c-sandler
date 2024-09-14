@@ -68,16 +68,16 @@ impl InstrsGenerator {
         let (dst, _, uint_asm_type) = self.convert_value(dst);
         match uint_asm_type {
             AssemblyType::Longword => {
-                let gp_reg = PreFinalOperand::Register(Register::AX);
+                let gp_reg = || Operand::Register(Register::AX).into();
                 vec![
                     Instruction::Cvttsd2si {
                         dst_asm_type: AssemblyType::Quadword,
                         src,
-                        dst: gp_reg.clone(),
+                        dst: gp_reg(),
                     }, // f64 to i64
                     Instruction::Mov {
                         asm_type: AssemblyType::Longword,
-                        src: gp_reg,
+                        src: gp_reg(),
                         dst,
                     }, // i64 to u32
                 ]
@@ -91,7 +91,7 @@ impl InstrsGenerator {
                 let [lbl_out_of_range, lbl_end] =
                     JumpLabel::create(UniqueId::new(), "f64_u64", ["oor", "end"]);
 
-                let sse_reg = PreFinalOperand::Register(Register::XMM0);
+                let sse_reg = || Operand::Register(Register::XMM0).into();
 
                 vec![
                     Instruction::Cmp {
@@ -112,24 +112,24 @@ impl InstrsGenerator {
                     Instruction::Mov {
                         asm_type: AssemblyType::Double,
                         src,
-                        dst: sse_reg.clone(),
+                        dst: sse_reg(),
                     },
                     Instruction::Binary {
                         op: BinaryOperator::Sub,
                         asm_type: AssemblyType::Double,
-                        tgt: sse_reg.clone(),
+                        tgt: sse_reg(),
                         arg: i64_ceil_as_f64,
                     }, // src f64 - (1<<63)f64
                     Instruction::Cvttsd2si {
                         dst_asm_type: AssemblyType::Quadword,
-                        src: sse_reg,
+                        src: sse_reg(),
                         dst: dst.clone(),
                     }, // ( src f64 - (1<<63)f64 ) as i64
                     Instruction::Binary {
                         op: BinaryOperator::Add,
                         asm_type: AssemblyType::Quadword,
                         tgt: dst,
-                        arg: PreFinalOperand::ImmediateValue(i64_ceil_as_u64),
+                        arg: Operand::ImmediateValue(i64_ceil_as_u64).into(),
                     }, // (i64 as u64) + (1<<63)u64
                     Instruction::Label(lbl_end),
                 ]
@@ -147,7 +147,7 @@ impl InstrsGenerator {
         let (dst, _, _) = self.convert_value(dst);
         match uint_asm_type {
             AssemblyType::Longword => {
-                let gp_reg = || PreFinalOperand::Register(Register::AX);
+                let gp_reg = || Operand::Register(Register::AX).into();
                 vec![
                     Instruction::MovZeroExtend { src, dst: gp_reg() }, // u32 to u64
                     Instruction::Cvtsi2sd {
@@ -161,14 +161,14 @@ impl InstrsGenerator {
                 let [lbl_out_of_range, lbl_end] =
                     JumpLabel::create(UniqueId::new(), "u64_f64", ["oor", "end"]);
 
-                let gp_reg_1 = PreFinalOperand::Register(Register::AX);
-                let gp_reg_2 = PreFinalOperand::Register(Register::DX);
+                let gp_reg_1 = || Operand::Register(Register::AX).into();
+                let gp_reg_2 = || Operand::Register(Register::DX).into();
 
                 vec![
                     Instruction::Cmp {
                         asm_type: AssemblyType::Quadword,
                         tgt: src.clone(),
-                        arg: PreFinalOperand::ImmediateValue(0),
+                        arg: Operand::ImmediateValue(0).into(),
                     },
                     Instruction::JmpCC(ConditionCode::L, Rc::clone(&lbl_out_of_range)),
                     /* Below: iff src i64 >= 0, ie u64 < (1<<63) */
@@ -183,33 +183,29 @@ impl InstrsGenerator {
                     Instruction::Mov {
                         asm_type: AssemblyType::Quadword,
                         src,
-                        dst: gp_reg_1.clone(),
+                        dst: gp_reg_1(),
                     },
                     Instruction::Mov {
                         asm_type: AssemblyType::Quadword,
-                        src: gp_reg_1.clone(),
-                        dst: gp_reg_2.clone(),
+                        src: gp_reg_1(),
+                        dst: gp_reg_2(),
                     },
-                    Instruction::Unary(
-                        UnaryOperator::Shr,
-                        AssemblyType::Quadword,
-                        gp_reg_2.clone(),
-                    ), // src u64 >> 1
+                    Instruction::Unary(UnaryOperator::Shr, AssemblyType::Quadword, gp_reg_2()), // src u64 >> 1
                     Instruction::Binary {
                         op: BinaryOperator::And,
                         asm_type: AssemblyType::Quadword,
-                        arg: PreFinalOperand::ImmediateValue(1),
-                        tgt: gp_reg_1.clone(),
+                        arg: Operand::ImmediateValue(1).into(),
+                        tgt: gp_reg_1(),
                     }, // src u64 & 1
                     Instruction::Binary {
                         op: BinaryOperator::Or,
                         asm_type: AssemblyType::Quadword,
-                        arg: gp_reg_1,
-                        tgt: gp_reg_2.clone(),
+                        arg: gp_reg_1(),
+                        tgt: gp_reg_2(),
                     }, // (src u64 >> 1) | (src u64 & 1)
                     Instruction::Cvtsi2sd {
                         src_asm_type: AssemblyType::Quadword,
-                        src: gp_reg_2,
+                        src: gp_reg_2(),
                         dst: dst.clone(),
                     }, // ( (src u64 >> 1) | (src u64 & 1) ) as f64
                     Instruction::Binary {
