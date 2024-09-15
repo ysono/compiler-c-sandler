@@ -39,7 +39,7 @@ impl TypeChecker {
                     None => None,
                     Some(init) => {
                         let init = self.typecheck_exp(init)?;
-                        let init = Self::maybe_cast_exp(typ, init);
+                        let init = Self::cast_implicitly(&typ, init)?;
 
                         Some(VariableDefinition { ident, init })
                     }
@@ -84,7 +84,7 @@ impl TypeChecker {
         let siv = |init_exp: &Expression<ResolvedCAst>| {
             match init_exp {
                 Expression::Const(konst) => {
-                    let konst = konst.cast_to(new_typ);
+                    let konst = konst.cast_at_compile_time(new_typ)?;
                     Ok(StaticInitialValue::Initial(konst))
                 }
                 _ => Err(anyhow!("On type=var w/ storage_duration=static, initializer, if present, must be constexpr. Only a simple const is supported."))
