@@ -20,7 +20,7 @@ impl CAstVariant for ResolvedCAst {
     type Identifier = Rc<SymbolIdentifier>;
     type LoopId = Rc<LoopId>;
     type Expression = Expression<Self>;
-    type Lvalue = Rc<SymbolIdentifier>;
+    type LvalueExpression = Expression<Self>;
 }
 
 #[derive(Default)]
@@ -299,19 +299,11 @@ impl CAstValidator {
                     let rhs = Box::new(self.resolve_exp(*rhs)?);
                     Expression::Binary(Binary { op, lhs, rhs })
                 }
-                Expression::Assignment(Assignment { lhs, rhs }) => match *lhs {
-                    // Does transform.
-                    Expression::Var(ident) => {
-                        let lhs = self.ident_resolver.get(&ident)?;
-                        let rhs = Box::new(self.resolve_exp(*rhs)?);
-                        Expression::Assignment(Assignment { lhs, rhs })
-                    }
-                    _ => {
-                        return Err(anyhow!(
-                            "Assignment LHS must be an lvalue, but found {lhs:?}"
-                        ))
-                    }
-                },
+                Expression::Assignment(Assignment { lhs, rhs }) => {
+                    let lhs = Box::new(self.resolve_exp(*lhs)?);
+                    let rhs = Box::new(self.resolve_exp(*rhs)?);
+                    Expression::Assignment(Assignment { lhs, rhs })
+                }
                 Expression::Conditional(Conditional { condition, then, elze }) => {
                     let condition = Box::new(self.resolve_exp(*condition)?);
                     let then = Box::new(self.resolve_exp(*then)?);
@@ -326,6 +318,14 @@ impl CAstValidator {
                         .map(|exp| self.resolve_exp(exp))
                         .collect::<Result<Vec<_>>>()?;
                     Expression::FunctionCall(FunctionCall { ident, args })
+                }
+                Expression::Dereference(Dereference(exp)) => {
+                    let exp = Box::new(self.resolve_exp(*exp)?);
+                    Expression::Dereference(Dereference(exp))
+                }
+                Expression::AddrOf(AddrOf(exp)) => {
+                    let exp = Box::new(self.resolve_exp(*exp)?);
+                    Expression::AddrOf(AddrOf(exp))
                 }
             };
             Ok(exp)

@@ -27,7 +27,7 @@ impl CAstVariant for ParsedCAst {
     type Identifier = RawIdentifier;
     type LoopId = ();
     type Expression = Expression<Self>;
-    type Lvalue = Box<Expression<Self>>;
+    type LvalueExpression = Expression<Self>;
 }
 
 #[derive(Into)]
@@ -53,7 +53,7 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
                 match self.tokens.peek() {
                     None => break,
                     _ => {
-                        let decl = self.maybe_parse_decl()?.ok_or_else(|| {
+                        let decl = self.maybe_parse_declaration()?.ok_or_else(|| {
                             let actual = self.tokens.peek();
                             anyhow!("Expected <declaration> but found {actual:?}")
                         })?;
@@ -92,7 +92,7 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
     }
     fn parse_block_item(&mut self) -> Result<BlockItem<ParsedCAst>> {
         let mut inner = || -> Result<_> {
-            match self.maybe_parse_decl()? {
+            match self.maybe_parse_declaration()? {
                 Some(decl) => Ok(BlockItem::Declaration(decl)),
                 None => self.parse_stmt().map(BlockItem::Statement),
             }

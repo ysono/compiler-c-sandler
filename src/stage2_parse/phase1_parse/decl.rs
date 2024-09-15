@@ -2,7 +2,7 @@ use super::{ParsedCAst, Parser};
 use crate::{
     common::{
         identifier::RawIdentifier,
-        types_frontend::{ArithmeticType, FunType, VarType},
+        types_frontend::{ArithmeticType, FunType, Type, VarType},
     },
     ds_n_a::singleton::Singleton,
     stage1_lex::tokens as t,
@@ -13,73 +13,50 @@ use anyhow::{anyhow, Context, Result};
 use std::cmp;
 
 impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
-    pub(super) fn maybe_parse_decl(&mut self) -> Result<Option<Declaration<ParsedCAst>>> {
+    /* Non-abstract declaration */
+
+    pub(super) fn maybe_parse_declaration(&mut self) -> Result<Option<Declaration<ParsedCAst>>> {
         let mut inner = || -> Result<_> {
-            let (ari_typ, storage_class) = match self.maybe_parse_specifiers()? {
+            let (base_ari_type, storage_class) = match self.maybe_parse_specifiers()? {
                 None => return Ok(None),
-                Some((t, sc)) => (t, sc),
-            };
-            let typ = self.var_type_repo.get_or_new(ari_typ.into());
-
-            let ident = match self.tokens.next() {
-                Some(Ok(t::Token::Identifier(ident))) => ident,
-                actual => return Err(anyhow!("{actual:?}")),
+                Some(specifiers) => specifiers,
             };
 
-            match self.tokens.next() {
-                Some(Ok(t::Token::Demarcator(t::Demarcator::Semicolon))) => {
-                    Ok(Some(Declaration::Var(VariableDeclaration {
+            let declarator = self
+                .parse_declarator()
+                .context("<declarator>, from tokens to intermediary repr")?;
+
+            let base_type = self.var_type_repo.get_or_new(base_ari_type.into());
+            let (ident, final_type, param_idents) = self
+                .derive_declared_type(base_type, declarator)
+                .context("<declarator>, from intermediary repr to final type")?;
+
+            let declaration = match final_type {
+                Type::Var(typ) => {
+                    let init = self.parse_var_init()?;
+
+                    let decl = VariableDeclaration { ident, typ, storage_class, init };
+                    Declaration::Var(decl)
+                }
+                Type::Fun(typ) => {
+                    let body = self.parse_fun_body()?;
+
+                    let decl = FunctionDeclaration {
                         ident,
                         typ,
-                        storage_class,
-                        init: None,
-                    })))
-                }
-                Some(Ok(t::Token::Operator(t::Operator::Assign))) => {
-                    let init = self.parse_exp()?;
-
-                    self.expect_exact(&[t::Demarcator::Semicolon.into()])?;
-
-                    Ok(Some(Declaration::Var(VariableDeclaration {
-                        ident,
-                        typ,
-                        storage_class,
-                        init: Some(init),
-                    })))
-                }
-                Some(Ok(t::Token::Demarcator(t::Demarcator::ParenOpen))) => {
-                    let (param_typs, param_idents) = self.parse_param_list()?;
-
-                    self.expect_exact(&[t::Demarcator::ParenClose.into()])?;
-
-                    let body = match self.tokens.peek() {
-                        Some(Ok(t::Token::Demarcator(t::Demarcator::Semicolon))) => {
-                            self.tokens.next();
-                            None
-                        }
-                        _ => {
-                            let body = self.parse_block()?;
-                            Some(body)
-                        }
-                    };
-
-                    let fun_type = FunType { params: param_typs, ret: typ };
-                    let fun_type = self.fun_type_repo.get_or_new(fun_type);
-
-                    Ok(Some(Declaration::Fun(FunctionDeclaration {
-                        ident,
-                        typ: fun_type,
                         storage_class,
                         param_idents,
                         body,
-                    })))
+                    };
+                    Declaration::Fun(decl)
                 }
-                actual => Err(anyhow!("{actual:?}")),
-            }
+            };
+            Ok(Some(declaration))
         };
         inner().context("<declaration>")
     }
-    pub(super) fn maybe_parse_specifiers(
+
+    fn maybe_parse_specifiers(
         &mut self,
     ) -> Result<Option<(ArithmeticType, Option<StorageClassSpecifier>)>> {
         let mut inner = || -> Result<_> {
@@ -104,7 +81,6 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
             typs[..expected_max_len].sort();
 
             let ari_type = match &typs[..] {
-                /* In each pattern below, items must be sorted by the `t::Type` enum type's discriminants. */
                 [t::Type::Int] => ArithmeticType::Int,
                 [t::Type::Int, t::Type::Long] => ArithmeticType::Long,
                 [t::Type::Int, t::Type::Long, t::Type::Signed] => ArithmeticType::Long,
@@ -129,33 +105,78 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
 
             Ok(Some((ari_type, scs)))
         };
-        inner().context("<declaration> specifiers")
+        inner().context("<specifier>+")
     }
-    fn parse_param_list(&mut self) -> Result<(Vec<Singleton<VarType>>, Vec<RawIdentifier>)> {
+
+    fn parse_declarator(&mut self) -> Result<Declarator> {
+        let mut inner = || -> Result<_> {
+            match self.tokens.peek() {
+                Some(Ok(t::Token::Operator(t::Operator::Star))) => {
+                    self.tokens.next();
+
+                    let sub_declarator = self.parse_declarator()?;
+
+                    Ok(Declarator::Pointer(Box::new(sub_declarator)))
+                }
+                _ => self.parse_direct_declarator(),
+            }
+        };
+        inner().context("<declarator>")
+    }
+    fn parse_direct_declarator(&mut self) -> Result<Declarator> {
+        let mut inner = || -> Result<_> {
+            let mut lhs_declarator = self.parse_simple_declarator()?;
+
+            while let Some(Ok(t::Token::Demarcator(t::Demarcator::ParenOpen))) = self.tokens.peek()
+            {
+                self.tokens.next();
+
+                let params = self.parse_param_list()?;
+
+                self.expect_exact(&[t::Demarcator::ParenClose.into()])?;
+
+                lhs_declarator = Declarator::Fun(params, Box::new(lhs_declarator));
+            }
+
+            Ok(lhs_declarator)
+        };
+        inner().context("<direct-declarator>")
+    }
+    fn parse_simple_declarator(&mut self) -> Result<Declarator> {
+        let mut inner = || -> Result<_> {
+            match self.tokens.next() {
+                Some(Ok(t::Token::Identifier(ident))) => Ok(Declarator::Ident(ident)),
+                Some(Ok(t::Token::Demarcator(t::Demarcator::ParenOpen))) => {
+                    let declarator = self.parse_declarator()?;
+
+                    self.expect_exact(&[t::Demarcator::ParenClose.into()])?;
+
+                    Ok(declarator)
+                }
+                actual => Err(anyhow!("{actual:?}")),
+            }
+        };
+        inner().context("<simple-declarator>")
+    }
+    fn parse_param_list(&mut self) -> Result<Vec<Param>> {
         let mut inner = || -> Result<_> {
             match self.tokens.peek() {
                 Some(Ok(t::Token::Type(t::Type::Void))) => {
                     self.tokens.next();
-
-                    Ok((Vec::with_capacity(0), Vec::with_capacity(0)))
+                    Ok(Vec::with_capacity(0))
                 }
                 _ => {
-                    let mut typs = vec![];
-                    let mut idents = vec![];
+                    let mut params = vec![];
 
                     loop {
-                        match self.maybe_parse_specifiers()? {
-                            Some((ari_typ, None)) => {
-                                let typ = self.var_type_repo.get_or_new(ari_typ.into());
-                                typs.push(typ)
-                            }
+                        let param_ari_type = match self.maybe_parse_specifiers()? {
+                            Some((t, None)) => t,
                             actual => return Err(anyhow!("{actual:?}")),
                         };
 
-                        match self.tokens.next() {
-                            Some(Ok(t::Token::Identifier(ident))) => idents.push(ident),
-                            actual => return Err(anyhow!("{actual:?}")),
-                        }
+                        let declarator = self.parse_declarator()?;
+
+                        params.push(Param(param_ari_type, declarator));
 
                         match self.tokens.peek() {
                             Some(Ok(t::Token::Demarcator(t::Demarcator::Comma))) => {
@@ -166,10 +187,169 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
                         }
                     }
 
-                    Ok((typs, idents))
+                    Ok(params)
                 }
             }
         };
         inner().context("<param-list>")
     }
+
+    fn derive_declared_type(
+        &mut self,
+        base_type: Singleton<VarType>,
+        declarator: Declarator,
+    ) -> Result<(RawIdentifier, Type, Vec<RawIdentifier>)> {
+        let inner = || -> Result<_> {
+            match declarator {
+                Declarator::Pointer(sub_declarator) => {
+                    let curr_type = self.var_type_repo.get_or_new(VarType::Pointer(base_type));
+                    self.derive_declared_type(curr_type, *sub_declarator)
+                }
+                Declarator::Fun(params, sub_declarator) => match *sub_declarator {
+                    Declarator::Ident(ident) => {
+                        let mut param_types = Vec::with_capacity(params.len());
+                        let mut param_idents = Vec::with_capacity(params.len());
+                        for Param(param_base_ari_type, param_declarator) in params {
+                            let param_base_type =
+                                self.var_type_repo.get_or_new(param_base_ari_type.into());
+                            let (param_ident, param_type, _) =
+                                self.derive_declared_type(param_base_type, param_declarator)?;
+                            let param_type = match param_type {
+                                Type::Var(t) => t,
+                                Type::Fun(t) => {
+                                    return Err(anyhow!(
+                                        "Function parameters aren't supported. {t:?}"
+                                    ))
+                                }
+                            };
+                            param_types.push(param_type);
+                            param_idents.push(param_ident);
+                        }
+
+                        let fun_type = FunType {
+                            params: param_types,
+                            ret: base_type,
+                        };
+                        let fun_type = self.fun_type_repo.get_or_new(fun_type);
+
+                        Ok((ident, Type::Fun(fun_type), param_idents))
+                    }
+                    Declarator::Fun(..) => {
+                        Err(anyhow!("In C, a function can't return a function."))
+                    }
+                    Declarator::Pointer(_) => Err(anyhow!("Function pointers aren't supported.")),
+                },
+                Declarator::Ident(ident) => {
+                    Ok((ident, Type::Var(base_type), Vec::with_capacity(0)))
+                }
+            }
+        };
+        inner().context("(declarator intermediary repr)")
+    }
+
+    fn parse_var_init(&mut self) -> Result<Option<Expression<ParsedCAst>>> {
+        let mut inner = || -> Result<_> {
+            match self.tokens.next() {
+                Some(Ok(t::Token::Demarcator(t::Demarcator::Semicolon))) => Ok(None),
+                Some(Ok(t::Token::Operator(t::Operator::Assign))) => {
+                    let init = self.parse_exp()?;
+
+                    self.expect_exact(&[t::Demarcator::Semicolon.into()])?;
+
+                    Ok(Some(init))
+                }
+                actual => Err(anyhow!("{actual:?}")),
+            }
+        };
+        inner().context("<variable-declaration> initializer")
+    }
+
+    fn parse_fun_body(&mut self) -> Result<Option<Block<ParsedCAst>>> {
+        let mut inner = || -> Result<_> {
+            match self.tokens.peek() {
+                Some(Ok(t::Token::Demarcator(t::Demarcator::Semicolon))) => {
+                    self.tokens.next();
+                    Ok(None)
+                }
+                _ => self.parse_block().map(Some),
+            }
+        };
+        inner().context("<function-declaration> body")
+    }
+
+    /* Abstract declaration */
+
+    pub(super) fn parse_abstract_declaration(&mut self) -> Result<Option<Singleton<VarType>>> {
+        let mut inner = || -> Result<_> {
+            let (base_ari_type, storage_class) = match self.maybe_parse_specifiers()? {
+                None => return Ok(None),
+                Some(specifiers) => specifiers,
+            };
+
+            if storage_class.is_some() {
+                return Err(anyhow!("{storage_class:?}"));
+            }
+
+            let declarator = self
+                .parse_abstract_declarator()
+                .context("<abstract-declarator>, from tokens to intermediary repr")?;
+
+            let base_type = self.var_type_repo.get_or_new(base_ari_type.into());
+            let final_type = self.derive_abstract_declared_type(base_type, declarator);
+            Ok(Some(final_type))
+        };
+        inner().context("<abstract-declarator>")
+    }
+
+    fn parse_abstract_declarator(&mut self) -> Result<AbstractDeclarator> {
+        let mut inner = || -> Result<_> {
+            match self.tokens.peek() {
+                Some(Ok(t::Token::Operator(t::Operator::Star))) => {
+                    self.tokens.next();
+
+                    let sub_declarator = self.parse_abstract_declarator()?;
+
+                    let curr_declarator = AbstractDeclarator::Pointer(Box::new(sub_declarator));
+                    Ok(curr_declarator)
+                }
+                Some(Ok(t::Token::Demarcator(t::Demarcator::ParenOpen))) => {
+                    self.tokens.next();
+
+                    let declarator = self.parse_abstract_declarator()?;
+
+                    self.expect_exact(&[t::Demarcator::ParenClose.into()])?;
+
+                    Ok(declarator)
+                }
+                _ => Ok(AbstractDeclarator::Base),
+            }
+        };
+        inner().context("<abstract-declarator>")
+    }
+
+    fn derive_abstract_declared_type(
+        &mut self,
+        base_type: Singleton<VarType>,
+        declarator: AbstractDeclarator,
+    ) -> Singleton<VarType> {
+        match declarator {
+            AbstractDeclarator::Pointer(sub_declarator) => {
+                let curr_type = self.var_type_repo.get_or_new(VarType::Pointer(base_type));
+                self.derive_abstract_declared_type(curr_type, *sub_declarator)
+            }
+            AbstractDeclarator::Base => base_type,
+        }
+    }
+}
+
+enum Declarator {
+    Pointer(Box<Declarator>),
+    Fun(Vec<Param>, Box<Declarator>),
+    Ident(RawIdentifier),
+}
+struct Param(ArithmeticType, Declarator);
+
+enum AbstractDeclarator {
+    Pointer(Box<AbstractDeclarator>),
+    Base,
 }

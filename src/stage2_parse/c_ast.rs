@@ -18,7 +18,7 @@ pub trait CAstVariant {
     type Identifier: Debug;
     type LoopId: Debug;
     type Expression: Debug;
-    type Lvalue: Debug;
+    type LvalueExpression: Debug;
 }
 
 #[derive(Debug)]
@@ -136,8 +136,8 @@ mod statement {
 }
 
 #[derive(Debug)]
-pub struct TypedExpression<T: CAstVariant> {
-    pub exp: Expression<T>,
+pub struct TypedExpression<Exp> {
+    pub exp: Exp,
     pub typ: Singleton<VarType>,
 }
 #[derive(Debug)]
@@ -150,6 +150,8 @@ pub enum Expression<T: CAstVariant> {
     Assignment(Assignment<T>),
     Conditional(Conditional<T>),
     FunctionCall(FunctionCall<T>),
+    Dereference(Dereference<T>),
+    AddrOf(AddrOf<T>),
 }
 mod expression {
     use super::*;
@@ -184,16 +186,16 @@ mod expression {
 
     #[derive(Debug)]
     pub enum BinaryOperator {
-        /* -> int */
+        /* arithmetic */
         Sub,
         Add,
         Mul,
         Div,
         Rem,
-        /* -(logic)-> bool */
+        /* logic */
         And,
         Or,
-        /* -(compare)-> bool */
+        /* compare */
         Eq,
         Neq,
         Lt,
@@ -204,7 +206,7 @@ mod expression {
 
     #[derive(Debug)]
     pub struct Assignment<T: CAstVariant> {
-        pub lhs: T::Lvalue,
+        pub lhs: Box<T::LvalueExpression>,
         pub rhs: Box<T::Expression>,
     }
 
@@ -220,4 +222,10 @@ mod expression {
         pub ident: T::Identifier,
         pub args: Vec<T::Expression>,
     }
+
+    #[derive(Debug)]
+    pub struct Dereference<T: CAstVariant>(pub Box<T::Expression>);
+
+    #[derive(Debug)]
+    pub struct AddrOf<T: CAstVariant>(pub Box<T::LvalueExpression>);
 }

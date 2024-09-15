@@ -73,48 +73,60 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
     fn parse_factor(&mut self) -> Result<Expression<ParsedCAst>> {
         let mut inner = || -> Result<_> {
             match self.tokens.next() {
-                Some(Ok(t::Token::Const(konst))) => return Ok(Expression::Const(konst)),
+                Some(Ok(t::Token::Const(konst))) => Ok(Expression::Const(konst)),
                 Some(Ok(t::Token::Identifier(ident))) => match self.tokens.peek() {
                     Some(Ok(t::Token::Demarcator(t::Demarcator::ParenOpen))) => {
                         let args = self.parse_arg_list()?;
-                        return Ok(Expression::FunctionCall(FunctionCall { ident, args }));
+                        Ok(Expression::FunctionCall(FunctionCall { ident, args }))
                     }
-                    _ => return Ok(Expression::Var(ident)),
+                    _ => Ok(Expression::Var(ident)),
                 },
-                Some(Ok(t::Token::Operator(t_op))) => {
-                    let c_op_unary = match t_op {
-                        t::Operator::Tilde => UnaryOperator::Complement,
-                        t::Operator::Minus => UnaryOperator::Negate,
-                        t::Operator::Not => UnaryOperator::Not,
-                        actual => return Err(anyhow!("{actual:?}")),
-                    };
-                    let exp = self.parse_factor()?;
-                    return Ok(Expression::Unary(Unary {
-                        op: c_op_unary,
-                        sub_exp: Box::new(exp),
-                    }));
-                }
+                Some(Ok(t::Token::Operator(t_op))) => self.parse_unary(t_op),
                 Some(Ok(t::Token::Demarcator(t::Demarcator::ParenOpen))) => {
-                    match self.maybe_parse_specifiers()? {
-                        Some((ari_typ, None)) => {
+                    match self.parse_abstract_declaration()? {
+                        Some(typ) => {
                             self.expect_exact(&[t::Demarcator::ParenClose.into()])?;
-                            let factor = self.parse_factor()?;
-                            let typ = self.var_type_repo.get_or_new(ari_typ.into());
-                            let sub_exp = Box::new(factor);
-                            return Ok(Expression::Cast(Cast { typ, sub_exp }));
+
+                            let sub_exp = Box::new(self.parse_factor()?);
+
+                            Ok(Expression::Cast(Cast { typ, sub_exp }))
                         }
-                        Some(actual) => return Err(anyhow!("{actual:?}")),
                         None => {
                             let exp = self.do_parse_exp(BinaryOperatorPrecedence::min())?;
+
                             self.expect_exact(&[t::Demarcator::ParenClose.into()])?;
-                            return Ok(exp);
+
+                            Ok(exp)
                         }
                     }
                 }
-                actual => return Err(anyhow!("{actual:?}")),
+                actual => Err(anyhow!("{actual:?}")),
             }
         };
         inner().context("<factor>")
+    }
+    fn parse_unary(&mut self, t_op: t::Operator) -> Result<Expression<ParsedCAst>> {
+        let inner = || -> Result<_> {
+            let mut new_unary = |op: UnaryOperator| {
+                let exp = self.parse_factor()?;
+                Ok(Expression::Unary(Unary { op, sub_exp: Box::new(exp) }))
+            };
+            match t_op {
+                t::Operator::Tilde => new_unary(UnaryOperator::Complement),
+                t::Operator::Minus => new_unary(UnaryOperator::Negate),
+                t::Operator::Bang => new_unary(UnaryOperator::Not),
+                t::Operator::Star => {
+                    let exp = Box::new(self.parse_factor()?);
+                    Ok(Expression::Dereference(Dereference(exp)))
+                }
+                t::Operator::Ampersand => {
+                    let exp = Box::new(self.parse_factor()?);
+                    Ok(Expression::AddrOf(AddrOf(exp)))
+                }
+                actual => Err(anyhow!("{actual:?}")),
+            }
+        };
+        inner().context("<factor> unary")
     }
     fn parse_arg_list(&mut self) -> Result<Vec<Expression<ParsedCAst>>> {
         let mut inner = || -> Result<_> {
