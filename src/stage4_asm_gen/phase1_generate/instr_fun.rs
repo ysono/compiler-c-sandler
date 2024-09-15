@@ -140,7 +140,7 @@ impl InstrsGenerator {
 
     pub(super) fn gen_return_instrs(
         &mut self,
-        t_val: t::ReadableValue,
+        t_val: t::Value,
     ) -> Vec<Instruction<GeneratedAsmAst>> {
         let (src, _, asm_type) = self.value_to_operand_and_type(t_val);
         let ret_reg = derive_return_register(asm_type);

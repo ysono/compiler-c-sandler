@@ -34,7 +34,7 @@ pub struct Function {
 
 #[derive(Debug)]
 pub enum Instruction {
-    Return(ReadableValue),
+    Return(Value),
     SignExtend(SrcDst),
     Truncate(SrcDst),
     ZeroExtend(SrcDst),
@@ -55,28 +55,28 @@ mod instruction {
 
     #[derive(Debug)]
     pub struct SrcDst {
-        pub src: ReadableValue,
+        pub src: Value,
         pub dst: Rc<SymbolIdentifier>,
     }
 
     #[derive(Debug)]
     pub struct Unary {
         pub op: UnaryOperator,
-        pub src: ReadableValue,
+        pub src: Value,
         pub dst: Rc<SymbolIdentifier>,
     }
 
     #[derive(Debug)]
     pub struct Binary {
         pub op: BinaryOperator,
-        pub lhs: ReadableValue,
-        pub rhs: ReadableValue,
+        pub lhs: Value,
+        pub rhs: Value,
         pub dst: Rc<SymbolIdentifier>,
     }
 
     #[derive(Debug)]
     pub struct JumpIf {
-        pub condition: ReadableValue,
+        pub condition: Value,
         pub jump_crit: JumpCriterion,
         pub lbl: Rc<JumpLabel>,
     }
@@ -89,7 +89,7 @@ mod instruction {
     #[derive(Debug)]
     pub struct FunCall {
         pub ident: Rc<SymbolIdentifier>,
-        pub args: Vec<ReadableValue>,
+        pub args: Vec<Value>,
         pub dst: Rc<SymbolIdentifier>,
     }
 }
@@ -144,7 +144,7 @@ mod operator {
 }
 
 #[derive(From, Debug)]
-pub enum ReadableValue {
+pub enum Value {
     Constant(Const),
     Variable(Rc<SymbolIdentifier>),
 }

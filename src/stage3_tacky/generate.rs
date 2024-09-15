@@ -110,7 +110,7 @@ impl<'a> FunInstrsGenerator<'a> {
         The return type of the `main` function must be `int`.
         The return type of any non-`main` function that lacks a `return` statement is undefined.
         Therefore, it's correct to always return `int`. */
-        let val = ReadableValue::Constant(Const::Int(0));
+        let val = Value::Constant(Const::Int(0));
         self.instrs.push(Instruction::Return(val));
 
         Function {
@@ -161,10 +161,10 @@ impl<'a> FunInstrsGenerator<'a> {
     fn gen_exp(
         &mut self,
         c::TypedExpression { exp, typ }: c::TypedExpression<c::Expression<TypeCheckedCAst>>,
-    ) -> ReadableValue {
+    ) -> Value {
         match exp {
-            c::Expression::Const(konst) => ReadableValue::Constant(konst),
-            c::Expression::Var(ident) => ReadableValue::Variable(ident),
+            c::Expression::Const(konst) => Value::Constant(konst),
+            c::Expression::Var(ident) => Value::Variable(ident),
             c::Expression::Cast(c_cast) => self.gen_exp_cast(c_cast),
             c::Expression::Unary(c_unary) => self.gen_exp_unary(c_unary, typ),
             c::Expression::Binary(c_binary) => self.gen_exp_binary(c_binary, typ),

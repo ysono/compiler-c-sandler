@@ -13,7 +13,7 @@ use std::rc::Rc;
 impl InstrsGenerator {
     /* Tacky Value -> Asm Operand and type info */
 
-    pub(super) fn value_to_operand_and_type<V: Into<t::ReadableValue>>(
+    pub(super) fn value_to_operand_and_type<V: Into<t::Value>>(
         &mut self,
         t_val: V,
     ) -> (PreFinalOperand, ArithmeticType, AssemblyType) {
@@ -22,14 +22,14 @@ impl InstrsGenerator {
         let operand = self.value_to_operand(t_val);
         (operand, ari_type, asm_type)
     }
-    pub(super) fn value_to_type(&self, t_val: &t::ReadableValue) -> (ArithmeticType, AssemblyType) {
+    pub(super) fn value_to_type(&self, t_val: &t::Value) -> (ArithmeticType, AssemblyType) {
         match t_val {
-            t::ReadableValue::Constant(konst) => {
+            t::Value::Constant(konst) => {
                 let ari_type = konst.arithmetic_type();
                 let asm_type = AssemblyType::from(ari_type);
                 (ari_type, asm_type)
             }
-            t::ReadableValue::Variable(ident) => {
+            t::Value::Variable(ident) => {
                 let var_type = self.frontend_symtab.get_var_type(ident).unwrap();
                 let ari_type = var_type.effective_arithmetic_type();
                 let asm_type = AssemblyType::from(ari_type);
@@ -37,18 +37,15 @@ impl InstrsGenerator {
             }
         }
     }
-    pub(super) fn value_to_operand<V: Into<t::ReadableValue>>(
-        &mut self,
-        t_val: V,
-    ) -> PreFinalOperand {
+    pub(super) fn value_to_operand<V: Into<t::Value>>(&mut self, t_val: V) -> PreFinalOperand {
         match t_val.into() {
-            t::ReadableValue::Constant(konst) => match konst {
+            t::Value::Constant(konst) => match konst {
                 Const::Int(_) | Const::Long(_) | Const::UInt(_) | Const::ULong(_) => {
                     Operand::ImmediateValue(konst.as_bits()).into()
                 }
                 Const::Double(_) => self.get_or_new_static_constant_operand(None, konst),
             },
-            t::ReadableValue::Variable(ident) => PreFinalOperand::Pseudo(ident),
+            t::Value::Variable(ident) => PreFinalOperand::Pseudo(ident),
         }
     }
 

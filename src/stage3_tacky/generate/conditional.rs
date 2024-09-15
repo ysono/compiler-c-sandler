@@ -63,7 +63,7 @@ impl<'a> FunInstrsGenerator<'a> {
         &mut self,
         c::Conditional { condition, then, elze }: c::Conditional<TypeCheckedCAst>,
         out_typ: Singleton<VarType>,
-    ) -> ReadableValue {
+    ) -> Value {
         let [label_else, label_end] =
             JumpLabel::create(UniqueId::new(), "exp_cond", ["else", "end"]);
 
@@ -99,6 +99,6 @@ impl<'a> FunInstrsGenerator<'a> {
 
         self.instrs.push(Instruction::Label(label_end));
 
-        ReadableValue::Variable(result)
+        Value::Variable(result)
     }
 }
