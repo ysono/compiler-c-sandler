@@ -42,6 +42,13 @@ impl<W: Write> AsmCodeEmitter<W> {
             Instruction::MovZeroExtend { .. } => {
                 unreachable!("MovZeroExtend is a pre-final-only instruction.")
             }
+            Instruction::Lea { src, dst } => {
+                self.write_instr_two_args(
+                    ("lea", "q"),
+                    (src, OperandByteLen::B8),
+                    (dst, OperandByteLen::B8),
+                )?;
+            }
             Instruction::Cvttsd2si { dst_asm_type, src, dst } => {
                 let instr_sfx = Self::get_instr_sfx_wordlen(dst_asm_type);
                 let src_bytelen = OperandByteLen::from(AssemblyType::Double);
@@ -272,6 +279,7 @@ impl<W: Write> AsmCodeEmitter<W> {
                     (Register::R11, OBL::B8) => "%r11",
                     (Register::R11, OBL::B4) => "%r11d",
                     (Register::R11, OBL::B1) => "%r11b",
+                    (Register::BP, _) => "%rbp",
                     (Register::SP, _) => "%rsp",
                     (Register::XMM0, _) => "%xmm0",
                     (Register::XMM1, _) => "%xmm1",
@@ -286,8 +294,10 @@ impl<W: Write> AsmCodeEmitter<W> {
                 };
                 write!(&mut self.w, "{reg_str}")?;
             }
-            Operand::StackPosition(stkpos) => {
-                write!(&mut self.w, "{}(%rbp)", *stkpos)?;
+            Operand::MemoryAddress(reg, offset) => {
+                write!(&mut self.w, "{}(", *offset)?;
+                self.write_operand(reg.into(), OperandByteLen::B8)?;
+                write!(&mut self.w, ")")?;
             }
             Operand::Data(ident) => {
                 let AsmObj { loc, .. } = self.backend_symtab.objs().get(&ident).unwrap();

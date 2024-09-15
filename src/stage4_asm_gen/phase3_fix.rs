@@ -56,6 +56,19 @@ impl OperandFixer {
                     }]
                 }
             }
+            Instruction::Lea { src, dst } => {
+                debug_assert!(
+                    matches!(src, Operand::MemoryAddress(..) | Operand::Data(_)),
+                    "Lea src {src:?}"
+                );
+
+                let reg2_to_dst = matches!(&dst, Operand::Register(_)) == false;
+                let reg2_to_dst = reg2_to_dst.then_some((ToFromReg::FromReg, AssemblyType::Quadword));
+
+                let new_instr = |src: Operand, dst: Operand| Instruction::Lea { src, dst };
+
+                Self::maybe_use_2_regs(src, dst, None, reg2_to_dst, new_instr)
+            }
             Instruction::Cvttsd2si { dst_asm_type, src, dst } => {
                 let reg2_to_dst = dst.is_on_mem();
                 let reg2_to_dst = reg2_to_dst.then_some((ToFromReg::FromReg, dst_asm_type));
@@ -134,10 +147,28 @@ impl OperandFixer {
                 let instr_at_reg = Instruction::Div(asm_type, reg.into());
                 Self::to_reg(asm_type, imm, reg, instr_at_reg)
             }
-            Instruction::Push(operand) if Self::is_imm_outside_i32(AssemblyType::Quadword, &operand) => {
-                let reg = Register::R10;
-                let instr_at_reg = Instruction::Push(reg.into());
-                Self::to_reg(AssemblyType::Quadword, operand, reg, instr_at_reg)
+            Instruction::Push(operand) => {
+                if matches!(&operand, Operand::Register(r) if r.is_sse()) {
+                    vec![
+                        Instruction::Binary {
+                            op: BinaryOperator::Sub,
+                            asm_type: AssemblyType::Quadword,
+                            tgt: Operand::Register(Register::SP),
+                            arg: Operand::ImmediateValue(8)
+                        },
+                        Instruction::Mov {
+                            asm_type: AssemblyType::Double,
+                            src: operand,
+                            dst: Operand::MemoryAddress(Register::SP, MemoryAddressOffset(0))
+                        }
+                    ]
+                } else if Self::is_imm_outside_i32(AssemblyType::Quadword, &operand)  {
+                    let reg = Register::R10;
+                    let instr_at_reg = Instruction::Push(reg.into());
+                    Self::to_reg(AssemblyType::Quadword, operand, reg, instr_at_reg)
+                } else {
+                    vec![Instruction::Push(operand)]
+                }
             }
             _ => vec![in_instr],
         })

@@ -18,7 +18,7 @@ impl InstrsGenerator {
     ) -> Vec<Instruction<GeneratedAsmAst>> {
         /* Instructions that copy incoming args into the current function's stack frame. */
         let mut arg_reg_resolver = ArgRegResolver::default();
-        let mut extra_arg_stack_pos = StackPosition(8);
+        let mut extra_arg_stack_pos = MemoryAddressOffset(8);
         let mut asm_instrs = param_idents
             .into_iter()
             .map(|param_ident| {
@@ -30,7 +30,7 @@ impl InstrsGenerator {
                     Some(reg) => Operand::Register(reg).into(),
                     None => {
                         *extra_arg_stack_pos += 8;
-                        Operand::StackPosition(extra_arg_stack_pos).into()
+                        Operand::MemoryAddress(Register::BP, extra_arg_stack_pos).into()
                     }
                 };
 

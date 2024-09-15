@@ -24,7 +24,7 @@ use std::rc::Rc;
 #[derive(Debug)]
 pub struct GeneratedAsmAst(());
 impl AsmAstVariant for GeneratedAsmAst {
-    type Instructions = Vec<Instruction<GeneratedAsmAst>>;
+    type Instructions = Vec<Instruction<Self>>;
     type Operand = PreFinalOperand;
 }
 
@@ -75,9 +75,9 @@ impl InstrsGenerator {
             t::Instruction::Unary(t_unary) => self.gen_unary_instrs(t_unary),
             t::Instruction::Binary(t_binary) => self.gen_binary_instrs(t_binary),
             t::Instruction::Copy(t_srcdst) => self.gen_copy_instrs(t_srcdst),
-            t::Instruction::GetAddress(_) => todo!(),
-            t::Instruction::Load(_) => todo!(),
-            t::Instruction::Store(_) => todo!(),
+            t::Instruction::GetAddress(t_getaddr) => self.gen_getaddr_instrs(t_getaddr),
+            t::Instruction::Load(t_load) => self.gen_load_instrs(t_load),
+            t::Instruction::Store(t_store) => self.gen_store_instrs(t_store),
             t::Instruction::Jump(lbl) => vec![Instruction::Jmp(lbl)],
             t::Instruction::JumpIf(t_jumpif) => self.gen_jumpif_instrs(t_jumpif),
             t::Instruction::Label(lbl) => vec![Instruction::Label(lbl)],

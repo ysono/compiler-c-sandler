@@ -15,7 +15,6 @@ pub enum VarType {
     Pointer(Singleton<VarType>), // We don't support function-pointers.
 }
 impl VarType {
-    // TOOD check all usages of this method
     pub fn effective_arithmetic_type(&self) -> ArithmeticType {
         match self {
             Self::Arithmetic(a) => *a,
