@@ -3,7 +3,7 @@ use crate::{
         identifier::SymbolIdentifier,
         types_backend::{Alignment, AssemblyType, OperandByteLen},
     },
-    stage4_asm_gen::asm_ast::StackPosition,
+    stage4_asm_gen::asm_ast::MemoryAddressOffset,
 };
 use getset::Getters;
 use std::collections::HashMap;
@@ -12,13 +12,13 @@ use std::rc::Rc;
 #[derive(Getters)]
 pub struct VarToStackPos {
     #[getset(get = "pub")]
-    last_used_stack_pos: StackPosition,
-    var_to_stack_pos: HashMap<Rc<SymbolIdentifier>, StackPosition>,
+    last_used_stack_pos: MemoryAddressOffset,
+    var_to_stack_pos: HashMap<Rc<SymbolIdentifier>, MemoryAddressOffset>,
 }
 impl Default for VarToStackPos {
     fn default() -> Self {
         Self {
-            last_used_stack_pos: StackPosition(0),
+            last_used_stack_pos: MemoryAddressOffset(0),
             var_to_stack_pos: HashMap::new(),
         }
     }
@@ -28,7 +28,7 @@ impl VarToStackPos {
         &mut self,
         ident: Rc<SymbolIdentifier>,
         asm_type: AssemblyType,
-    ) -> StackPosition {
+    ) -> MemoryAddressOffset {
         let pos = self.var_to_stack_pos.entry(ident).or_insert_with(|| {
             let mut pos = self.last_used_stack_pos.0;
 

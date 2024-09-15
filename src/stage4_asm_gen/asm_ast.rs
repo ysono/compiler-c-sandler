@@ -58,6 +58,10 @@ pub enum Instruction<T: AsmAstVariant> {
         src: T::Operand,
         dst: T::Operand,
     },
+    Lea {
+        src: T::Operand,
+        dst: T::Operand,
+    },
     Cvttsd2si {
         dst_asm_type: AssemblyType,
         src: T::Operand,
@@ -149,22 +153,22 @@ mod operand {
     pub enum Operand {
         ImmediateValue(i64),
         Register(Register),
-        StackPosition(StackPosition),
+        MemoryAddress(Register, MemoryAddressOffset),
         Data(Rc<SymbolIdentifier>),
     }
     impl Operand {
         pub fn is_on_mem(&self) -> bool {
             match self {
                 Self::ImmediateValue(_) | Self::Register(_) => false,
-                Self::StackPosition(_) | Self::Data(_) => true,
+                Self::MemoryAddress(..) | Self::Data(_) => true,
             }
         }
     }
 
     #[derive(Clone, Copy, Debug)]
     pub enum Register {
-        /* Elsewhere in code, non-SSE registers are aka "general purpose" (aka "gp") registers,
-        where this nomenclature applies to registers other than R8 ~ R15. */
+        /* Elsewhere in code, non-SSE registers are aka "general purpose" ("gp") registers,
+        including those other than R8 ~ R15. */
 
         /* non-SSE, caller-saved */
         AX,
@@ -177,6 +181,7 @@ mod operand {
         R10,
         R11,
         /* non-SSE, callee-saved */
+        BP,
         SP,
         /* SSE */
         XMM0,
@@ -190,8 +195,17 @@ mod operand {
         XMM14,
         XMM15,
     }
+    impl Register {
+        pub fn is_sse(&self) -> bool {
+            use Register::*;
+            matches!(
+                self,
+                XMM0 | XMM1 | XMM2 | XMM3 | XMM4 | XMM5 | XMM6 | XMM7 | XMM14 | XMM15
+            )
+        }
+    }
 
-    /// Offset from RBP.
+    /// Offset from an address value stored in a register (eg RBP).
     #[derive(Clone, Copy, Deref, DerefMut, Debug)]
-    pub struct StackPosition(pub(in crate::stage4_asm_gen) i64);
+    pub struct MemoryAddressOffset(pub(in crate::stage4_asm_gen) i64);
 }

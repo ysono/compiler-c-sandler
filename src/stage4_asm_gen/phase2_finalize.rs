@@ -11,18 +11,16 @@ use crate::{
     },
     stage4_asm_gen::{asm_ast::*, phase1_generate::GeneratedAsmAst, phase3_fix::OperandFixer},
 };
-use derive_more::Into;
 use std::collections::VecDeque;
 use std::rc::Rc;
 
 #[derive(Debug)]
 pub struct FinalizedAsmAst(());
 impl AsmAstVariant for FinalizedAsmAst {
-    type Instructions = VecDeque<Instruction<FinalizedAsmAst>>;
+    type Instructions = VecDeque<Instruction<Self>>;
     type Operand = Operand;
 }
 
-#[derive(Into)]
 pub struct InstrsFinalizer {
     backend_symtab: Rc<BackendSymbolTable>,
 
@@ -89,6 +87,11 @@ impl InstrsFinalizer {
                 let dst = self.convert_operand(dst);
                 Instruction::MovZeroExtend { src, dst }
             }
+            Instruction::Lea { src, dst } => {
+                let src = self.convert_operand(src);
+                let dst = self.convert_operand(dst);
+                Instruction::Lea { src, dst }
+            }
             Instruction::Cvttsd2si { dst_asm_type, src, dst } => {
                 let src = self.convert_operand(src);
                 let dst = self.convert_operand(dst);
@@ -139,14 +142,14 @@ impl InstrsFinalizer {
     }
     fn convert_operand(&mut self, pfo: PreFinalOperand) -> Operand {
         match pfo {
-            PreFinalOperand::O(operand) => operand,
+            PreFinalOperand::O(o) => o,
             PreFinalOperand::Pseudo(ident) => {
                 let AsmObj { asm_type, loc } = self.backend_symtab.objs().get(&ident).unwrap();
                 match loc {
-                    ObjLocation::Stack => self
-                        .var_to_stack_pos
-                        .var_to_stack_pos(ident, *asm_type)
-                        .into(),
+                    ObjLocation::Stack => {
+                        let offset = self.var_to_stack_pos.var_to_stack_pos(ident, *asm_type);
+                        Operand::MemoryAddress(Register::BP, offset)
+                    }
                     ObjLocation::StaticReadWrite => Operand::Data(ident),
                     ObjLocation::StaticReadonly => Operand::Data(ident),
                 }
