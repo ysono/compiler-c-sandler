@@ -3,7 +3,7 @@ use crate::{
     common::{
         identifier::SymbolIdentifier,
         types_backend::{Alignment, AssemblyType},
-        types_frontend::{Const, VarType},
+        types_frontend::{ArithmeticType, Const},
     },
     stage3_tacky::tacky_ast as t,
     stage4_asm_gen::asm_ast::*,
@@ -16,23 +16,24 @@ impl InstrsGenerator {
     pub(super) fn value_to_operand_and_type<V: Into<t::ReadableValue>>(
         &mut self,
         t_val: V,
-    ) -> (PreFinalOperand, VarType, AssemblyType) {
+    ) -> (PreFinalOperand, ArithmeticType, AssemblyType) {
         let t_val = t_val.into();
-        let (var_type, asm_type) = self.value_to_type(&t_val);
+        let (ari_type, asm_type) = self.value_to_type(&t_val);
         let operand = self.value_to_operand(t_val);
-        (operand, var_type, asm_type)
+        (operand, ari_type, asm_type)
     }
-    pub(super) fn value_to_type(&self, t_val: &t::ReadableValue) -> (VarType, AssemblyType) {
+    pub(super) fn value_to_type(&self, t_val: &t::ReadableValue) -> (ArithmeticType, AssemblyType) {
         match t_val {
             t::ReadableValue::Constant(konst) => {
-                let var_type = konst.var_type();
-                let asm_type = AssemblyType::from(var_type);
-                (var_type, asm_type)
+                let ari_type = konst.arithmetic_type();
+                let asm_type = AssemblyType::from(ari_type);
+                (ari_type, asm_type)
             }
             t::ReadableValue::Variable(ident) => {
                 let var_type = self.frontend_symtab.get_var_type(ident).unwrap();
-                let asm_type = AssemblyType::from(var_type);
-                (var_type, asm_type)
+                let ari_type = var_type.effective_arithmetic_type();
+                let asm_type = AssemblyType::from(ari_type);
+                (ari_type, asm_type)
             }
         }
     }
@@ -58,7 +59,8 @@ impl InstrsGenerator {
         custom_alignment: Option<Alignment>,
         konst: Const,
     ) -> PreFinalOperand {
-        let alignment = custom_alignment.unwrap_or_else(|| Alignment::default_of(konst.var_type()));
+        let alignment =
+            custom_alignment.unwrap_or_else(|| Alignment::default_of(konst.arithmetic_type()));
         let ident = self
             .static_constants
             .entry((alignment, konst))

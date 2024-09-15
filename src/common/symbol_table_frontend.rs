@@ -13,7 +13,7 @@ use std::rc::Rc;
 #[derive(Debug)]
 pub enum Symbol {
     Var {
-        typ: VarType,
+        typ: Singleton<VarType>,
         attrs: VarAttrs,
     },
     Fun {
@@ -54,7 +54,7 @@ pub struct SymbolTable {
     symbol_table: HashMap<Rc<SymbolIdentifier>, Symbol>,
 }
 impl SymbolTable {
-    pub fn declare_var_anon(&mut self, typ: VarType) -> Rc<SymbolIdentifier> {
+    pub fn declare_var_anon(&mut self, typ: Singleton<VarType>) -> Rc<SymbolIdentifier> {
         let ident = Rc::new(SymbolIdentifier::new_generated());
         self.symbol_table.insert(
             Rc::clone(&ident),
@@ -71,10 +71,10 @@ impl SymbolTable {
             .get(ident)
             .ok_or_else(|| anyhow!("Not declared. {ident:?}"))
     }
-    pub fn get_var_type(&self, ident: &SymbolIdentifier) -> Result<VarType> {
+    pub fn get_var_type(&self, ident: &SymbolIdentifier) -> Result<&Singleton<VarType>> {
         let symbol = self.get(ident)?;
         match symbol {
-            Symbol::Var { typ, .. } => Ok(*typ),
+            Symbol::Var { typ, .. } => Ok(typ),
             _ => Err(anyhow!("Not variable. {ident:?} {symbol:?}")),
         }
     }

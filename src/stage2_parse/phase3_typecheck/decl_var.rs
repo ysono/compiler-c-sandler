@@ -5,6 +5,7 @@ use crate::{
         symbol_table_frontend::{StaticInitialValue, StaticVisibility, Symbol, VarAttrs},
         types_frontend::{Const, VarType},
     },
+    ds_n_a::singleton::Singleton,
     stage2_parse::{c_ast::*, phase2_resolve::ResolvedCAst},
     utils::noop,
 };
@@ -63,10 +64,10 @@ impl TypeChecker {
                 new_scope,
                 new_sc.as_ref(),
                 new_init.as_ref(),
-                *new_typ,
+                new_typ,
             )?;
 
-            self.insert_var_decl(Rc::clone(ident), new_decl_summary, *new_typ)
+            self.insert_var_decl(Rc::clone(ident), new_decl_summary, new_typ)
         }
         .with_context(|| anyhow!("{new_scope:?}, {new_decl:?}"))
     }
@@ -74,7 +75,7 @@ impl TypeChecker {
         new_scope: VarDeclScope,
         new_sc: Option<&StorageClassSpecifier>,
         new_init: Option<&Expression<ResolvedCAst>>,
-        new_typ: VarType,
+        new_typ: &VarType,
     ) -> Result<Decl> {
         use StaticInitialValue as SIV;
         use StorageClassSpecifier as SCS;
@@ -121,14 +122,14 @@ impl TypeChecker {
         &mut self,
         ident: Rc<SymbolIdentifier>,
         new_decl_summary: Decl,
-        new_typ: VarType,
+        new_typ: &Singleton<VarType>,
     ) -> Result<&VarAttrs> {
         use StaticInitialValue as SIV;
 
         let entry = self.symbol_table.as_mut().entry(ident);
         match (entry, new_decl_summary) {
             (Entry::Vacant(entry), new_decl_summary) => {
-                let typ = new_typ;
+                let typ = new_typ.clone();
                 let attrs = match new_decl_summary {
                     Decl::AutoStorDur => VarAttrs::AutomaticStorageDuration,
                     Decl::StaticStorDur(viz, initial_value) => {
@@ -152,7 +153,7 @@ impl TypeChecker {
                 let prev_symbol = entry.get_mut();
                 let inner = || match prev_symbol {
                     Symbol::Var { typ, attrs } => {
-                        if typ != &new_typ {
+                        if typ != new_typ {
                             return Err(anyhow!("Cannot declare with 2+ types."));
                         }
                         match attrs {

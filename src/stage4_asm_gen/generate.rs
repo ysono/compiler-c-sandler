@@ -42,7 +42,7 @@ impl AsmCodeGenerator {
     fn convert_static_var(
         t::StaticVariable { ident, visibility, typ, init }: t::StaticVariable,
     ) -> StaticVariable {
-        let alignment = Alignment::default_of(typ);
+        let alignment = Alignment::default_of(typ.effective_arithmetic_type());
         StaticVariable {
             ident,
             visibility,
@@ -97,7 +97,7 @@ impl AsmCodeGenerator {
                 backend_symtab.objs_mut().insert(
                     Rc::clone(&ident),
                     AsmObj {
-                        asm_type: AssemblyType::from(init.var_type()),
+                        asm_type: AssemblyType::from(init.arithmetic_type()),
                         loc: ObjLocation::StaticReadonly,
                     },
                 );

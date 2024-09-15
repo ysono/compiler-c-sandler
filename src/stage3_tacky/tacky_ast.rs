@@ -1,8 +1,11 @@
 pub use self::{instruction::*, operator::*};
-use crate::common::{
-    identifier::{JumpLabel, SymbolIdentifier},
-    symbol_table_frontend::StaticVisibility,
-    types_frontend::{Const, VarType},
+use crate::{
+    common::{
+        identifier::{JumpLabel, SymbolIdentifier},
+        symbol_table_frontend::StaticVisibility,
+        types_frontend::{Const, VarType},
+    },
+    ds_n_a::singleton::Singleton,
 };
 use derive_more::From;
 use std::rc::Rc;
@@ -17,7 +20,7 @@ pub struct Program {
 pub struct StaticVariable {
     pub ident: Rc<SymbolIdentifier>,
     pub visibility: StaticVisibility,
-    pub typ: VarType,
+    pub typ: Singleton<VarType>,
     pub init: Const,
 }
 

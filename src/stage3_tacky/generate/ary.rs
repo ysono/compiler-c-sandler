@@ -4,6 +4,7 @@ use crate::{
         identifier::{JumpLabel, UniqueId},
         types_frontend::{Const, VarType},
     },
+    ds_n_a::singleton::Singleton,
     stage2_parse::{c_ast as c, phase3_typecheck::TypeCheckedCAst},
     stage3_tacky::tacky_ast::*,
 };
@@ -15,7 +16,7 @@ impl<'a> FunInstrsGenerator<'a> {
     pub(super) fn gen_exp_unary(
         &mut self,
         c::Unary { op, sub_exp }: c::Unary<TypeCheckedCAst>,
-        out_typ: VarType,
+        out_typ: Singleton<VarType>,
     ) -> ReadableValue {
         let op = convert_op_unary(op);
         let src = self.gen_exp(*sub_exp);
@@ -30,7 +31,7 @@ impl<'a> FunInstrsGenerator<'a> {
     pub(super) fn gen_exp_binary(
         &mut self,
         c_binary: c::Binary<TypeCheckedCAst>,
-        out_typ: VarType,
+        out_typ: Singleton<VarType>,
     ) -> ReadableValue {
         match convert_op_binary(&c_binary.op) {
             BinaryOperatorType::EvaluateBothHands(t_op) => {
@@ -45,7 +46,7 @@ impl<'a> FunInstrsGenerator<'a> {
         &mut self,
         op: BinaryOperator,
         c::Binary { op: _, lhs, rhs }: c::Binary<TypeCheckedCAst>,
-        out_typ: VarType,
+        out_typ: Singleton<VarType>,
     ) -> ReadableValue {
         let lhs = self.gen_exp(*lhs);
         let rhs = self.gen_exp(*rhs);
@@ -62,7 +63,7 @@ impl<'a> FunInstrsGenerator<'a> {
         &mut self,
         op_type: ShortCircuitBOT,
         c::Binary { op: _, lhs, rhs }: c::Binary<TypeCheckedCAst>,
-        out_typ: VarType,
+        out_typ: Singleton<VarType>,
     ) -> ReadableValue {
         let [label_shortcirc, label_end] =
             JumpLabel::create(UniqueId::new(), op_type.descr(), ["shortcircuit", "end"]);
@@ -76,7 +77,7 @@ impl<'a> FunInstrsGenerator<'a> {
             Instruction::JumpIf(JumpIf { condition, jump_crit, lbl })
         };
 
-        let new_out_const = |i: i32| Const::Int(i).cast_to(out_typ);
+        let new_out_const = |i: i32| Const::Int(i).cast_to(&out_typ);
         let (shortcirc_val, fully_evald_val) = match op_type {
             ShortCircuitBOT::And => (new_out_const(0), new_out_const(1)),
             ShortCircuitBOT::Or => (new_out_const(1), new_out_const(0)),

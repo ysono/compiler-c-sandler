@@ -70,7 +70,7 @@ impl<W: Write> AsmCodeEmitter<W> {
         writeln!(&mut self.w, "{TAB}.balign {}", alignment as u8)?;
         self.write_symbol_decl(ident, locality)?;
         if section == ".bss" {
-            let bytelen = OperandByteLen::from(init.var_type()) as u8;
+            let bytelen = OperandByteLen::from(init.arithmetic_type()) as u8;
             writeln!(&mut self.w, "{TAB}.zero {bytelen}")?;
         } else {
             match init {

@@ -1,6 +1,6 @@
 use super::{GeneratedAsmAst, InstrsGenerator};
 use crate::{
-    common::{types_backend::AssemblyType, types_frontend::VarType},
+    common::{types_backend::AssemblyType, types_frontend::ArithmeticType},
     stage3_tacky::tacky_ast as t,
     stage4_asm_gen::asm_ast::*,
 };
@@ -28,17 +28,16 @@ impl InstrsGenerator {
         t::Binary { op: _, lhs, rhs, dst }: t::Binary,
     ) -> Vec<Instruction<GeneratedAsmAst>> {
         use t::ComparisonBinaryOperator as TBOC;
+        use ArithmeticType as AT;
         use ConditionCode as CC;
 
-        let (lhs, src_var_type, src_asm_type) = self.value_to_operand_and_type(lhs);
+        let (lhs, src_ari_type, src_asm_type) = self.value_to_operand_and_type(lhs);
         let rhs = self.value_to_operand(rhs);
         let (dst, _, dst_asm_type) = self.value_to_operand_and_type(dst);
 
-        let cc_is_lg_family = match src_var_type {
-            VarType::Int | VarType::Long | VarType::UInt | VarType::ULong => {
-                src_var_type.is_signed()
-            }
-            VarType::Double => false,
+        let cc_is_lg_family = match src_ari_type {
+            AT::Int | AT::Long | AT::UInt | AT::ULong => src_ari_type.is_signed(),
+            AT::Double => false,
         };
         let cc = match (t_op, cc_is_lg_family) {
             (TBOC::Eq, _) => CC::E,

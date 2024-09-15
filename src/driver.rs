@@ -119,10 +119,12 @@ impl Driver {
             return Ok(None);
         }
 
+        let (_, var_type_repo, _) = parser.into();
+
         let mut vadlidator = CAstValidator::default();
         let c_prog = vadlidator.resolve_program(c_prog)?;
 
-        let type_checker = TypeChecker::default();
+        let type_checker = TypeChecker::new(var_type_repo);
         let (c_prog, mut frontend_symtab) = type_checker.typecheck_prog(c_prog)?;
 
         if self.args.until_parser_validate {

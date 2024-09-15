@@ -135,7 +135,7 @@ impl InstrsGenerator {
             t::DivRemBinaryOperator::Div => Register::AX,
             t::DivRemBinaryOperator::Rem => Register::DX,
         };
-        let (lhs, var_type, asm_type) = self.value_to_operand_and_type(lhs);
+        let (lhs, ari_type, asm_type) = self.value_to_operand_and_type(lhs);
         let rhs = self.value_to_operand(rhs);
         let dst = self.value_to_operand(dst);
 
@@ -144,7 +144,7 @@ impl InstrsGenerator {
             src: lhs,
             dst: Operand::Register(Register::AX).into(),
         };
-        let asm_instr_2 = if var_type.is_signed() {
+        let asm_instr_2 = if ari_type.is_signed() {
             Instruction::Cdq(asm_type)
         } else {
             Instruction::Mov {
@@ -153,7 +153,7 @@ impl InstrsGenerator {
                 dst: Operand::Register(Register::DX).into(),
             }
         };
-        let asm_instr_3 = if var_type.is_signed() {
+        let asm_instr_3 = if ari_type.is_signed() {
             Instruction::Idiv(asm_type, rhs)
         } else {
             Instruction::Div(asm_type, rhs)
