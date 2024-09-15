@@ -143,7 +143,20 @@ impl CAstValidator {
     ) -> Result<BlockItem<ResolvedCAst>> {
         let inner = || -> Result<_> {
             match item {
-                BlockItem::Declaration(decl) => self.resolve_decl(decl).map(BlockItem::Declaration),
+                BlockItem::Declaration(decl) => {
+                    /* The later typecheck phase will also assert that block-scope function declarations don't have bodies.
+                    This assertion here is a performance improvement.
+                    This assertion cannot be in the parser phase, b/c the official tester expects our code to make this assertion after the parser phase.
+                    To simplify C AST types, we leave the type for block-scope declarations less precise than it could be. */
+                    if matches!(
+                        &decl,
+                        Declaration::Fun(FunctionDeclaration { body: Some(_), .. })
+                    ) {
+                        return Err(anyhow!("Cannot define function in block scope."));
+                    }
+
+                    self.resolve_decl(decl).map(BlockItem::Declaration)
+                }
                 BlockItem::Statement(stmt) => self.resolve_stmt(stmt).map(BlockItem::Statement),
             }
         };
