@@ -17,7 +17,7 @@ impl<'a> FunInstrsGenerator<'a> {
     pub(super) fn gen_exp_cast(
         &mut self,
         c::Cast { typ: dst_typ, sub_exp }: c::Cast<TypeCheckedCAst>,
-    ) -> ReadableValue {
+    ) -> Value {
         let src_typ = sub_exp.typ.clone();
         let src_val = self.gen_exp(*sub_exp);
         if dst_typ == src_typ {
@@ -70,7 +70,7 @@ impl<'a> FunInstrsGenerator<'a> {
                     };
 
                     self.instrs.push(instr);
-                    ReadableValue::Variable(dst)
+                    Value::Variable(dst)
                 }
                 _ => todo!(),
             }
@@ -83,7 +83,7 @@ impl<'a> FunInstrsGenerator<'a> {
         &mut self,
         c::FunctionCall { ident, args }: c::FunctionCall<TypeCheckedCAst>,
         out_typ: Singleton<VarType>,
-    ) -> ReadableValue {
+    ) -> Value {
         let result = self.symbol_table.declare_var_anon(out_typ);
 
         /* Begin instructions */
@@ -99,6 +99,6 @@ impl<'a> FunInstrsGenerator<'a> {
             dst: Rc::clone(&result),
         }));
 
-        ReadableValue::Variable(result)
+        Value::Variable(result)
     }
 }

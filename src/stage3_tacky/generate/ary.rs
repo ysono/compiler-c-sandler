@@ -17,13 +17,13 @@ impl<'a> FunInstrsGenerator<'a> {
         &mut self,
         c::Unary { op, sub_exp }: c::Unary<TypeCheckedCAst>,
         out_typ: Singleton<VarType>,
-    ) -> ReadableValue {
+    ) -> Value {
         let op = convert_op_unary(op);
         let src = self.gen_exp(*sub_exp);
         let dst = self.symbol_table.declare_var_anon(out_typ);
         self.instrs
             .push(Instruction::Unary(Unary { op, src, dst: Rc::clone(&dst) }));
-        ReadableValue::Variable(dst)
+        Value::Variable(dst)
     }
 
     /* C Binary */
@@ -32,7 +32,7 @@ impl<'a> FunInstrsGenerator<'a> {
         &mut self,
         c_binary: c::Binary<TypeCheckedCAst>,
         out_typ: Singleton<VarType>,
-    ) -> ReadableValue {
+    ) -> Value {
         match convert_op_binary(&c_binary.op) {
             BinaryOperatorType::EvaluateBothHands(t_op) => {
                 self.gen_exp_binary_evalboth(t_op, c_binary, out_typ)
@@ -47,7 +47,7 @@ impl<'a> FunInstrsGenerator<'a> {
         op: BinaryOperator,
         c::Binary { op: _, lhs, rhs }: c::Binary<TypeCheckedCAst>,
         out_typ: Singleton<VarType>,
-    ) -> ReadableValue {
+    ) -> Value {
         let lhs = self.gen_exp(*lhs);
         let rhs = self.gen_exp(*rhs);
         let dst = self.symbol_table.declare_var_anon(out_typ);
@@ -57,18 +57,18 @@ impl<'a> FunInstrsGenerator<'a> {
             rhs,
             dst: Rc::clone(&dst),
         }));
-        ReadableValue::Variable(dst)
+        Value::Variable(dst)
     }
     fn gen_exp_binary_shortcirc(
         &mut self,
         op_type: ShortCircuitBOT,
         c::Binary { op: _, lhs, rhs }: c::Binary<TypeCheckedCAst>,
         out_typ: Singleton<VarType>,
-    ) -> ReadableValue {
+    ) -> Value {
         let [label_shortcirc, label_end] =
             JumpLabel::create(UniqueId::new(), op_type.descr(), ["shortcircuit", "end"]);
 
-        let new_shortcirc_jump_instr = |condition: ReadableValue| {
+        let new_shortcirc_jump_instr = |condition: Value| {
             let jump_crit = match op_type {
                 ShortCircuitBOT::And => JumpCriterion::JumpIfZero,
                 ShortCircuitBOT::Or => JumpCriterion::JumpIfNotZero,
@@ -96,7 +96,7 @@ impl<'a> FunInstrsGenerator<'a> {
         self.instrs.push(new_shortcirc_jump_instr(rhs_val));
 
         self.instrs.push(Instruction::Copy(SrcDst {
-            src: ReadableValue::Constant(fully_evald_val),
+            src: Value::Constant(fully_evald_val),
             dst: Rc::clone(&result),
         }));
 
@@ -105,13 +105,13 @@ impl<'a> FunInstrsGenerator<'a> {
         self.instrs.push(Instruction::Label(label_shortcirc));
 
         self.instrs.push(Instruction::Copy(SrcDst {
-            src: ReadableValue::Constant(shortcirc_val),
+            src: Value::Constant(shortcirc_val),
             dst: Rc::clone(&result),
         }));
 
         self.instrs.push(Instruction::Label(label_end));
 
-        ReadableValue::Variable(result)
+        Value::Variable(result)
     }
 }
 

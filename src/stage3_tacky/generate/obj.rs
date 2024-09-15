@@ -16,7 +16,7 @@ impl<'a> FunInstrsGenerator<'a> {
         &mut self,
         lhs: c::TypedExpression<c::LvalueExpression<TypeCheckedCAst>>,
         rhs: c::TypedExpression<c::Expression<TypeCheckedCAst>>,
-    ) -> ReadableValue {
+    ) -> Value {
         match lhs.exp {
             LvalueExpression::Var(ident) => self.gen_assignment(ident, rhs),
             LvalueExpression::Dereference(_) => todo!(),
@@ -26,7 +26,7 @@ impl<'a> FunInstrsGenerator<'a> {
         &mut self,
         ident: Rc<SymbolIdentifier>,
         rhs: c::TypedExpression<c::Expression<TypeCheckedCAst>>,
-    ) -> ReadableValue {
+    ) -> Value {
         let rhs = self.gen_exp(rhs);
 
         self.instrs.push(Instruction::Copy(SrcDst {
@@ -34,6 +34,6 @@ impl<'a> FunInstrsGenerator<'a> {
             dst: Rc::clone(&ident),
         }));
 
-        ReadableValue::Variable(ident)
+        Value::Variable(ident)
     }
 }
