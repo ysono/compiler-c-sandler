@@ -21,7 +21,7 @@ impl<'a> FunInstrsGenerator<'a> {
 
                 /* Begin instructions */
 
-                let condition = self.gen_exp(condition);
+                let condition = self.gen_exp_and_get_value(condition);
 
                 self.instrs.push(Instruction::JumpIf(JumpIf {
                     condition,
@@ -39,7 +39,7 @@ impl<'a> FunInstrsGenerator<'a> {
 
                 /* Begin instructions */
 
-                let condition = self.gen_exp(condition);
+                let condition = self.gen_exp_and_get_value(condition);
 
                 self.instrs.push(Instruction::JumpIf(JumpIf {
                     condition,
@@ -71,7 +71,7 @@ impl<'a> FunInstrsGenerator<'a> {
 
         /* Begin instructions */
 
-        let condition = self.gen_exp(*condition);
+        let condition = self.gen_exp_and_get_value(*condition);
 
         self.instrs.push(Instruction::JumpIf(JumpIf {
             condition,
@@ -79,7 +79,7 @@ impl<'a> FunInstrsGenerator<'a> {
             lbl: Rc::clone(&label_else),
         }));
 
-        let then = self.gen_exp(*then);
+        let then = self.gen_exp_and_get_value(*then);
 
         self.instrs.push(Instruction::Copy(SrcDst {
             src: then,
@@ -90,7 +90,7 @@ impl<'a> FunInstrsGenerator<'a> {
 
         self.instrs.push(Instruction::Label(label_else));
 
-        let elze = self.gen_exp(*elze);
+        let elze = self.gen_exp_and_get_value(*elze);
 
         self.instrs.push(Instruction::Copy(SrcDst {
             src: elze,

@@ -156,7 +156,6 @@ pub enum Expression<T: CAstVariant> {
 #[derive(Debug)]
 pub enum LvalueExpression<T: CAstVariant> {
     Var(T::Identifier),
-    #[allow(dead_code)] // TODO
     Dereference(Dereference<T>),
 }
 mod expression {

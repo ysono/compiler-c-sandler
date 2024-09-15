@@ -1,4 +1,4 @@
-pub use self::{instruction::*, operator::*};
+pub use self::{instruction::*, operand::*, operator::*};
 use crate::{
     common::{
         identifier::{JumpLabel, SymbolIdentifier},
@@ -45,6 +45,9 @@ pub enum Instruction {
     Unary(Unary),
     Binary(Binary),
     Copy(SrcDst),
+    GetAddress(GetAddress),
+    Load(Load),
+    Store(Store),
     Jump(Rc<JumpLabel>),
     JumpIf(JumpIf),
     Label(Rc<JumpLabel>),
@@ -72,6 +75,24 @@ mod instruction {
         pub lhs: Value,
         pub rhs: Value,
         pub dst: Rc<SymbolIdentifier>,
+    }
+
+    #[derive(Debug)]
+    pub struct GetAddress {
+        pub src: Rc<SymbolIdentifier>,
+        pub dst_addr: Rc<SymbolIdentifier>,
+    }
+
+    #[derive(Debug)]
+    pub struct Load {
+        pub src_addr: Value,
+        pub dst: Rc<SymbolIdentifier>,
+    }
+
+    #[derive(Debug)]
+    pub struct Store {
+        pub src: Value,
+        pub dst_addr: Value,
     }
 
     #[derive(Debug)]
@@ -143,8 +164,39 @@ mod operator {
     }
 }
 
-#[derive(From, Debug)]
-pub enum Value {
-    Constant(Const),
-    Variable(Rc<SymbolIdentifier>),
+mod operand {
+    use super::*;
+
+    #[derive(From)]
+    pub(in crate::stage3_tacky) enum ExpResult {
+        Value(Value),
+        Object(Object),
+    }
+
+    /// The "value" concept comprises a bit-sequence and a type; and is readonly.
+    #[derive(Clone, From, Debug)]
+    pub enum Value {
+        /// A value that's contained in a constant (ie somewhere outside the addressable memory).
+        Constant(Const),
+
+        /// A value that's contained in an abstract memory location.
+        /// The memory location may be identified by
+        ///     an identifier declared in the C src code, or
+        ///     an identifier that's dynamically generated during the Tacky stage.
+        Variable(Rc<SymbolIdentifier>),
+    }
+
+    /// The "object" concept comprises a memory location that contains a "value"; and is mutable.
+    pub(in crate::stage3_tacky) enum Object {
+        /// An object whose memory location is identified directly.
+        Direct(Rc<SymbolIdentifier>),
+
+        /// An object whose memory location is contained in a separate value.
+        Pointee {
+            addr: Value,
+
+            /// The type of the target pointee object (not the type of the memory location value).
+            typ: Singleton<VarType>,
+        },
+    }
 }
