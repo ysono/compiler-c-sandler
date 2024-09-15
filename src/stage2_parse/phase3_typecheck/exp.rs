@@ -2,6 +2,7 @@ use super::{TypeCheckedCAst, TypeChecker};
 use crate::{
     common::types_frontend::{ArithmeticType, VarType},
     stage2_parse::{c_ast::*, phase2_resolve::ResolvedCAst},
+    utils::noop,
 };
 use anyhow::{anyhow, Result};
 
@@ -26,9 +27,9 @@ impl TypeChecker {
                 TypedExpression { typ, exp }
             }
             Expression::Cast(Cast { typ, sub_exp }) => {
-                let sub_exp = Box::new(self.typecheck_exp(*sub_exp)?);
-                let exp = Expression::Cast(Cast { typ: typ.clone(), sub_exp });
-                TypedExpression { typ, exp }
+                let sub_exp = self.typecheck_exp(*sub_exp)?;
+
+                Self::cast_explicitly(typ, sub_exp)?
             }
             Expression::Unary(Unary { op, sub_exp }) => {
                 let sub_exp = Box::new(self.typecheck_exp(*sub_exp)?);
@@ -38,6 +39,9 @@ impl TypeChecker {
                     (
                         UnaryOperator::Complement,
                         VarType::Arithmetic(ArithmeticType::Double)
+                    ) | (
+                        UnaryOperator::Negate | UnaryOperator::Complement,
+                        VarType::Pointer(_)
                     )
                 ) {
                     return Err(anyhow!("Cannot apply {op:?} on {sub_exp:?}"));
@@ -62,16 +66,17 @@ impl TypeChecker {
                         (int_typ, lhs, rhs)
                     }
                     BO::Eq | BO::Neq | BO::Lt | BO::Lte | BO::Gt | BO::Gte => {
-                        let (_, lhs, rhs) = self.cast_to_common_type(lhs, rhs);
+                        let (_, lhs, rhs) = Self::cast_to_common_type(lhs, rhs)?;
                         let int_typ = self.var_type_repo.get_or_new(ArithmeticType::Int.into());
                         (int_typ, lhs, rhs)
                     }
                     BO::Sub | BO::Add | BO::Mul | BO::Div | BO::Rem => {
-                        let (common_typ, lhs, rhs) = self.cast_to_common_type(lhs, rhs);
+                        let (common_typ, lhs, rhs) = Self::cast_to_common_type(lhs, rhs)?;
 
                         if matches!(
                             (&op, common_typ.as_ref()),
                             (BO::Rem, VarType::Arithmetic(ArithmeticType::Double))
+                                | (_, VarType::Pointer(_))
                         ) {
                             return Err(anyhow!("Cannot apply {op:?} on {lhs:?} and {rhs:?}"));
                         }
@@ -86,25 +91,25 @@ impl TypeChecker {
                 });
                 TypedExpression { typ: out_typ, exp: out_exp }
             }
-            Expression::Assignment(Assignment { lhs, rhs }) => match *lhs {
-                Expression::Var(ident) => {
-                    let typ = self.symbol_table.get_var_type(&ident)?.clone();
-                    let lhs = Box::new(TypedExpression { typ: typ.clone(), exp: ident });
+            Expression::Assignment(Assignment { lhs, rhs }) => {
+                let lhs = self.typecheck_exp_lvalue(*lhs)?;
+                let typ = lhs.typ.clone();
 
-                    let rhs = self.typecheck_exp(*rhs)?;
-                    let rhs = Self::maybe_cast_exp(&typ, rhs);
+                let rhs = self.typecheck_exp(*rhs)?;
+                let rhs = Self::cast_implicitly(&typ, rhs)?;
 
-                    let exp = Expression::Assignment(Assignment { lhs, rhs: Box::new(rhs) });
-                    TypedExpression { typ, exp }
-                }
-                _ => todo!(),
-            },
+                let exp = Expression::Assignment(Assignment {
+                    lhs: Box::new(lhs),
+                    rhs: Box::new(rhs),
+                });
+                TypedExpression { typ, exp }
+            }
             Expression::Conditional(Conditional { condition, then, elze }) => {
                 let condition = self.typecheck_exp(*condition)?;
                 let then = self.typecheck_exp(*then)?;
                 let elze = self.typecheck_exp(*elze)?;
 
-                let (typ, then, elze) = self.cast_to_common_type(then, elze);
+                let (typ, then, elze) = Self::cast_to_common_type(then, elze)?;
 
                 let exp = Expression::Conditional(Conditional {
                     condition: Box::new(condition),
@@ -122,18 +127,58 @@ impl TypeChecker {
                 }
                 let fun_typ = fun_typ.clone();
 
-                let mut out_args = Vec::with_capacity(args.len());
-                for (param_typ, arg_exp) in fun_typ.params.iter().zip(args.into_iter()) {
-                    let arg_exp = self.typecheck_exp(arg_exp)?;
-                    let arg_exp = Self::maybe_cast_exp(param_typ, arg_exp);
-                    out_args.push(arg_exp);
-                }
-                let exp = Expression::FunctionCall(FunctionCall { ident, args: out_args });
-                TypedExpression { typ: fun_typ.ret.clone(), exp }
+                let args = fun_typ
+                    .params
+                    .iter()
+                    .zip(args.into_iter())
+                    .map(|(param_typ, arg_exp)| {
+                        let arg_exp = self.typecheck_exp(arg_exp)?;
+                        Self::cast_implicitly(param_typ, arg_exp)
+                    })
+                    .collect::<Result<Vec<_>>>()?;
+
+                let typ = fun_typ.ret.clone();
+                let exp = Expression::FunctionCall(FunctionCall { ident, args });
+                TypedExpression { typ, exp }
             }
-            Expression::Dereference(_) => todo!(),
-            Expression::AddrOf(_) => todo!(),
+            Expression::Dereference(Dereference(sub_exp)) => {
+                let sub_exp = Box::new(self.typecheck_exp(*sub_exp)?);
+
+                let typ = match sub_exp.typ.as_ref() {
+                    VarType::Pointer(pointee_type) => pointee_type.clone(),
+                    _ => return Err(anyhow!("Cannot dereference {sub_exp:?}")),
+                };
+
+                let exp = Expression::Dereference(Dereference(sub_exp));
+                TypedExpression { typ, exp }
+            }
+            Expression::AddrOf(AddrOf(sub_exp)) => {
+                let sub_exp = Box::new(self.typecheck_exp_lvalue(*sub_exp)?);
+
+                let sub_typ = sub_exp.typ.clone();
+                let typ = self.var_type_repo.get_or_new(VarType::Pointer(sub_typ));
+
+                let exp = Expression::AddrOf(AddrOf(sub_exp));
+                TypedExpression { typ, exp }
+            }
         };
         Ok(exp)
+    }
+    fn typecheck_exp_lvalue(
+        &mut self,
+        exp: Expression<ResolvedCAst>,
+    ) -> Result<TypedExpression<LvalueExpression<TypeCheckedCAst>>> {
+        match exp {
+            Expression::Var(_) => noop!(),
+            Expression::Dereference(_) => noop!(),
+            actual => return Err(anyhow!("Expected lvalue expression, but found {actual:?}")),
+        }
+        let TypedExpression { typ, exp } = self.typecheck_exp(exp)?;
+        let exp = match exp {
+            Expression::Var(ident) => LvalueExpression::Var(ident),
+            Expression::Dereference(deref) => LvalueExpression::Dereference(deref),
+            _ => unreachable!(),
+        };
+        Ok(TypedExpression { typ, exp })
     }
 }

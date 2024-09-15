@@ -153,6 +153,12 @@ pub enum Expression<T: CAstVariant> {
     Dereference(Dereference<T>),
     AddrOf(AddrOf<T>),
 }
+#[derive(Debug)]
+pub enum LvalueExpression<T: CAstVariant> {
+    Var(T::Identifier),
+    #[allow(dead_code)] // TODO
+    Dereference(Dereference<T>),
+}
 mod expression {
     use super::*;
 

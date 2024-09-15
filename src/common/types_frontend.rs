@@ -1,4 +1,5 @@
 use crate::ds_n_a::singleton::Singleton;
+use anyhow::{anyhow, Result};
 use derive_more::From;
 use std::hash::{Hash, Hasher};
 use std::mem;
@@ -55,11 +56,12 @@ pub enum Const {
     Double(f64),
 }
 impl Const {
+    /// @return a constant whose bitwise representation is `0b000...000`
     pub fn new_zero_bits(typ: &VarType) -> Const {
-        Const::Int(0).cast_to(typ)
+        Const::Int(0).cast_at_compile_time(typ).unwrap()
     }
 
-    pub fn cast_to(&self, typ: &VarType) -> Const {
+    pub fn cast_at_compile_time(&self, typ: &VarType) -> Result<Const> {
         macro_rules! new_const {
             ( $out_konst_variant:expr, $out_prim:ty ) => {
                 match self {
@@ -71,8 +73,7 @@ impl Const {
                 }
             };
         }
-
-        match typ {
+        let out_konst = match typ {
             VarType::Arithmetic(a) => match a {
                 ArithmeticType::Int => new_const!(Const::Int, i32),
                 ArithmeticType::Long => new_const!(Const::Long, i64),
@@ -80,8 +81,15 @@ impl Const {
                 ArithmeticType::ULong => new_const!(Const::ULong, u64),
                 ArithmeticType::Double => new_const!(Const::Double, f64),
             },
-            VarType::Pointer(_) => todo!(),
-        }
+            VarType::Pointer(_) => {
+                if self.is_zero_integer() {
+                    new_const!(Const::ULong, u64)
+                } else {
+                    return Err(anyhow!("Cannot cast {self:?} to {typ:?}"));
+                }
+            }
+        };
+        Ok(out_konst)
     }
 
     pub fn as_bits(&self) -> i64 {
@@ -104,12 +112,19 @@ impl Const {
             Const::Double(_) => ArithmeticType::Double,
         }
     }
+
+    pub fn is_zero_integer(&self) -> bool {
+        matches!(
+            self,
+            Const::Int(0) | Const::Long(0) | Const::UInt(0) | Const::ULong(0)
+        )
+    }
 }
-impl Eq for Const {
-    /* Rust's `f64` type does not implement `Eq`. Specifically, `NaN != NaN`.
-    `Const::Double(_)`s incorrectly surfaces `f64`'s `PartialEq` result as `Eq` result. `Const::Double(NaN) != Const::Double(NaN)`.
-    As long as we don't compare `Const::Double(NaN)` with another `Const::Double(_)`, the comparison works as expected. */
-}
+/// Impl'ing `Eq` for `Const` is desirable in the context of HashMap.
+/// We ought to write a custom `PartialEq` impl, which compares two `Const::Double(_)` instances by comparing their `f64` values bitwise.
+/// But, we omit it, for brevity.
+/// 2+ instances of `Const::Double(f64::NAN)` are unequal with one another. All other comparisons work as expected.
+impl Eq for Const {}
 impl Hash for Const {
     fn hash<H: Hasher>(&self, state: &mut H) {
         mem::discriminant(self).hash(state);

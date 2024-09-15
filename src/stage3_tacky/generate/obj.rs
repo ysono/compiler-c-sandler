@@ -1,7 +1,10 @@
 use super::FunInstrsGenerator;
 use crate::{
     common::identifier::SymbolIdentifier,
-    stage2_parse::{c_ast as c, phase3_typecheck::TypeCheckedCAst},
+    stage2_parse::{
+        c_ast::{self as c, LvalueExpression},
+        phase3_typecheck::TypeCheckedCAst,
+    },
     stage3_tacky::tacky_ast::*,
 };
 use std::rc::Rc;
@@ -11,11 +14,13 @@ impl<'a> FunInstrsGenerator<'a> {
 
     pub(super) fn gen_exp_assignment(
         &mut self,
-        lhs: c::TypedExpression<Rc<SymbolIdentifier>>,
+        lhs: c::TypedExpression<c::LvalueExpression<TypeCheckedCAst>>,
         rhs: c::TypedExpression<c::Expression<TypeCheckedCAst>>,
     ) -> ReadableValue {
-        let ident = lhs.exp;
-        self.gen_assignment(ident, rhs)
+        match lhs.exp {
+            LvalueExpression::Var(ident) => self.gen_assignment(ident, rhs),
+            LvalueExpression::Dereference(_) => todo!(),
+        }
     }
     pub(super) fn gen_assignment(
         &mut self,

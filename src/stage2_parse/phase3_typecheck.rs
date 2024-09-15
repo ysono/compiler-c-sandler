@@ -32,7 +32,7 @@ impl CAstVariant for TypeCheckedCAst {
     type Identifier = Rc<SymbolIdentifier>;
     type LoopId = Rc<LoopId>;
     type Expression = TypedExpression<Expression<Self>>;
-    type LvalueExpression = TypedExpression<Rc<SymbolIdentifier>>;
+    type LvalueExpression = TypedExpression<LvalueExpression<Self>>;
 }
 
 pub struct TypeChecker {
@@ -130,7 +130,7 @@ impl TypeChecker {
 
                 // Does transform.
                 let ret_type = &self.curr_fun_type.as_ref().unwrap().ret;
-                let exp = Self::maybe_cast_exp(ret_type, exp);
+                let exp = Self::cast_implicitly(ret_type, exp)?;
 
                 Ok(Statement::Return(exp))
             }
