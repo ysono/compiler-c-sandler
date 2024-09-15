@@ -13,9 +13,11 @@ mod exp;
 use self::{decl_fun::FunDeclScope, decl_var::VarDeclScope};
 use crate::{
     common::{
-        identifier::SymbolIdentifier, symbol_table_frontend::SymbolTable, types_frontend::FunType,
+        identifier::SymbolIdentifier,
+        symbol_table_frontend::SymbolTable,
+        types_frontend::{FunType, VarType},
     },
-    ds_n_a::singleton::Singleton,
+    ds_n_a::singleton::{Singleton, SingletonRepository},
     stage2_parse::{c_ast::*, phase2_resolve::ResolvedCAst},
 };
 use anyhow::Result;
@@ -33,13 +35,22 @@ impl CAstVariant for TypeCheckedCAst {
     type Lvalue = Rc<SymbolIdentifier>;
 }
 
-#[derive(Default)]
 pub struct TypeChecker {
+    var_type_repo: SingletonRepository<VarType>,
+
     symbol_table: SymbolTable,
 
     curr_fun_type: Option<Singleton<FunType>>,
 }
 impl TypeChecker {
+    pub fn new(var_type_repo: SingletonRepository<VarType>) -> Self {
+        Self {
+            var_type_repo,
+            symbol_table: Default::default(),
+            curr_fun_type: Default::default(),
+        }
+    }
+
     pub fn typecheck_prog(
         mut self,
         Program { decls }: Program<ResolvedCAst>,
@@ -118,7 +129,7 @@ impl TypeChecker {
                 let exp = self.typecheck_exp(exp)?;
 
                 // Does transform.
-                let ret_type = self.curr_fun_type.as_ref().unwrap().ret;
+                let ret_type = &self.curr_fun_type.as_ref().unwrap().ret;
                 let exp = Self::maybe_cast_exp(ret_type, exp);
 
                 Ok(Statement::Return(exp))

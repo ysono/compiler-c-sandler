@@ -96,9 +96,10 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
                 }
                 Some(Ok(t::Token::Demarcator(t::Demarcator::ParenOpen))) => {
                     match self.maybe_parse_specifiers()? {
-                        Some((typ, None)) => {
+                        Some((ari_typ, None)) => {
                             self.expect_exact(&[t::Demarcator::ParenClose.into()])?;
                             let factor = self.parse_factor()?;
+                            let typ = self.var_type_repo.get_or_new(ari_typ.into());
                             let sub_exp = Box::new(factor);
                             return Ok(Expression::Cast(Cast { typ, sub_exp }));
                         }

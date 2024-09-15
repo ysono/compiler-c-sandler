@@ -1,15 +1,32 @@
+use crate::ds_n_a::singleton::Singleton;
+use derive_more::From;
 use std::hash::{Hash, Hasher};
 use std::mem;
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+#[derive(From, PartialEq, Eq, Hash, Debug)]
 pub enum VarType {
+    Arithmetic(ArithmeticType),
+    Pointer(Singleton<VarType>), // We don't support function-pointers.
+}
+impl VarType {
+    // TOOD check all usages of this method
+    pub fn effective_arithmetic_type(&self) -> ArithmeticType {
+        match self {
+            Self::Arithmetic(a) => *a,
+            Self::Pointer(_) => ArithmeticType::ULong,
+        }
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+pub enum ArithmeticType {
     Int,
     Long,
     UInt,
     ULong,
     Double,
 }
-impl VarType {
+impl ArithmeticType {
     pub fn is_signed(&self) -> bool {
         match self {
             Self::Int | Self::Long | Self::Double => true,
@@ -20,8 +37,8 @@ impl VarType {
 
 #[derive(PartialEq, Eq, Hash, Debug)]
 pub struct FunType {
-    pub params: Vec<VarType>,
-    pub ret: VarType,
+    pub params: Vec<Singleton<VarType>>,
+    pub ret: Singleton<VarType>,
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -33,11 +50,11 @@ pub enum Const {
     Double(f64),
 }
 impl Const {
-    pub fn new_zero_bits(typ: VarType) -> Const {
+    pub fn new_zero_bits(typ: &VarType) -> Const {
         Const::Int(0).cast_to(typ)
     }
 
-    pub fn cast_to(&self, typ: VarType) -> Const {
+    pub fn cast_to(&self, typ: &VarType) -> Const {
         macro_rules! new_const {
             ( $out_konst_variant:expr, $out_prim:ty ) => {
                 match self {
@@ -51,11 +68,14 @@ impl Const {
         }
 
         match typ {
-            VarType::Int => new_const!(Const::Int, i32),
-            VarType::Long => new_const!(Const::Long, i64),
-            VarType::UInt => new_const!(Const::UInt, u32),
-            VarType::ULong => new_const!(Const::ULong, u64),
-            VarType::Double => new_const!(Const::Double, f64),
+            VarType::Arithmetic(a) => match a {
+                ArithmeticType::Int => new_const!(Const::Int, i32),
+                ArithmeticType::Long => new_const!(Const::Long, i64),
+                ArithmeticType::UInt => new_const!(Const::UInt, u32),
+                ArithmeticType::ULong => new_const!(Const::ULong, u64),
+                ArithmeticType::Double => new_const!(Const::Double, f64),
+            },
+            VarType::Pointer(_) => todo!(),
         }
     }
 
@@ -70,13 +90,13 @@ impl Const {
         }
     }
 
-    pub fn var_type(&self) -> VarType {
+    pub fn arithmetic_type(&self) -> ArithmeticType {
         match self {
-            Const::Int(_) => VarType::Int,
-            Const::Long(_) => VarType::Long,
-            Const::UInt(_) => VarType::UInt,
-            Const::ULong(_) => VarType::ULong,
-            Const::Double(_) => VarType::Double,
+            Const::Int(_) => ArithmeticType::Int,
+            Const::Long(_) => ArithmeticType::Long,
+            Const::UInt(_) => ArithmeticType::UInt,
+            Const::ULong(_) => ArithmeticType::ULong,
+            Const::Double(_) => ArithmeticType::Double,
         }
     }
 }

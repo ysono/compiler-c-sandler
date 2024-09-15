@@ -1,4 +1,4 @@
-use crate::common::types_frontend::VarType;
+use crate::common::types_frontend::ArithmeticType;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum AssemblyType {
@@ -6,12 +6,13 @@ pub enum AssemblyType {
     Quadword, // 64-bit
     Double,
 }
-impl From<VarType> for AssemblyType {
-    fn from(var_type: VarType) -> Self {
-        match var_type {
-            VarType::Int | VarType::UInt => Self::Longword,
-            VarType::Long | VarType::ULong => Self::Quadword,
-            VarType::Double => Self::Double,
+impl From<ArithmeticType> for AssemblyType {
+    fn from(ari_type: ArithmeticType) -> Self {
+        use ArithmeticType as AT;
+        match ari_type {
+            AT::Int | AT::UInt => Self::Longword,
+            AT::Long | AT::ULong => Self::Quadword,
+            AT::Double => Self::Double,
         }
     }
 }

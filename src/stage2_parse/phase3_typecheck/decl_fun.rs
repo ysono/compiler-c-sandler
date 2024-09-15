@@ -33,10 +33,10 @@ impl TypeChecker {
             body,
         } = decl;
 
-        for (ident, typ) in param_idents.iter().zip(typ.params.iter()) {
+        for (param_ident, param_typ) in param_idents.iter().zip(typ.params.iter()) {
             let mock_var_decl = VariableDeclaration {
-                ident: Rc::clone(ident),
-                typ: *typ,
+                ident: Rc::clone(param_ident),
+                typ: param_typ.clone(),
                 storage_class: None,
                 init: None,
             };

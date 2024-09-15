@@ -37,7 +37,7 @@ mod declaration {
     #[derive(Debug)]
     pub struct VariableDeclaration<T: CAstVariant> {
         pub ident: T::Identifier,
-        pub typ: VarType,
+        pub typ: Singleton<VarType>,
         pub storage_class: Option<StorageClassSpecifier>,
         pub init: Option<T::Expression>,
     }
@@ -138,7 +138,7 @@ mod statement {
 #[derive(Debug)]
 pub struct TypedExpression<T: CAstVariant> {
     pub exp: Expression<T>,
-    pub typ: VarType,
+    pub typ: Singleton<VarType>,
 }
 #[derive(Debug)]
 pub enum Expression<T: CAstVariant> {
@@ -156,7 +156,7 @@ mod expression {
 
     #[derive(Debug)]
     pub struct Cast<T: CAstVariant> {
-        pub typ: VarType,
+        pub typ: Singleton<VarType>,
         pub sub_exp: Box<T::Expression>,
     }
 

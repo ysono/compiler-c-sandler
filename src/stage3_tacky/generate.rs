@@ -59,13 +59,13 @@ impl Tackifier {
             {
                 let konst = match initial_value {
                     StaticInitialValue::Initial(konst) => *konst,
-                    StaticInitialValue::Tentative => Const::new_zero_bits(*typ),
+                    StaticInitialValue::Tentative => Const::new_zero_bits(typ),
                     StaticInitialValue::NoInitializer => continue,
                 };
                 let static_var = StaticVariable {
                     ident: Rc::clone(ident),
                     visibility: *visibility,
-                    typ: *typ,
+                    typ: typ.clone(),
                     init: konst,
                 };
                 static_vars.push(static_var);

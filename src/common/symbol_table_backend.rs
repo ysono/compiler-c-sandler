@@ -39,7 +39,7 @@ impl From<SymbolTable> for BackendSymbolTable {
         for (ident, symbol) in c_table.into_iter() {
             match symbol {
                 Symbol::Var { typ, attrs } => {
-                    let asm_type = AssemblyType::from(typ);
+                    let asm_type = AssemblyType::from(typ.effective_arithmetic_type());
                     let loc = match attrs {
                         VarAttrs::AutomaticStorageDuration => ObjLocation::Stack,
                         VarAttrs::StaticStorageDuration { .. } => ObjLocation::StaticReadWrite,

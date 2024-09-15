@@ -4,6 +4,7 @@ use crate::{
         identifier::{JumpLabel, UniqueId},
         types_frontend::VarType,
     },
+    ds_n_a::singleton::Singleton,
     stage2_parse::{c_ast as c, phase3_typecheck::TypeCheckedCAst},
     stage3_tacky::tacky_ast::*,
 };
@@ -61,7 +62,7 @@ impl<'a> FunInstrsGenerator<'a> {
     pub(super) fn gen_exp_conditional(
         &mut self,
         c::Conditional { condition, then, elze }: c::Conditional<TypeCheckedCAst>,
-        out_typ: VarType,
+        out_typ: Singleton<VarType>,
     ) -> ReadableValue {
         let [label_else, label_end] =
             JumpLabel::create(UniqueId::new(), "exp_cond", ["else", "end"]);

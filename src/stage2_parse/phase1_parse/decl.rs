@@ -2,8 +2,9 @@ use super::{ParsedCAst, Parser};
 use crate::{
     common::{
         identifier::RawIdentifier,
-        types_frontend::{FunType, VarType},
+        types_frontend::{ArithmeticType, FunType, VarType},
     },
+    ds_n_a::singleton::Singleton,
     stage1_lex::tokens as t,
     stage2_parse::c_ast::*,
     utils::noop,
@@ -14,10 +15,11 @@ use std::cmp;
 impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
     pub(super) fn maybe_parse_decl(&mut self) -> Result<Option<Declaration<ParsedCAst>>> {
         let mut inner = || -> Result<_> {
-            let (typ, storage_class) = match self.maybe_parse_specifiers()? {
+            let (ari_typ, storage_class) = match self.maybe_parse_specifiers()? {
                 None => return Ok(None),
                 Some((t, sc)) => (t, sc),
             };
+            let typ = self.var_type_repo.get_or_new(ari_typ.into());
 
             let ident = match self.tokens.next() {
                 Some(Ok(t::Token::Identifier(ident))) => ident,
@@ -79,7 +81,7 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
     }
     pub(super) fn maybe_parse_specifiers(
         &mut self,
-    ) -> Result<Option<(VarType, Option<StorageClassSpecifier>)>> {
+    ) -> Result<Option<(ArithmeticType, Option<StorageClassSpecifier>)>> {
         let mut inner = || -> Result<_> {
             match self.tokens.peek() {
                 Some(Ok(t::Token::Type(_) | t::Token::StorageClassSpecifier(_))) => noop!(),
@@ -101,20 +103,20 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
             let expected_max_len = cmp::min(3, typs.len());
             typs[..expected_max_len].sort();
 
-            let var_type = match &typs[..] {
+            let ari_type = match &typs[..] {
                 /* In each pattern below, items must be sorted by the `t::Type` enum type's discriminants. */
-                [t::Type::Int] => VarType::Int,
-                [t::Type::Int, t::Type::Long] => VarType::Long,
-                [t::Type::Int, t::Type::Long, t::Type::Signed] => VarType::Long,
-                [t::Type::Int, t::Type::Long, t::Type::Unsigned] => VarType::ULong,
-                [t::Type::Int, t::Type::Signed] => VarType::Int,
-                [t::Type::Int, t::Type::Unsigned] => VarType::UInt,
-                [t::Type::Long] => VarType::Long,
-                [t::Type::Long, t::Type::Signed] => VarType::Long,
-                [t::Type::Long, t::Type::Unsigned] => VarType::ULong,
-                [t::Type::Signed] => VarType::Int,
-                [t::Type::Unsigned] => VarType::UInt,
-                [t::Type::Double] => VarType::Double,
+                [t::Type::Int] => ArithmeticType::Int,
+                [t::Type::Int, t::Type::Long] => ArithmeticType::Long,
+                [t::Type::Int, t::Type::Long, t::Type::Signed] => ArithmeticType::Long,
+                [t::Type::Int, t::Type::Long, t::Type::Unsigned] => ArithmeticType::ULong,
+                [t::Type::Int, t::Type::Signed] => ArithmeticType::Int,
+                [t::Type::Int, t::Type::Unsigned] => ArithmeticType::UInt,
+                [t::Type::Long] => ArithmeticType::Long,
+                [t::Type::Long, t::Type::Signed] => ArithmeticType::Long,
+                [t::Type::Long, t::Type::Unsigned] => ArithmeticType::ULong,
+                [t::Type::Signed] => ArithmeticType::Int,
+                [t::Type::Unsigned] => ArithmeticType::UInt,
+                [t::Type::Double] => ArithmeticType::Double,
                 actual => return Err(anyhow!("Invalid types. {actual:?}")),
                 /* Void is not supported yet. */
             };
@@ -125,11 +127,11 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
                 actual => return Err(anyhow!("Invalid storage class specifiers. {actual:?}")),
             };
 
-            Ok(Some((var_type, scs)))
+            Ok(Some((ari_type, scs)))
         };
         inner().context("<declaration> specifiers")
     }
-    fn parse_param_list(&mut self) -> Result<(Vec<VarType>, Vec<RawIdentifier>)> {
+    fn parse_param_list(&mut self) -> Result<(Vec<Singleton<VarType>>, Vec<RawIdentifier>)> {
         let mut inner = || -> Result<_> {
             match self.tokens.peek() {
                 Some(Ok(t::Token::Type(t::Type::Void))) => {
@@ -143,7 +145,10 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
 
                     loop {
                         match self.maybe_parse_specifiers()? {
-                            Some((typ, None)) => typs.push(typ),
+                            Some((ari_typ, None)) => {
+                                let typ = self.var_type_repo.get_or_new(ari_typ.into());
+                                typs.push(typ)
+                            }
                             actual => return Err(anyhow!("{actual:?}")),
                         };
 
