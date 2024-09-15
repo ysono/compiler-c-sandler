@@ -11,8 +11,16 @@ impl<'a> FunInstrsGenerator<'a> {
 
     pub(super) fn gen_exp_assignment(
         &mut self,
+        lhs: c::TypedExpression<Rc<SymbolIdentifier>>,
+        rhs: c::TypedExpression<c::Expression<TypeCheckedCAst>>,
+    ) -> ReadableValue {
+        let ident = lhs.exp;
+        self.gen_assignment(ident, rhs)
+    }
+    pub(super) fn gen_assignment(
+        &mut self,
         ident: Rc<SymbolIdentifier>,
-        rhs: c::TypedExpression<TypeCheckedCAst>,
+        rhs: c::TypedExpression<c::Expression<TypeCheckedCAst>>,
     ) -> ReadableValue {
         let rhs = self.gen_exp(rhs);
 

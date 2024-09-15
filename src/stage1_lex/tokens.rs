@@ -42,21 +42,19 @@ pub enum StorageClassSpecifier {
 }
 #[derive(PartialEq, Debug)]
 pub enum Operator {
-    /* unary -> int */
+    /* arithmetic and misc basic */
     Tilde,
-    /* unary -> bool */
-    Not,
-    /* unary or binary -> int */
+    Bang,
     Minus,
-    /* binary -> int */
     Plus,
     Star,
     Slash,
     Percent,
-    /* binary -(logic)-> boolean */
+    Ampersand,
+    /* binary logic */
     And,
     Or,
-    /* binary -(compare)-> boolean */
+    /* binary comparison */
     Eq,
     Neq,
     Lt,

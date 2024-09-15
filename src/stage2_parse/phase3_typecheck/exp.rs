@@ -11,7 +11,7 @@ impl TypeChecker {
     pub(super) fn typecheck_exp(
         &mut self,
         exp: Expression<ResolvedCAst>,
-    ) -> Result<TypedExpression<TypeCheckedCAst>> {
+    ) -> Result<TypedExpression<Expression<TypeCheckedCAst>>> {
         let exp = match exp {
             Expression::Const(konst) => {
                 let typ = self
@@ -86,13 +86,19 @@ impl TypeChecker {
                 });
                 TypedExpression { typ: out_typ, exp: out_exp }
             }
-            Expression::Assignment(Assignment { lhs, rhs }) => {
-                let typ = self.symbol_table.get_var_type(&lhs)?.clone();
-                let rhs = self.typecheck_exp(*rhs)?;
-                let rhs = Self::maybe_cast_exp(&typ, rhs);
-                let exp = Expression::Assignment(Assignment { lhs, rhs: Box::new(rhs) });
-                TypedExpression { typ, exp }
-            }
+            Expression::Assignment(Assignment { lhs, rhs }) => match *lhs {
+                Expression::Var(ident) => {
+                    let typ = self.symbol_table.get_var_type(&ident)?.clone();
+                    let lhs = Box::new(TypedExpression { typ: typ.clone(), exp: ident });
+
+                    let rhs = self.typecheck_exp(*rhs)?;
+                    let rhs = Self::maybe_cast_exp(&typ, rhs);
+
+                    let exp = Expression::Assignment(Assignment { lhs, rhs: Box::new(rhs) });
+                    TypedExpression { typ, exp }
+                }
+                _ => todo!(),
+            },
             Expression::Conditional(Conditional { condition, then, elze }) => {
                 let condition = self.typecheck_exp(*condition)?;
                 let then = self.typecheck_exp(*then)?;
@@ -125,6 +131,8 @@ impl TypeChecker {
                 let exp = Expression::FunctionCall(FunctionCall { ident, args: out_args });
                 TypedExpression { typ: fun_typ.ret.clone(), exp }
             }
+            Expression::Dereference(_) => todo!(),
+            Expression::AddrOf(_) => todo!(),
         };
         Ok(exp)
     }

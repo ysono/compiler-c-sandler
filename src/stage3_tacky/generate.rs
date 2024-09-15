@@ -124,7 +124,7 @@ impl<'a> FunInstrsGenerator<'a> {
         &mut self,
         c::VariableDefinition { ident, init }: c::VariableDefinition<TypeCheckedCAst>,
     ) {
-        self.gen_exp_assignment(ident, init);
+        self.gen_assignment(ident, init);
     }
 
     /* Block, Statement, Expression */
@@ -160,7 +160,7 @@ impl<'a> FunInstrsGenerator<'a> {
     }
     fn gen_exp(
         &mut self,
-        c::TypedExpression { exp, typ }: c::TypedExpression<TypeCheckedCAst>,
+        c::TypedExpression { exp, typ }: c::TypedExpression<c::Expression<TypeCheckedCAst>>,
     ) -> ReadableValue {
         match exp {
             c::Expression::Const(konst) => ReadableValue::Constant(konst),
@@ -169,10 +169,12 @@ impl<'a> FunInstrsGenerator<'a> {
             c::Expression::Unary(c_unary) => self.gen_exp_unary(c_unary, typ),
             c::Expression::Binary(c_binary) => self.gen_exp_binary(c_binary, typ),
             c::Expression::Assignment(c::Assignment { lhs, rhs }) => {
-                self.gen_exp_assignment(lhs, *rhs)
+                self.gen_exp_assignment(*lhs, *rhs)
             }
             c::Expression::Conditional(c_cond) => self.gen_exp_conditional(c_cond, typ),
             c::Expression::FunctionCall(c_fun_call) => self.gen_exp_fun_call(c_fun_call, typ),
+            c::Expression::Dereference(_) => todo!(),
+            c::Expression::AddrOf(_) => todo!(),
         }
     }
 }

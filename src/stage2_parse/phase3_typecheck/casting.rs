@@ -10,7 +10,7 @@ use crate::{
 use std::borrow::Borrow;
 use std::cmp::Ordering;
 
-type TypedExp = TypedExpression<TypeCheckedCAst>;
+type TypedExp = TypedExpression<Expression<TypeCheckedCAst>>;
 
 impl TypeChecker {
     pub(super) fn cast_to_common_type(
