@@ -18,9 +18,12 @@ impl<'a> FunInstrsGenerator<'a> {
         &mut self,
         c::Cast { typ: dst_typ, sub_exp }: c::Cast<TypeCheckedCAst>,
     ) -> Value {
-        let src_typ = sub_exp.typ.clone();
-        let src_val = self.gen_exp(*sub_exp);
-        if dst_typ == src_typ {
+        let dst_ari_typ = dst_typ.effective_arithmetic_type();
+        let src_ari_typ = sub_exp.typ.effective_arithmetic_type();
+
+        let src_val = self.gen_exp_and_get_value(*sub_exp);
+
+        if dst_ari_typ == src_ari_typ {
             /* Eg `int a = 10; int b = ((int) a) + (a = 1000);`
             If the input is an object, its value could be modified by another expression;
             therefore eliding could change the evaluation of a surrounding overall expression;
@@ -28,56 +31,51 @@ impl<'a> FunInstrsGenerator<'a> {
             therefore eliding is valid. */
             src_val
         } else {
-            match (dst_typ.as_ref(), src_typ.as_ref()) {
-                (VarType::Arithmetic(dst_ari_typ), VarType::Arithmetic(src_ari_typ)) => {
-                    let dst = self.symbol_table.declare_var_anon(dst_typ.clone());
-                    let srcdst = SrcDst {
-                        src: src_val,
-                        dst: Rc::clone(&dst),
-                    };
+            let dst = self.symbol_table.declare_var_anon(dst_typ);
 
-                    let instr = match (dst_ari_typ, src_ari_typ) {
-                        (_, ArithmeticType::Double) => {
-                            if dst_ari_typ.is_signed() {
-                                Instruction::DoubleToInt(srcdst)
-                            } else {
-                                Instruction::DoubleToUInt(srcdst)
-                            }
-                        }
-                        (ArithmeticType::Double, _) => {
-                            if src_ari_typ.is_signed() {
-                                Instruction::IntToDouble(srcdst)
-                            } else {
-                                Instruction::UIntToDouble(srcdst)
-                            }
-                        }
-                        _ => {
-                            /* Then, casting between different integer types. */
-                            let dst_bytelen = OperandByteLen::from(*dst_ari_typ);
-                            let src_bytelen = OperandByteLen::from(*src_ari_typ);
-                            match dst_bytelen.cmp(&src_bytelen) {
-                                Ordering::Equal => Instruction::Copy(srcdst),
-                                Ordering::Less => Instruction::Truncate(srcdst),
-                                Ordering::Greater => {
-                                    if src_ari_typ.is_signed() {
-                                        Instruction::SignExtend(srcdst)
-                                    } else {
-                                        Instruction::ZeroExtend(srcdst)
-                                    }
-                                }
-                            }
-                        }
-                    };
-
-                    self.instrs.push(instr);
-                    Value::Variable(dst)
+            let srcdst = SrcDst {
+                src: src_val,
+                dst: Rc::clone(&dst),
+            };
+            let instr = match (dst_ari_typ, src_ari_typ) {
+                (_, ArithmeticType::Double) => {
+                    if dst_ari_typ.is_signed() {
+                        Instruction::DoubleToInt(srcdst)
+                    } else {
+                        Instruction::DoubleToUInt(srcdst)
+                    }
                 }
-                _ => todo!(),
-            }
+                (ArithmeticType::Double, _) => {
+                    if src_ari_typ.is_signed() {
+                        Instruction::IntToDouble(srcdst)
+                    } else {
+                        Instruction::UIntToDouble(srcdst)
+                    }
+                }
+                _ => {
+                    /* Then, casting between different integer types. */
+                    let dst_bytelen = OperandByteLen::from(dst_ari_typ);
+                    let src_bytelen = OperandByteLen::from(src_ari_typ);
+                    match dst_bytelen.cmp(&src_bytelen) {
+                        Ordering::Equal => Instruction::Copy(srcdst),
+                        Ordering::Less => Instruction::Truncate(srcdst),
+                        Ordering::Greater => {
+                            if src_ari_typ.is_signed() {
+                                Instruction::SignExtend(srcdst)
+                            } else {
+                                Instruction::ZeroExtend(srcdst)
+                            }
+                        }
+                    }
+                }
+            };
+            self.instrs.push(instr);
+
+            Value::Variable(dst)
         }
     }
 
-    /* Function call */
+    /* C Function Call */
 
     pub(super) fn gen_exp_fun_call(
         &mut self,
@@ -90,7 +88,7 @@ impl<'a> FunInstrsGenerator<'a> {
 
         let args = args
             .into_iter()
-            .map(|arg| self.gen_exp(arg))
+            .map(|arg| self.gen_exp_and_get_value(arg))
             .collect::<Vec<_>>();
 
         self.instrs.push(Instruction::FunCall(FunCall {
