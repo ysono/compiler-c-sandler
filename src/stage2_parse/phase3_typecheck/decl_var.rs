@@ -38,7 +38,7 @@ impl TypeChecker {
                     None => None,
                     Some(init) => {
                         let init = self.typecheck_exp(init)?;
-                        let init = Self::maybe_cast_exp(init, typ);
+                        let init = Self::maybe_cast_exp(typ, init);
 
                         Some(VariableDefinition { ident, init })
                     }

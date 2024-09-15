@@ -1,5 +1,3 @@
-use crate::common::types_backend::OperandByteLen;
-use std::cmp::Ordering;
 use std::hash::{Hash, Hasher};
 use std::mem;
 
@@ -16,28 +14,6 @@ impl VarType {
         match self {
             Self::Int | Self::Long | Self::Double => true,
             Self::UInt | Self::ULong => false,
-        }
-    }
-
-    pub fn derive_common_type(typ1: VarType, typ2: VarType) -> VarType {
-        if typ1 == typ2 {
-            typ1
-        } else if (typ1 == VarType::Double) || (typ2 == VarType::Double) {
-            VarType::Double
-        } else {
-            let bytelen1 = OperandByteLen::from(typ1);
-            let bytelen2 = OperandByteLen::from(typ2);
-            match bytelen1.cmp(&bytelen2) {
-                Ordering::Equal => {
-                    if typ1.is_signed() {
-                        typ2
-                    } else {
-                        typ1
-                    }
-                }
-                Ordering::Greater => typ1,
-                Ordering::Less => typ2,
-            }
         }
     }
 }
