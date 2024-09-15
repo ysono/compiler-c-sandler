@@ -119,7 +119,7 @@ impl TypeChecker {
 
                 // Does transform.
                 let ret_type = self.curr_fun_type.as_ref().unwrap().ret;
-                let exp = Self::maybe_cast_exp(exp, ret_type);
+                let exp = Self::maybe_cast_exp(ret_type, exp);
 
                 Ok(Statement::Return(exp))
             }

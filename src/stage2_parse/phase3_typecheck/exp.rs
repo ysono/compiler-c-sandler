@@ -51,34 +51,33 @@ impl TypeChecker {
                 let lhs = self.typecheck_exp(*lhs)?;
                 let rhs = self.typecheck_exp(*rhs)?;
 
-                let common_typ = VarType::derive_common_type(lhs.typ, rhs.typ);
-                let cast_exp =
-                    |exp: TypedExpression<TypeCheckedCAst>| Self::maybe_cast_exp(exp, common_typ);
-
-                if matches!((&op, common_typ), (BO::Rem, VarType::Double)) {
-                    return Err(anyhow!("Cannot apply {op:?} on {lhs:?} and {rhs:?}"));
-                }
-
-                let (out_typ, lhs, rhs) = match &op {
+                let (out_typ, out_lhs, out_rhs) = match &op {
                     BO::And | BO::Or => (VarType::Int, lhs, rhs),
                     BO::Eq | BO::Neq | BO::Lt | BO::Lte | BO::Gt | BO::Gte => {
-                        (VarType::Int, cast_exp(lhs), cast_exp(rhs))
+                        let (_, lhs, rhs) = Self::cast_to_common_type(lhs, rhs);
+                        (VarType::Int, lhs, rhs)
                     }
                     BO::Sub | BO::Add | BO::Mul | BO::Div | BO::Rem => {
-                        (common_typ, cast_exp(lhs), cast_exp(rhs))
+                        let (common_typ, lhs, rhs) = Self::cast_to_common_type(lhs, rhs);
+
+                        if matches!((&op, common_typ), (BO::Rem, VarType::Double)) {
+                            return Err(anyhow!("Cannot apply {op:?} on {lhs:?} and {rhs:?}"));
+                        }
+
+                        (common_typ, lhs, rhs)
                     }
                 };
                 let out_exp = Expression::Binary(Binary {
                     op,
-                    lhs: Box::new(lhs),
-                    rhs: Box::new(rhs),
+                    lhs: Box::new(out_lhs),
+                    rhs: Box::new(out_rhs),
                 });
                 TypedExpression { typ: out_typ, exp: out_exp }
             }
             Expression::Assignment(Assignment { lhs, rhs }) => {
                 let typ = self.symbol_table.get_var_type(&lhs)?;
                 let rhs = self.typecheck_exp(*rhs)?;
-                let rhs = Self::maybe_cast_exp(rhs, typ);
+                let rhs = Self::maybe_cast_exp(typ, rhs);
                 let exp = Expression::Assignment(Assignment { lhs, rhs: Box::new(rhs) });
                 TypedExpression { typ, exp }
             }
@@ -87,9 +86,7 @@ impl TypeChecker {
                 let then = self.typecheck_exp(*then)?;
                 let elze = self.typecheck_exp(*elze)?;
 
-                let typ = VarType::derive_common_type(then.typ, elze.typ);
-                let then = Self::maybe_cast_exp(then, typ);
-                let elze = Self::maybe_cast_exp(elze, typ);
+                let (typ, then, elze) = Self::cast_to_common_type(then, elze);
 
                 let exp = Expression::Conditional(Conditional {
                     condition: Box::new(condition),
@@ -110,7 +107,7 @@ impl TypeChecker {
                 let mut out_args = Vec::with_capacity(args.len());
                 for (param_typ, arg_exp) in fun_typ.params.iter().cloned().zip(args.into_iter()) {
                     let arg_exp = self.typecheck_exp(arg_exp)?;
-                    let arg_exp = Self::maybe_cast_exp(arg_exp, param_typ);
+                    let arg_exp = Self::maybe_cast_exp(param_typ, arg_exp);
                     out_args.push(arg_exp);
                 }
                 let exp = Expression::FunctionCall(FunctionCall { ident, args: out_args });

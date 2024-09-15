@@ -12,43 +12,52 @@ impl<'a> FunInstrsGenerator<'a> {
 
     pub(super) fn gen_exp_cast(
         &mut self,
-        c::Cast { typ, sub_exp }: c::Cast<TypeCheckedCAst>,
+        c::Cast { typ: dst_typ, sub_exp }: c::Cast<TypeCheckedCAst>,
     ) -> ReadableValue {
-        let sub_typ = sub_exp.typ;
-        let sub_val = self.gen_exp(*sub_exp);
-        if sub_typ == typ {
-            sub_val
+        let src_typ = sub_exp.typ;
+        let src_val = self.gen_exp(*sub_exp);
+        if dst_typ == src_typ {
+            /* Eg `int a = 10; int b = ((int) a) + (a = 1000);`
+            If the input is an object, its value could be modified by another expression;
+            therefore eliding could change the evaluation of a surrounding overall expression;
+            but C does not define the ordering of evaluating 2+ causally independent expressions;
+            therefore eliding is valid. */
+            src_val
         } else {
-            let dst = self.symbol_table.declare_var_anon(typ);
+            let dst = self.symbol_table.declare_var_anon(dst_typ);
             let srcdst = SrcDst {
-                src: sub_val,
+                src: src_val,
                 dst: Rc::clone(&dst),
             };
 
-            let instr = if sub_typ == VarType::Double {
-                if typ.is_signed() {
-                    Instruction::DoubleToInt(srcdst)
-                } else {
-                    Instruction::DoubleToUInt(srcdst)
+            let instr = match (dst_typ, src_typ) {
+                (_, VarType::Double) => {
+                    if dst_typ.is_signed() {
+                        Instruction::DoubleToInt(srcdst)
+                    } else {
+                        Instruction::DoubleToUInt(srcdst)
+                    }
                 }
-            } else if typ == VarType::Double {
-                if sub_typ.is_signed() {
-                    Instruction::IntToDouble(srcdst)
-                } else {
-                    Instruction::UIntToDouble(srcdst)
+                (VarType::Double, _) => {
+                    if src_typ.is_signed() {
+                        Instruction::IntToDouble(srcdst)
+                    } else {
+                        Instruction::UIntToDouble(srcdst)
+                    }
                 }
-            } else {
-                /* Then, casting between different integer types. */
-                let out_bytelen = OperandByteLen::from(typ);
-                let sub_bytelen = OperandByteLen::from(sub_typ);
-                match out_bytelen.cmp(&sub_bytelen) {
-                    Ordering::Equal => Instruction::Copy(srcdst),
-                    Ordering::Less => Instruction::Truncate(srcdst),
-                    Ordering::Greater => {
-                        if sub_typ.is_signed() {
-                            Instruction::SignExtend(srcdst)
-                        } else {
-                            Instruction::ZeroExtend(srcdst)
+                _ => {
+                    /* Then, casting between different integer types. */
+                    let dst_bytelen = OperandByteLen::from(dst_typ);
+                    let src_bytelen = OperandByteLen::from(src_typ);
+                    match dst_bytelen.cmp(&src_bytelen) {
+                        Ordering::Equal => Instruction::Copy(srcdst),
+                        Ordering::Less => Instruction::Truncate(srcdst),
+                        Ordering::Greater => {
+                            if src_typ.is_signed() {
+                                Instruction::SignExtend(srcdst)
+                            } else {
+                                Instruction::ZeroExtend(srcdst)
+                            }
                         }
                     }
                 }
