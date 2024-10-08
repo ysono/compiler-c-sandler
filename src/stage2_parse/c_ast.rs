@@ -1,4 +1,4 @@
-pub use self::{declaration::*, expression::*, statement::*};
+pub use self::{declaration::*, expression::*, statement::*, typed_expression::*};
 pub use crate::stage1_lex::tokens::StorageClassSpecifier;
 use crate::{
     common::{
@@ -138,26 +138,26 @@ mod statement {
     }
 }
 
-#[derive(Debug)]
-pub struct TypedExpression<Exp> {
-    pub exp: Exp,
-    pub typ: Singleton<VarType>,
-}
-#[derive(Debug)]
+#[derive(From, Debug)]
 pub enum Expression<C: CAstVariant> {
+    R(RExp<C>),
+    L(LExp<C>),
+}
+/// Rvalue expression.
+#[derive(Debug)]
+pub enum RExp<C: CAstVariant> {
     Const(Const),
-    Var(C::Identifier),
     Cast(Cast<C>),
     Unary(Unary<C>),
     Binary(Binary<C>),
-    Assignment(Assignment<C>),
     Conditional(Conditional<C>),
     FunctionCall(FunctionCall<C>),
-    Dereference(Dereference<C>),
+    Assignment(Assignment<C>),
     AddrOf(AddrOf<C>),
 }
+/// Lvalue expression.
 #[derive(Debug)]
-pub enum LvalueExpression<C: CAstVariant> {
+pub enum LExp<C: CAstVariant> {
     Var(C::Identifier),
     Dereference(Dereference<C>),
 }
@@ -222,12 +222,6 @@ mod expression {
     }
 
     #[derive(Debug)]
-    pub struct Assignment<C: CAstVariant> {
-        pub lhs: Box<C::LvalueExpression>,
-        pub rhs: Box<C::Expression>,
-    }
-
-    #[derive(Debug)]
     pub struct Conditional<C: CAstVariant> {
         pub condition: Box<C::Expression>,
         pub then: Box<C::Expression>,
@@ -241,8 +235,41 @@ mod expression {
     }
 
     #[derive(Debug)]
-    pub struct Dereference<C: CAstVariant>(pub Box<C::Expression>);
+    pub struct Assignment<C: CAstVariant> {
+        pub lhs: Box<C::LvalueExpression>,
+        pub rhs: Box<C::Expression>,
+    }
 
     #[derive(Debug)]
     pub struct AddrOf<C: CAstVariant>(pub Box<C::LvalueExpression>);
+
+    #[derive(Debug)]
+    pub struct Dereference<C: CAstVariant>(pub Box<C::Expression>);
+}
+
+mod typed_expression {
+    use super::super::phase3_typecheck::TypeCheckedCAst;
+    use super::*;
+
+    #[derive(Debug)]
+    pub enum TypedExp {
+        R(TypedRExp),
+        L(TypedLExp),
+    }
+    impl TypedExp {
+        pub fn typ(&self) -> &Singleton<VarType> {
+            match self {
+                Self::R(typed_rexp) => &typed_rexp.typ,
+                Self::L(typed_lexp) => &typed_lexp.typ,
+            }
+        }
+    }
+
+    #[derive(Debug)]
+    pub struct TypAndExp<Exp> {
+        pub typ: Singleton<VarType>,
+        pub exp: Exp,
+    }
+    pub type TypedRExp = TypAndExp<RExp<TypeCheckedCAst>>;
+    pub type TypedLExp = TypAndExp<LExp<TypeCheckedCAst>>;
 }

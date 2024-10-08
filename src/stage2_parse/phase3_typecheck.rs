@@ -32,8 +32,8 @@ impl CAstVariant for TypeCheckedCAst {
     type ForInitDeclaration = VariableDefinition<Self>;
     type Identifier = Rc<SymbolIdentifier>;
     type LoopId = Rc<LoopId>;
-    type Expression = TypedExpression<Expression<Self>>;
-    type LvalueExpression = TypedExpression<LvalueExpression<Self>>;
+    type Expression = TypedExp;
+    type LvalueExpression = TypedLExp;
 }
 
 pub struct TypeChecker {

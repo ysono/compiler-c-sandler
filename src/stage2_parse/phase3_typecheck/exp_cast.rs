@@ -1,4 +1,4 @@
-use super::{TypeCheckedCAst, TypeChecker};
+use super::TypeChecker;
 use crate::{
     common::{
         primitive::Const,
@@ -13,8 +13,6 @@ use anyhow::{anyhow, Result};
 use std::borrow::Borrow;
 use std::cmp::Ordering;
 
-type TypedExp = TypedExpression<Expression<TypeCheckedCAst>>;
-
 impl TypeChecker {
     /* Common type */
 
@@ -24,16 +22,16 @@ impl TypeChecker {
     ) -> Result<(TypedExp, TypedExp)> {
         match Self::derive_common_type(&exp1, &exp2)? {
             Either::Left(()) => {
-                exp2 = Self::maybe_insert_cast_node(&exp1.typ, exp2);
+                exp2 = Self::maybe_insert_cast_node(exp1.typ(), exp2);
             }
             Either::Right(()) => {
-                exp1 = Self::maybe_insert_cast_node(&exp2.typ, exp1);
+                exp1 = Self::maybe_insert_cast_node(exp2.typ(), exp1);
             }
         }
         Ok((exp1, exp2))
     }
     fn derive_common_type(exp1: &TypedExp, exp2: &TypedExp) -> Result<Either<(), ()>> {
-        match (exp1.typ.as_ref(), exp2.typ.as_ref()) {
+        match (exp1.typ().as_ref(), exp2.typ().as_ref()) {
             (VarType::Arith(a1), VarType::Arith(a2)) => {
                 Ok(Self::derive_common_arithmetic_type(*a1, *a2))
             }
@@ -70,9 +68,10 @@ impl TypeChecker {
     }
     fn derive_common_pointer_type(ptr_typ: &PointerType, other_exp: &TypedExp) -> Result<()> {
         #[allow(clippy::if_same_then_else)]
-        if matches!(other_exp.typ.as_ref(), VarType::Ptr(ptr_typ_2) if ptr_typ == ptr_typ_2) {
+        if matches!(other_exp.typ().as_ref(), VarType::Ptr(ptr_typ_2) if ptr_typ == ptr_typ_2) {
             Ok(())
-        } else if matches!(other_exp.exp, Expression::Const(k) if k.is_zero_integer()) {
+        } else if matches!(other_exp, TypedExp::R(TypedRExp{exp: RExp::Const(k), ..}) if k.is_zero_integer())
+        {
             Ok(())
         } else {
             Err(anyhow!(
@@ -83,18 +82,19 @@ impl TypeChecker {
 
     /* Casting explicitly */
 
-    pub(super) fn cast_explicitly(to: Singleton<VarType>, from: TypedExp) -> Result<TypedExp> {
-        let err = || Err(anyhow!("Cannot explicitly cast {to:?} <- {from:?}"));
+    pub(super) fn cast_explicitly(to: Singleton<VarType>, from: TypedExp) -> Result<TypedRExp> {
+        let ok = match (to.as_ref(), from.typ().as_ref()) {
+            (t2, t1) if t2 == t1 => Ok(()),
 
-        match (to.as_ref(), from.typ.as_ref()) {
-            /* Elide redundant explicit cast. See more comment in the tacky stage. */
-            (t2, t1) if t2 == t1 => Ok(from),
+            (VarType::Ptr(_), VarType::Arith(ArithmeticType::Double)) => Err(()),
+            (VarType::Arith(ArithmeticType::Double), VarType::Ptr(_)) => Err(()),
 
-            (VarType::Ptr(_), VarType::Arith(ArithmeticType::Double)) => err(),
-            (VarType::Arith(ArithmeticType::Double), VarType::Ptr(_)) => err(),
+            _ => Ok(()),
+        };
+        let () = ok.map_err(|()| anyhow!("Cannot explicitly cast {to:?} <- {from:?}"))?;
 
-            _ => Ok(Self::insert_cast_node(to, from)),
-        }
+        let typed_rexp = Self::insert_cast_node(to, from);
+        Ok(typed_rexp)
     }
 
     /* Casting "as if by assignment" */
@@ -117,7 +117,7 @@ impl TypeChecker {
         from: Expression<ResolvedCAst>,
     ) -> Result<Const> {
         let in_konst = match &from {
-            Expression::Const(konst) => *konst,
+            Expression::R(RExp::Const(konst)) => *konst,
             _ => return Err(anyhow!("Casting statically is supported on constexprs only. For each constexpr, only a simple const literal is supported."))
         };
 
@@ -129,13 +129,13 @@ impl TypeChecker {
         Ok(out_konst)
     }
     fn can_cast_by_assignment(to: &VarType, from: &TypedExp) -> Result<()> {
-        let ok = match (to, from.typ.as_ref()) {
+        let ok = match (to, from.typ().as_ref()) {
             (t2, t1) if t2 == t1 => Ok(()),
 
             (VarType::Arith(_), VarType::Arith(_)) => Ok(()),
 
             (VarType::Ptr(_), _) => match from {
-                TypedExp { exp: Expression::Const(k), .. } if k.is_zero_integer() => Ok(()),
+                TypedExp::R(TypedRExp { exp: RExp::Const(k), .. }) if k.is_zero_integer() => Ok(()),
                 _ => Err(()),
             },
 
@@ -147,16 +147,17 @@ impl TypeChecker {
     /* Helpers */
 
     fn maybe_insert_cast_node<Vt: Borrow<Singleton<VarType>>>(to: Vt, from: TypedExp) -> TypedExp {
-        if to.borrow() == &from.typ {
+        if to.borrow() == from.typ() {
             from
         } else {
-            Self::insert_cast_node(to.borrow().clone(), from)
+            let out_typed_rexp = Self::insert_cast_node(to.borrow().clone(), from);
+            TypedExp::R(out_typed_rexp)
         }
     }
-    fn insert_cast_node(to: Singleton<VarType>, from: TypedExp) -> TypedExp {
-        TypedExpression {
+    fn insert_cast_node(to: Singleton<VarType>, from: TypedExp) -> TypedRExp {
+        TypedRExp {
             typ: to.clone(),
-            exp: Expression::Cast(Cast { typ: to, sub_exp: Box::new(from) }),
+            exp: RExp::Cast(Cast { typ: to, sub_exp: Box::new(from) }),
         }
     }
 }

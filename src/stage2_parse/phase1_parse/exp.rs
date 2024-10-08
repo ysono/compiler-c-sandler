@@ -29,11 +29,12 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
                                 let beyond_prec = nxt_prec.inc1(); // Left associative
                                 let rhs = self.do_parse_exp(beyond_prec)?;
 
-                                lhs = Expression::Binary(Binary {
+                                lhs = RExp::Binary(Binary {
                                     op: c_op,
                                     lhs: Box::new(lhs),
                                     rhs: Box::new(rhs),
-                                });
+                                })
+                                .into();
                             }
                             BinaryOperatorInfo::ControlQuestion => {
                                 let then = self.do_parse_exp(BinaryOperatorPrecedence::min())?;
@@ -43,20 +44,22 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
                                 let beyond_prec = nxt_prec; // Right associative
                                 let elze = self.do_parse_exp(beyond_prec)?;
 
-                                lhs = Expression::Conditional(Conditional {
+                                lhs = RExp::Conditional(Conditional {
                                     condition: Box::new(lhs),
                                     then: Box::new(then),
                                     elze: Box::new(elze),
-                                });
+                                })
+                                .into();
                             }
                             BinaryOperatorInfo::Assign => {
                                 let beyond_prec = nxt_prec; // Right associative
                                 let rhs = self.do_parse_exp(beyond_prec)?;
 
-                                lhs = Expression::Assignment(Assignment {
+                                lhs = RExp::Assignment(Assignment {
                                     lhs: Box::new(lhs),
                                     rhs: Box::new(rhs),
-                                });
+                                })
+                                .into();
                             }
                         }
 
@@ -73,13 +76,13 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
     fn parse_factor(&mut self) -> Result<Expression<ParsedCAst>> {
         let mut inner = || -> Result<_> {
             match self.tokens.next() {
-                Some(Ok(t::Token::Const(konst))) => Ok(Expression::Const(konst)),
+                Some(Ok(t::Token::Const(konst))) => Ok(RExp::Const(konst).into()),
                 Some(Ok(t::Token::Identifier(ident))) => match self.tokens.peek() {
                     Some(Ok(t::Token::Demarcator(t::Demarcator::ParenOpen))) => {
                         let args = self.parse_arg_list()?;
-                        Ok(Expression::FunctionCall(FunctionCall { ident, args }))
+                        Ok(RExp::FunctionCall(FunctionCall { ident, args }).into())
                     }
-                    _ => Ok(Expression::Var(ident)),
+                    _ => Ok(LExp::Var(ident).into()),
                 },
                 Some(Ok(t::Token::Operator(t_op))) => self.parse_unary(t_op),
                 Some(Ok(t::Token::Demarcator(t::Demarcator::ParenOpen))) => {
@@ -89,7 +92,7 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
 
                             let sub_exp = Box::new(self.parse_factor()?);
 
-                            Ok(Expression::Cast(Cast { typ, sub_exp }))
+                            Ok(RExp::Cast(Cast { typ, sub_exp }).into())
                         }
                         None => {
                             let exp = self.do_parse_exp(BinaryOperatorPrecedence::min())?;
@@ -109,7 +112,7 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
         let inner = || -> Result<_> {
             let mut new_unary = |op: UnaryOperator| {
                 let exp = self.parse_factor()?;
-                Ok(Expression::Unary(Unary { op, sub_exp: Box::new(exp) }))
+                Ok(RExp::Unary(Unary { op, sub_exp: Box::new(exp) }).into())
             };
             match t_op {
                 t::Operator::Tilde => new_unary(UnaryOperator::Complement),
@@ -117,11 +120,11 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
                 t::Operator::Bang => new_unary(UnaryOperator::Not),
                 t::Operator::Star => {
                     let exp = Box::new(self.parse_factor()?);
-                    Ok(Expression::Dereference(Dereference(exp)))
+                    Ok(LExp::Dereference(Dereference(exp)).into())
                 }
                 t::Operator::Ampersand => {
                     let exp = Box::new(self.parse_factor()?);
-                    Ok(Expression::AddrOf(AddrOf(exp)))
+                    Ok(RExp::AddrOf(AddrOf(exp)).into())
                 }
                 actual => Err(anyhow!("{actual:?}")),
             }

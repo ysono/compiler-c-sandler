@@ -1,4 +1,4 @@
-use super::{TypeCheckedCAst, TypeChecker};
+use super::TypeChecker;
 use crate::{
     common::types_frontend::{ArithmeticType, VarType},
     ds_n_a::singleton::Singleton,
@@ -7,13 +7,11 @@ use crate::{
 };
 use anyhow::{anyhow, Result};
 
-type TypedExp = TypedExpression<Expression<TypeCheckedCAst>>;
-
 impl TypeChecker {
     pub(super) fn typecheck_exp_binary(
         &mut self,
         Binary { op, lhs, rhs }: Binary<ResolvedCAst>,
-    ) -> Result<TypedExp> {
+    ) -> Result<TypedRExp> {
         use BinaryOperator as O;
 
         let lhs = self.typecheck_exp(*lhs)?;
@@ -34,12 +32,12 @@ impl TypeChecker {
         op: ComparisonBinaryOperator,
         lhs: TypedExp,
         rhs: TypedExp,
-    ) -> Result<TypedExp> {
+    ) -> Result<TypedRExp> {
         use ComparisonBinaryOperator as OC;
 
         let (lhs, rhs) = match op {
             OC::Eq | OC::Neq => Self::cast_to_common_type(lhs, rhs)?,
-            OC::Lt | OC::Lte | OC::Gt | OC::Gte => match (lhs.typ.as_ref(), rhs.typ.as_ref()) {
+            OC::Lt | OC::Lte | OC::Gt | OC::Gte => match (lhs.typ().as_ref(), rhs.typ().as_ref()) {
                 (VarType::Arith(_), VarType::Arith(_)) => Self::cast_to_common_type(lhs, rhs)?,
                 _ => unimplemented!("ch15"),
             },
@@ -55,16 +53,16 @@ impl TypeChecker {
         op: ArithmeticBinaryOperator,
         lhs: TypedExp,
         rhs: TypedExp,
-    ) -> Result<TypedExp> {
+    ) -> Result<TypedRExp> {
         use ArithmeticBinaryOperator as OA;
 
-        match (lhs.typ.as_ref(), rhs.typ.as_ref()) {
+        match (lhs.typ().as_ref(), rhs.typ().as_ref()) {
             (VarType::Arith(_), VarType::Arith(_)) => noop!(),
             _ => unimplemented!("ch15"),
         }
 
         let (lhs, rhs) = Self::cast_to_common_type(lhs, rhs)?;
-        let common_typ = lhs.typ.clone();
+        let common_typ = lhs.typ().clone();
 
         if matches!(
             (&op, common_typ.as_ref()),
@@ -82,9 +80,9 @@ fn new_binary_exp<Op: Into<BinaryOperator>>(
     lhs: TypedExp,
     rhs: TypedExp,
     typ: Singleton<VarType>,
-) -> TypedExp {
-    TypedExp {
-        exp: Expression::Binary(Binary {
+) -> TypedRExp {
+    TypedRExp {
+        exp: RExp::Binary(Binary {
             op: op.into(),
             lhs: Box::new(lhs),
             rhs: Box::new(rhs),

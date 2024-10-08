@@ -13,7 +13,7 @@ impl<'a> FunInstrsGenerator<'a> {
         &mut self,
         c::Assignment { lhs, rhs }: c::Assignment<TypeCheckedCAst>,
     ) -> Value {
-        let lhs = self.gen_exp_lvalue(*lhs);
+        let lhs = self.gen_lexp(*lhs);
         let rhs = self.gen_exp_and_get_value(*rhs);
         self.gen_assignment(lhs, rhs)
     }
@@ -52,7 +52,7 @@ impl<'a> FunInstrsGenerator<'a> {
         c::AddrOf(sub_exp): c::AddrOf<TypeCheckedCAst>,
         pointer_type: Singleton<VarType>,
     ) -> Value {
-        match self.gen_exp_lvalue(*sub_exp) {
+        match self.gen_lexp(*sub_exp) {
             Object::Direct(ident) => {
                 let dst = self.register_new_value(pointer_type);
                 self.instrs.push(Instruction::GetAddress(GetAddress {

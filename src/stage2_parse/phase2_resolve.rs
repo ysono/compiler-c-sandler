@@ -279,57 +279,68 @@ impl CAstValidator {
 
     fn resolve_exp(&mut self, exp: Expression<ParsedCAst>) -> Result<Expression<ResolvedCAst>> {
         let inner = || -> Result<_> {
-            let exp = match exp {
-                Expression::Const(konst) => Expression::Const(konst),
-                Expression::Var(ident) => {
-                    // Does transform.
-                    let ident = self.ident_resolver.get(&ident)?;
-                    Expression::Var(ident)
-                }
-                Expression::Cast(Cast { typ, sub_exp }) => {
-                    let sub_exp = Box::new(self.resolve_exp(*sub_exp)?);
-                    Expression::Cast(Cast { typ, sub_exp })
-                }
-                Expression::Unary(Unary { op, sub_exp }) => {
-                    let sub_exp = Box::new(self.resolve_exp(*sub_exp)?);
-                    Expression::Unary(Unary { op, sub_exp })
-                }
-                Expression::Binary(Binary { op, lhs, rhs }) => {
-                    let lhs = Box::new(self.resolve_exp(*lhs)?);
-                    let rhs = Box::new(self.resolve_exp(*rhs)?);
-                    Expression::Binary(Binary { op, lhs, rhs })
-                }
-                Expression::Assignment(Assignment { lhs, rhs }) => {
-                    let lhs = Box::new(self.resolve_exp(*lhs)?);
-                    let rhs = Box::new(self.resolve_exp(*rhs)?);
-                    Expression::Assignment(Assignment { lhs, rhs })
-                }
-                Expression::Conditional(Conditional { condition, then, elze }) => {
-                    let condition = Box::new(self.resolve_exp(*condition)?);
-                    let then = Box::new(self.resolve_exp(*then)?);
-                    let elze = Box::new(self.resolve_exp(*elze)?);
-                    Expression::Conditional(Conditional { condition, then, elze })
-                }
-                Expression::FunctionCall(FunctionCall { ident, args }) => {
-                    // Does transform.
-                    let ident = self.ident_resolver.get(&ident)?;
-                    let args = args
-                        .into_iter()
-                        .map(|exp| self.resolve_exp(exp))
-                        .collect::<Result<Vec<_>>>()?;
-                    Expression::FunctionCall(FunctionCall { ident, args })
-                }
-                Expression::Dereference(Dereference(exp)) => {
-                    let exp = Box::new(self.resolve_exp(*exp)?);
-                    Expression::Dereference(Dereference(exp))
-                }
-                Expression::AddrOf(AddrOf(exp)) => {
-                    let exp = Box::new(self.resolve_exp(*exp)?);
-                    Expression::AddrOf(AddrOf(exp))
-                }
-            };
-            Ok(exp)
+            match exp {
+                Expression::R(rexp) => self.resolve_rexp(rexp).map(Expression::R),
+                Expression::L(lexp) => self.resolve_lexp(lexp).map(Expression::L),
+            }
         };
         inner().context("<exp>")
+    }
+    fn resolve_rexp(&mut self, rexp: RExp<ParsedCAst>) -> Result<RExp<ResolvedCAst>> {
+        let rexp = match rexp {
+            RExp::Const(konst) => RExp::Const(konst),
+            RExp::Cast(Cast { typ, sub_exp }) => {
+                let sub_exp = Box::new(self.resolve_exp(*sub_exp)?);
+                RExp::Cast(Cast { typ, sub_exp })
+            }
+            RExp::Unary(Unary { op, sub_exp }) => {
+                let sub_exp = Box::new(self.resolve_exp(*sub_exp)?);
+                RExp::Unary(Unary { op, sub_exp })
+            }
+            RExp::Binary(Binary { op, lhs, rhs }) => {
+                let lhs = Box::new(self.resolve_exp(*lhs)?);
+                let rhs = Box::new(self.resolve_exp(*rhs)?);
+                RExp::Binary(Binary { op, lhs, rhs })
+            }
+            RExp::Conditional(Conditional { condition, then, elze }) => {
+                let condition = Box::new(self.resolve_exp(*condition)?);
+                let then = Box::new(self.resolve_exp(*then)?);
+                let elze = Box::new(self.resolve_exp(*elze)?);
+                RExp::Conditional(Conditional { condition, then, elze })
+            }
+            RExp::FunctionCall(FunctionCall { ident, args }) => {
+                // Does transform.
+                let ident = self.ident_resolver.get(&ident)?;
+                let args = args
+                    .into_iter()
+                    .map(|exp| self.resolve_exp(exp))
+                    .collect::<Result<Vec<_>>>()?;
+                RExp::FunctionCall(FunctionCall { ident, args })
+            }
+            RExp::Assignment(Assignment { lhs, rhs }) => {
+                let lhs = Box::new(self.resolve_exp(*lhs)?);
+                let rhs = Box::new(self.resolve_exp(*rhs)?);
+                RExp::Assignment(Assignment { lhs, rhs })
+            }
+            RExp::AddrOf(AddrOf(exp)) => {
+                let exp = Box::new(self.resolve_exp(*exp)?);
+                RExp::AddrOf(AddrOf(exp))
+            }
+        };
+        Ok(rexp)
+    }
+    fn resolve_lexp(&mut self, lexp: LExp<ParsedCAst>) -> Result<LExp<ResolvedCAst>> {
+        let lexp = match lexp {
+            LExp::Var(ident) => {
+                // Does transform.
+                let ident = self.ident_resolver.get(&ident)?;
+                LExp::Var(ident)
+            }
+            LExp::Dereference(Dereference(exp)) => {
+                let exp = Box::new(self.resolve_exp(*exp)?);
+                LExp::Dereference(Dereference(exp))
+            }
+        };
+        Ok(lexp)
     }
 }
