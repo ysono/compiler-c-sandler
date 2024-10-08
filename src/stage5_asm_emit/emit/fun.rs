@@ -238,7 +238,6 @@ impl<W: Write> AsmCodeEmitter<W> {
     }
 
     fn write_operand(&mut self, operand: Operand, obl: OperandByteLen) -> Result<(), io::Error> {
-        use OperandByteLen as OBL;
         match operand {
             Operand::ImmediateValue(val) => {
                 /* The assembler will interpret each imm as bytes,
@@ -251,53 +250,13 @@ impl<W: Write> AsmCodeEmitter<W> {
                 write!(&mut self.w, "${val}")?;
             }
             Operand::Register(reg) => {
-                let reg_str = match (reg, obl) {
-                    (Register::AX, OBL::B8) => "%rax",
-                    (Register::AX, OBL::B4) => "%eax",
-                    (Register::AX, OBL::B1) => "%al",
-                    (Register::CX, OBL::B8) => "%rcx",
-                    (Register::CX, OBL::B4) => "%ecx",
-                    (Register::CX, OBL::B1) => "%cl",
-                    (Register::DX, OBL::B8) => "%rdx",
-                    (Register::DX, OBL::B4) => "%edx",
-                    (Register::DX, OBL::B1) => "%dl",
-                    (Register::DI, OBL::B8) => "%rdi",
-                    (Register::DI, OBL::B4) => "%edi",
-                    (Register::DI, OBL::B1) => "%dil",
-                    (Register::SI, OBL::B8) => "%rsi",
-                    (Register::SI, OBL::B4) => "%esi",
-                    (Register::SI, OBL::B1) => "%sil",
-                    (Register::R8, OBL::B8) => "%r8",
-                    (Register::R8, OBL::B4) => "%r8d",
-                    (Register::R8, OBL::B1) => "%r8b",
-                    (Register::R9, OBL::B8) => "%r9",
-                    (Register::R9, OBL::B4) => "%r9d",
-                    (Register::R9, OBL::B1) => "%r9b",
-                    (Register::R10, OBL::B8) => "%r10",
-                    (Register::R10, OBL::B4) => "%r10d",
-                    (Register::R10, OBL::B1) => "%r10b",
-                    (Register::R11, OBL::B8) => "%r11",
-                    (Register::R11, OBL::B4) => "%r11d",
-                    (Register::R11, OBL::B1) => "%r11b",
-                    (Register::BP, _) => "%rbp",
-                    (Register::SP, _) => "%rsp",
-                    (Register::XMM0, _) => "%xmm0",
-                    (Register::XMM1, _) => "%xmm1",
-                    (Register::XMM2, _) => "%xmm2",
-                    (Register::XMM3, _) => "%xmm3",
-                    (Register::XMM4, _) => "%xmm4",
-                    (Register::XMM5, _) => "%xmm5",
-                    (Register::XMM6, _) => "%xmm6",
-                    (Register::XMM7, _) => "%xmm7",
-                    (Register::XMM14, _) => "%xmm14",
-                    (Register::XMM15, _) => "%xmm15",
-                };
+                let reg_str = Self::get_reg_str(reg, obl);
                 write!(&mut self.w, "{reg_str}")?;
             }
             Operand::MemoryAddress(reg, offset) => {
-                write!(&mut self.w, "{}(", *offset)?;
-                self.write_operand(Operand::Register(reg), OperandByteLen::B8)?;
-                write!(&mut self.w, ")")?;
+                let offset = *offset;
+                let reg_str = Self::get_reg_str(reg, OperandByteLen::B8);
+                write!(&mut self.w, "{offset}({reg_str})")?;
             }
             Operand::ReadWriteData(ident) => {
                 self.write_symbol_name(&ident, LabelLocality::OF_STATIC_VAR)?;
@@ -309,6 +268,50 @@ impl<W: Write> AsmCodeEmitter<W> {
             }
         }
         Ok(())
+    }
+    fn get_reg_str(reg: Register, obl: OperandByteLen) -> &'static str {
+        use OperandByteLen as OBL;
+        match (reg, obl) {
+            (Register::AX, OBL::B8) => "%rax",
+            (Register::AX, OBL::B4) => "%eax",
+            (Register::AX, OBL::B1) => "%al",
+            (Register::CX, OBL::B8) => "%rcx",
+            (Register::CX, OBL::B4) => "%ecx",
+            (Register::CX, OBL::B1) => "%cl",
+            (Register::DX, OBL::B8) => "%rdx",
+            (Register::DX, OBL::B4) => "%edx",
+            (Register::DX, OBL::B1) => "%dl",
+            (Register::DI, OBL::B8) => "%rdi",
+            (Register::DI, OBL::B4) => "%edi",
+            (Register::DI, OBL::B1) => "%dil",
+            (Register::SI, OBL::B8) => "%rsi",
+            (Register::SI, OBL::B4) => "%esi",
+            (Register::SI, OBL::B1) => "%sil",
+            (Register::R8, OBL::B8) => "%r8",
+            (Register::R8, OBL::B4) => "%r8d",
+            (Register::R8, OBL::B1) => "%r8b",
+            (Register::R9, OBL::B8) => "%r9",
+            (Register::R9, OBL::B4) => "%r9d",
+            (Register::R9, OBL::B1) => "%r9b",
+            (Register::R10, OBL::B8) => "%r10",
+            (Register::R10, OBL::B4) => "%r10d",
+            (Register::R10, OBL::B1) => "%r10b",
+            (Register::R11, OBL::B8) => "%r11",
+            (Register::R11, OBL::B4) => "%r11d",
+            (Register::R11, OBL::B1) => "%r11b",
+            (Register::BP, _) => "%rbp",
+            (Register::SP, _) => "%rsp",
+            (Register::XMM0, _) => "%xmm0",
+            (Register::XMM1, _) => "%xmm1",
+            (Register::XMM2, _) => "%xmm2",
+            (Register::XMM3, _) => "%xmm3",
+            (Register::XMM4, _) => "%xmm4",
+            (Register::XMM5, _) => "%xmm5",
+            (Register::XMM6, _) => "%xmm6",
+            (Register::XMM7, _) => "%xmm7",
+            (Register::XMM14, _) => "%xmm14",
+            (Register::XMM15, _) => "%xmm15",
+        }
     }
 
     fn write_fun_call_sfx(&mut self, ident: &SymbolIdentifier) -> Result<(), io::Error> {
