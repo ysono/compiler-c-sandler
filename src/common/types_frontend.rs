@@ -5,7 +5,7 @@ use std::hash::Hash;
 #[derive(From, PartialEq, Eq, Hash, Debug)]
 pub enum VarType {
     Arithmetic(ArithmeticType),
-    Pointer(Singleton<VarType>), // We don't support function-pointers.
+    Pointer(PointerType),
 }
 impl VarType {
     pub fn effective_arithmetic_type(&self) -> ArithmeticType {
@@ -31,6 +31,11 @@ impl ArithmeticType {
             Self::UInt | Self::ULong => false,
         }
     }
+}
+
+#[derive(PartialEq, Eq, Hash, Debug)]
+pub struct PointerType {
+    pub pointee_type: Singleton<VarType>, // We don't support function-pointers.
 }
 
 #[derive(PartialEq, Eq, Hash, Debug)]

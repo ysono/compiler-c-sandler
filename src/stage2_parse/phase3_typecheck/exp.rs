@@ -1,6 +1,6 @@
 use super::{TypeCheckedCAst, TypeChecker};
 use crate::{
-    common::types_frontend::{ArithmeticType, VarType},
+    common::types_frontend::{ArithmeticType, PointerType, VarType},
     stage2_parse::{c_ast::*, phase2_resolve::ResolvedCAst},
     utils::noop,
 };
@@ -141,7 +141,7 @@ impl TypeChecker {
                 let sub_exp = Box::new(self.typecheck_exp(*sub_exp)?);
 
                 let typ = match sub_exp.typ.as_ref() {
-                    VarType::Pointer(pointee_type) => pointee_type.clone(),
+                    VarType::Pointer(PointerType { pointee_type }) => pointee_type.clone(),
                     _ => return Err(anyhow!("Cannot dereference {sub_exp:?}")),
                 };
 
@@ -151,8 +151,10 @@ impl TypeChecker {
             Expression::AddrOf(AddrOf(sub_exp)) => {
                 let sub_exp = Box::new(self.typecheck_exp_lvalue(*sub_exp)?);
 
-                let sub_typ = sub_exp.typ.clone();
-                let typ = self.var_type_repo.get_or_new(VarType::Pointer(sub_typ));
+                let pointee_type = sub_exp.typ.clone();
+                let typ = self
+                    .var_type_repo
+                    .get_or_new(PointerType { pointee_type }.into());
 
                 let exp = Expression::AddrOf(AddrOf(sub_exp));
                 TypedExpression { typ, exp }

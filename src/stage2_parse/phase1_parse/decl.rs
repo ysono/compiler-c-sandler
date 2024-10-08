@@ -2,7 +2,7 @@ use super::Parser;
 use crate::{
     common::{
         identifier::RawIdentifier,
-        types_frontend::{ArithmeticType, FunType, VarType},
+        types_frontend::{ArithmeticType, FunType, PointerType, VarType},
     },
     ds_n_a::singleton::Singleton,
     stage1_lex::tokens as t,
@@ -188,7 +188,9 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
             match item {
                 DeclaratorItem::Ptr(ptr_count) => {
                     for _ in 0..ptr_count {
-                        cur_type = self.var_type_repo.get_or_new(VarType::Pointer(cur_type));
+                        cur_type = self
+                            .var_type_repo
+                            .get_or_new(PointerType { pointee_type: cur_type }.into());
                     }
                 }
                 DeclaratorItem::Fun(params) => match items_baseward.last() {
@@ -299,7 +301,9 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
             match item {
                 AbstractDeclaratorItem::Ptr(ptr_count) => {
                     for _ in 0..ptr_count {
-                        cur_type = self.var_type_repo.get_or_new(VarType::Pointer(cur_type));
+                        cur_type = self
+                            .var_type_repo
+                            .get_or_new(PointerType { pointee_type: cur_type }.into());
                     }
                 }
             }

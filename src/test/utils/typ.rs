@@ -1,4 +1,4 @@
-use crate::common::types_frontend::{ArithmeticType, VarType};
+use crate::common::types_frontend::{ArithmeticType, PointerType, VarType};
 
 #[derive(PartialEq, Eq, Debug)]
 pub struct ProtoType {
@@ -22,7 +22,7 @@ pub fn decompose_var_type(var_typ: &VarType) -> ProtoType {
 fn do_decompose_var_type(var_typ: &VarType, items: &mut Vec<TestDeclaratorItem>) -> ArithmeticType {
     match var_typ {
         VarType::Arithmetic(a) => *a,
-        VarType::Pointer(pointee_type) => {
+        VarType::Pointer(PointerType { pointee_type }) => {
             items.push(TestDeclaratorItem::Ptr);
             do_decompose_var_type(pointee_type, items)
         }
