@@ -1,58 +1,38 @@
+pub mod config;
 mod files;
 
-use self::files::{AsmFilepath, ObjectFilepath, ProgramFilepath, SrcFilepath};
+use self::{
+    config::{Args, CompilerUntil, Downstream, DriverUntil},
+    files::{AsmFilepath, ObjectFilepath, ProgramFilepath, SrcFilepath},
+};
 use crate::{
+    common::{symbol_table_backend::BackendSymbolTable, symbol_table_frontend::SymbolTable},
     ds_n_a::nonempty::NonEmpty,
-    stage1_lex::lexer::Lexer,
+    stage1_lex::{lexer::Lexer, tokens::Token},
     stage2_parse::{
-        phase1_parse::Parser, phase2_resolve::CAstValidator, phase3_typecheck::TypeChecker,
+        c_ast,
+        phase1_parse::{ParsedCAst, Parser},
+        phase2_resolve::CAstValidator,
+        phase3_typecheck::{TypeCheckedCAst, TypeChecker},
     },
-    stage3_tacky::generate::Tackifier,
-    stage4_asm_gen::AsmCodeGenerator,
+    stage3_tacky::{generate::Tackifier, tacky_ast},
+    stage4_asm_gen::{asm_ast, AsmCodeGenerator, FinalizedAsmAst},
     stage5_asm_emit::emit::AsmCodeEmitter,
 };
 use anyhow::Result;
-use clap::Parser as ClapParser;
-use derive_more::From;
 use duct::{cmd, Handle, ReaderHandle};
-use log;
 use std::fs::{self, OpenOptions};
 use std::io::{self, BufRead, BufReader, BufWriter, Read};
 use std::mem;
 use std::path::PathBuf;
 
-#[derive(ClapParser, Debug)]
-pub struct CliArgs {
-    src_filepaths: Vec<PathBuf>,
-
-    #[clap(long = "lex")]
-    until_lexer: bool,
-
-    #[clap(long = "parse")]
-    until_parser: bool,
-
-    #[clap(long = "validate")]
-    until_parser_validate: bool,
-
-    #[clap(long = "tacky")]
-    until_tacky: bool,
-
-    #[clap(long = "codegen")]
-    until_asm_codegen: bool,
-
-    #[clap(short = 'S')]
-    until_asm_emission: bool,
-
-    #[clap(short = 'c')]
-    until_assembler: bool,
-
-    #[clap(short = 'l')]
-    lib_names: Vec<String>,
-}
-
-#[derive(From)]
 pub struct Driver {
-    args: CliArgs,
+    args: Args,
+}
+impl<A: Into<Args>> From<A> for Driver {
+    fn from(args: A) -> Self {
+        Self { args: args.into() }
+    }
 }
 impl Driver {
     pub fn run(mut self) -> Result<()> {
@@ -65,21 +45,28 @@ impl Driver {
             let pp_reader = Self::preprocess(&src_filepath)?;
             let pp_reader = BufReader::new(pp_reader);
 
-            let asm_filepath = self.compile(&src_filepath, pp_reader)?;
-            if let Some(asm_filepath) = asm_filepath {
+            let compil_res = self.compile(&src_filepath, pp_reader)?;
+            log::info!("Compiler done"); // To stderr.
+            if log::log_enabled!(log::Level::Info) {
+                println!("{compil_res:#?}"); // To stdout.
+            }
+
+            if let CompilationResult::AsmFile(asm_filepath) = compil_res {
                 asm_filepaths.push(asm_filepath);
             }
         }
 
-        let asm_filepaths = NonEmpty::from_vec(asm_filepaths);
-        if let Some(asm_filepaths) = asm_filepaths {
-            let downstream_handles = self.assemble_or_link(&asm_filepaths);
+        if let DriverUntil::Downstream(downstream) = self.args.until {
+            let asm_filepaths = NonEmpty::from_vec(asm_filepaths);
+            if let Some(asm_filepaths) = asm_filepaths {
+                let downstream_handles = self.assemble_or_link(&asm_filepaths, downstream);
 
-            let is_ok = Self::wait_for_downstream(downstream_handles);
+                let is_ok = Self::wait_for_downstream(downstream_handles);
 
-            if is_ok == true {
-                for asm_filepath in asm_filepaths {
-                    fs::remove_file(&asm_filepath as &PathBuf)?;
+                if is_ok == true {
+                    for asm_filepath in asm_filepaths {
+                        fs::remove_file(&asm_filepath as &PathBuf)?;
+                    }
                 }
             }
         }
@@ -104,19 +91,17 @@ impl Driver {
         &self,
         src_filepath: &SrcFilepath,
         pp_reader: R,
-    ) -> Result<Option<AsmFilepath>> {
+    ) -> Result<CompilationResult> {
         let lexer = Lexer::new(pp_reader)?;
-        if self.args.until_lexer {
+        if self.args.until == DriverUntil::Compiler(CompilerUntil::Lexer) {
             let tokens = lexer.collect::<Result<Vec<_>>>()?;
-            println!("tokens: {tokens:#?}");
-            return Ok(None);
+            return Ok(CompilationResult::Lexed(tokens));
         }
 
         let mut parser = Parser::new(lexer);
         let c_prog = parser.parse_program()?;
-        if self.args.until_parser {
-            println!("c_prog: {c_prog:#?}");
-            return Ok(None);
+        if self.args.until == DriverUntil::Compiler(CompilerUntil::Parser) {
+            return Ok(CompilationResult::Parsed(c_prog));
         }
 
         let (_, var_type_repo, _) = parser.into();
@@ -127,24 +112,19 @@ impl Driver {
         let type_checker = TypeChecker::new(var_type_repo);
         let (c_prog, mut frontend_symtab) = type_checker.typecheck_prog(c_prog)?;
 
-        if self.args.until_parser_validate {
-            println!("validated c_prog: {c_prog:#?}");
-            println!("frontend symbol table: {frontend_symtab:#?}");
-            return Ok(None);
+        if self.args.until == DriverUntil::Compiler(CompilerUntil::ParserValidate) {
+            return Ok(CompilationResult::Validated(c_prog, frontend_symtab));
         }
 
         let tacky_prog = Tackifier::tackify_program(c_prog, &mut frontend_symtab);
-        if self.args.until_tacky {
-            println!("tacky_prog: {tacky_prog:#?}");
-            return Ok(None);
+        if self.args.until == DriverUntil::Compiler(CompilerUntil::Tacky) {
+            return Ok(CompilationResult::Tacky(tacky_prog, frontend_symtab));
         }
 
         let asm_gen = AsmCodeGenerator::new(frontend_symtab);
         let (asm_prog, backend_symtab) = asm_gen.gen_program(tacky_prog);
-        if self.args.until_asm_codegen {
-            println!("asm_prog: {asm_prog:#?}");
-            println!("backend symbol table: {backend_symtab:#?}");
-            return Ok(None);
+        if self.args.until == DriverUntil::Compiler(CompilerUntil::AsmGen) {
+            return Ok(CompilationResult::AsmCode(asm_prog, backend_symtab));
         }
 
         let asm_filepath = AsmFilepath::from(src_filepath);
@@ -156,23 +136,20 @@ impl Driver {
         let asm_bw = BufWriter::new(asm_file);
         let asm_emitter = AsmCodeEmitter::new(backend_symtab, asm_bw);
         asm_emitter.emit_program(asm_prog)?;
-        log::info!("Compiler done -> {asm_filepath:?}");
-        if self.args.until_asm_emission {
-            return Ok(None);
-        }
-
-        Ok(Some(asm_filepath))
+        return Ok(CompilationResult::AsmFile(asm_filepath));
     }
 
     fn assemble_or_link(
         &mut self,
         asm_filepaths: &NonEmpty<AsmFilepath>,
+        downstream: Downstream,
     ) -> NonEmpty<Result<Handle, io::Error>> {
-        if self.args.until_assembler {
-            Self::launch_assembler(asm_filepaths)
-        } else {
-            let handle = self.launch_linker(asm_filepaths);
-            NonEmpty::new(handle)
+        match downstream {
+            Downstream::Assembler => Self::launch_assembler(asm_filepaths),
+            Downstream::Linker => {
+                let handle = self.launch_linker(asm_filepaths);
+                NonEmpty::new(handle)
+            }
         }
     }
     fn launch_assembler(
@@ -243,4 +220,15 @@ impl Driver {
         }
         is_ok
     }
+}
+
+#[allow(unused)] // This is indeed used, by print!().
+#[derive(Debug)]
+enum CompilationResult {
+    Lexed(Vec<Token>),
+    Parsed(c_ast::Program<ParsedCAst>),
+    Validated(c_ast::Program<TypeCheckedCAst>, SymbolTable),
+    Tacky(tacky_ast::Program, SymbolTable),
+    AsmCode(asm_ast::Program<FinalizedAsmAst>, BackendSymbolTable),
+    AsmFile(AsmFilepath),
 }

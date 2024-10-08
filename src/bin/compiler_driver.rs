@@ -1,6 +1,6 @@
 use anyhow::Result;
 use clap::Parser;
-use compiler_c_sandler::driver::{CliArgs, Driver};
+use compiler_c_sandler::{CliArgs, Driver};
 
 fn main() -> Result<()> {
     env_logger::init();
