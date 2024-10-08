@@ -54,46 +54,7 @@ impl TypeChecker {
                 let exp = Expression::Unary(Unary { op, sub_exp });
                 TypedExpression { typ, exp }
             }
-            Expression::Binary(Binary { op, lhs, rhs }) => {
-                use BinaryOperator as CO;
-
-                use ArithmeticBinaryOperator as COA;
-
-                let lhs = self.typecheck_exp(*lhs)?;
-                let rhs = self.typecheck_exp(*rhs)?;
-
-                let (out_typ, out_lhs, out_rhs) = match &op {
-                    CO::Logic(_) => {
-                        let int_typ = self.var_type_repo.get_or_new(ArithmeticType::Int.into());
-                        (int_typ, lhs, rhs)
-                    }
-                    CO::Cmp(_) => {
-                        let (lhs, rhs) = Self::cast_to_common_type(lhs, rhs)?;
-                        let int_typ = self.var_type_repo.get_or_new(ArithmeticType::Int.into());
-                        (int_typ, lhs, rhs)
-                    }
-                    CO::Arith(op_a) => {
-                        let (lhs, rhs) = Self::cast_to_common_type(lhs, rhs)?;
-                        let common_typ = lhs.typ.clone();
-
-                        if matches!(
-                            (op_a, common_typ.as_ref()),
-                            (COA::Rem, VarType::Arithmetic(ArithmeticType::Double))
-                                | (_, VarType::Pointer(_))
-                        ) {
-                            return Err(anyhow!("Cannot apply {op:?} on {lhs:?} and {rhs:?}"));
-                        }
-
-                        (common_typ, lhs, rhs)
-                    }
-                };
-                let out_exp = Expression::Binary(Binary {
-                    op,
-                    lhs: Box::new(out_lhs),
-                    rhs: Box::new(out_rhs),
-                });
-                TypedExpression { typ: out_typ, exp: out_exp }
-            }
+            Expression::Binary(binary) => self.typecheck_exp_binary(binary)?,
             Expression::Assignment(Assignment { lhs, rhs }) => {
                 let lhs = self.typecheck_exp_lvalue(*lhs)?;
                 let typ = lhs.typ.clone();

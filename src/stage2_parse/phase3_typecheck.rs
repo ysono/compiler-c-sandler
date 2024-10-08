@@ -8,6 +8,7 @@
 mod decl_fun;
 mod decl_var;
 mod exp;
+mod exp_binary;
 mod exp_cast;
 
 use self::{decl_fun::FunDeclScope, decl_var::VarDeclScope};
