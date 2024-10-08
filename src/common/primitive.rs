@@ -3,7 +3,7 @@ use anyhow::{anyhow, Result};
 use std::hash::{Hash, Hasher};
 use std::mem;
 
-#[derive(Clone, Copy, PartialEq, Debug)]
+#[derive(Clone, Copy, Debug)]
 pub enum Const {
     Int(i32),
     Long(i64),
@@ -76,10 +76,21 @@ impl Const {
         )
     }
 }
-/// Impl'ing `Eq` for `Const` is desirable in the context of HashMap.
-/// We ought to write a custom `PartialEq` impl, which compares two `Const::Double(_)` instances by comparing their `f64` values bitwise.
-/// But, we omit it, for brevity.
-/// 2+ instances of `Const::Double(f64::NAN)` are unequal with one another. All other comparisons work as expected.
+impl PartialEq<Self> for Const {
+    /// Between two Doubles,
+    ///     + cause +0.0 and -0.0 to _not_ equal each other.
+    ///     + cause two f64::NAN instances having the same bitwise repr, to equal each other.
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Int(l0), Self::Int(r0)) => l0 == r0,
+            (Self::Long(l0), Self::Long(r0)) => l0 == r0,
+            (Self::UInt(l0), Self::UInt(r0)) => l0 == r0,
+            (Self::ULong(l0), Self::ULong(r0)) => l0 == r0,
+            (Self::Double(l0), Self::Double(r0)) => l0.to_bits() == r0.to_bits(),
+            _ => false,
+        }
+    }
+}
 impl Eq for Const {}
 impl Hash for Const {
     fn hash<H: Hasher>(&self, state: &mut H) {
@@ -91,5 +102,24 @@ impl Hash for Const {
             Const::ULong(i) => i.hash(state),
             Const::Double(f) => f.to_bits().hash(state),
         }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use crate::test::utils::hash;
+
+    #[test]
+    fn const_f64() {
+        assert_eq!(0.0f64, -0.0f64);
+
+        assert_ne!(f64::NAN, f64::NAN);
+
+        assert_ne!(Const::Double(0.0), Const::Double(-0.0));
+        assert_ne!(hash(Const::Double(0.0)), hash(Const::Double(-0.0)));
+
+        assert_eq!(Const::Double(f64::NAN), Const::Double(f64::NAN));
+        assert_eq!(hash(Const::Double(f64::NAN)), hash(Const::Double(f64::NAN)));
     }
 }
