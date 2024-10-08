@@ -2,6 +2,7 @@ mod files;
 
 use self::files::{AsmFilepath, ObjectFilepath, ProgramFilepath, SrcFilepath};
 use crate::{
+    ds_n_a::nonempty::NonEmpty,
     stage1_lex::lexer::Lexer,
     stage2_parse::{
         phase1_parse::Parser, phase2_resolve::CAstValidator, phase3_typecheck::TypeChecker,
@@ -15,7 +16,6 @@ use clap::Parser as ClapParser;
 use derive_more::From;
 use duct::{cmd, Handle, ReaderHandle};
 use log;
-use nonempty::NonEmpty;
 use std::fs::{self, OpenOptions};
 use std::io::{self, BufRead, BufReader, BufWriter, Read};
 use std::mem;
@@ -179,22 +179,18 @@ impl Driver {
         asm_filepaths: &NonEmpty<AsmFilepath>,
     ) -> NonEmpty<Result<Handle, io::Error>> {
         /* In order to specify each output `*.o` filepath, execute a separate gcc command per assembly file. */
-        let gcc_procs = asm_filepaths
-            .iter()
-            .map(|asm_filepath| {
-                let obj_filepath = ObjectFilepath::from(asm_filepath);
-                let gcc_cmd = cmd!(
-                    "gcc",
-                    asm_filepath.as_os_str(),
-                    "-c", // Compile or assemble the source files, but do not link.
-                    "-o", // Output
-                    obj_filepath.as_os_str()
-                );
-                log::info!("Assembler: {gcc_cmd:?}");
-                gcc_cmd.start()
-            })
-            .collect::<Vec<_>>();
-        NonEmpty::from_vec(gcc_procs).unwrap()
+        asm_filepaths.ref_map(|asm_filepath| {
+            let obj_filepath = ObjectFilepath::from(asm_filepath);
+            let gcc_cmd = cmd!(
+                "gcc",
+                asm_filepath.as_os_str(),
+                "-c", // Compile or assemble the source files, but do not link.
+                "-o", // Output
+                obj_filepath.as_os_str()
+            );
+            log::info!("Assembler: {gcc_cmd:?}");
+            gcc_cmd.start()
+        })
     }
     fn launch_linker(
         &mut self,
@@ -213,7 +209,7 @@ impl Driver {
 
         /* Among input file arguments to gcc, in general, earlier inputs may depend on later inputs.
         We assume `main()` is inside the first asm input, and name our output program file after the first input file. */
-        let name0 = &asm_filepaths[0];
+        let name0 = asm_filepaths.first();
         let prog_filepath = ProgramFilepath::from(name0);
         let prog_args = ["-o", prog_filepath.to_str().unwrap()];
 

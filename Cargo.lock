@@ -139,7 +139,6 @@ dependencies = [
  "env_logger",
  "getset",
  "log",
- "nonempty",
  "regex",
  "rusty-hook",
 ]
@@ -303,12 +302,6 @@ name = "nias"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ab250442c86f1850815b5d268639dff018c0627022bc1940eb2d642ca1ce12f0"
-
-[[package]]
-name = "nonempty"
-version = "0.10.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "303e8749c804ccd6ca3b428de7fe0d86cb86bc7606bc15291f100fd487960bb8"
 
 [[package]]
 name = "once_cell"
