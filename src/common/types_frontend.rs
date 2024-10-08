@@ -4,11 +4,6 @@ use derive_more::From;
 use std::hash::{Hash, Hasher};
 use std::mem;
 
-pub enum Type {
-    Var(Singleton<VarType>),
-    Fun(Singleton<FunType>),
-}
-
 #[derive(From, PartialEq, Eq, Hash, Debug)]
 pub enum VarType {
     Arithmetic(ArithmeticType),

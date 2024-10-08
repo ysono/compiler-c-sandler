@@ -83,7 +83,7 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
                 },
                 Some(Ok(t::Token::Operator(t_op))) => self.parse_unary(t_op),
                 Some(Ok(t::Token::Demarcator(t::Demarcator::ParenOpen))) => {
-                    match self.parse_abstract_declaration()? {
+                    match self.parse_cast_type()? {
                         Some(typ) => {
                             self.expect_exact(&[t::Demarcator::ParenClose.into()])?;
 

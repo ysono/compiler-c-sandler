@@ -125,7 +125,7 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
         let mut inner = || -> Result<_> {
             self.expect_exact(&[t::Loop::For.into(), t::Demarcator::ParenOpen.into()])?;
 
-            let init = match self.maybe_parse_declaration()? {
+            let init = match self.parse_declaration()? {
                 Some(Declaration::Var(vd)) => ForInit::Decl(vd),
                 Some(Declaration::Fun(fd)) => return Err(anyhow!("{fd:?}")),
                 None => match self.tokens.peek() {

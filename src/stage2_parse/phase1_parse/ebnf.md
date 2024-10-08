@@ -5,8 +5,10 @@
 <declaration> ::= <variable-declaration> | <function-declaration>
 <variable-declaration> ::= { <specifier> }+ <declarator> [ "=" <exp> ] ";"
 <function-declaration> ::= { <specifier> }+ <declarator> ( <block> | ";")
+
 <specifier> ::= <type-specifier> | "static" | "extern"
 <type-specifier> ::= "int" | "long" | "unsigned" | "signed" | "double"
+
 <declarator> ::= "*" <declarator> | <direct-declarator>
 <direct-declarator> ::= <simple-declarator> [ <param-list> ]
 <simple-declarator> ::= <identifier> | "(" <declarator> ")"
@@ -36,8 +38,10 @@
            | "(" <exp> ")"
            | <identifier> "(" [ <argument-list> ] ")"
 <argument-list> ::= <exp> { "," <exp> }
+
 <abstract-declarator> ::= "*" [ <abstract-declarator> ] | <direct-abstract-declarator>
 <direct-abstract-declarator> ::= "(" <abstract-declarator> ")"
+
 <unop> ::= "-" | "~" | "!" | "*" | "&"
 <binop> ::= "-" | "+" | "*" | "/" | "%" | "&&" | "||" | "==" | "!=" | "<" | "<=" | ">" | ">=" | "="
 <const> ::= <int> | <long> | <uint> | <ulong> | <double>
