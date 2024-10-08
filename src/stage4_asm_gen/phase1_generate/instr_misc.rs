@@ -19,9 +19,9 @@ impl InstrsGenerator {
 
     pub(super) fn gen_getaddr_instrs(
         &mut self,
-        t::GetAddress { src, dst_addr }: t::GetAddress,
+        t::GetAddress { src_obj, dst_addr }: t::GetAddress,
     ) -> Vec<Instruction<GeneratedAsmAst>> {
-        let src = self.value_to_operand(src);
+        let src = Self::object_to_operand(src_obj);
         let dst = self.value_to_operand(dst_addr);
         vec![Instruction::Lea { src, dst }]
     }

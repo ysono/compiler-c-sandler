@@ -21,10 +21,10 @@ impl<'a> FunInstrsGenerator<'a> {
     ) -> Value {
         let op = convert_op_unary(op);
         let src = self.gen_exp_and_get_value(*sub_exp);
-        let dst = self.symbol_table.declare_var_anon(out_typ);
+        let dst = self.register_new_value(out_typ);
         self.instrs
-            .push(Instruction::Unary(Unary { op, src, dst: Rc::clone(&dst) }));
-        Value::Variable(dst)
+            .push(Instruction::Unary(Unary { op, src, dst: dst.clone() }));
+        dst
     }
 
     /* C Binary */
@@ -51,14 +51,14 @@ impl<'a> FunInstrsGenerator<'a> {
     ) -> Value {
         let lhs = self.gen_exp_and_get_value(*lhs);
         let rhs = self.gen_exp_and_get_value(*rhs);
-        let dst = self.symbol_table.declare_var_anon(out_typ);
+        let dst = self.register_new_value(out_typ);
         self.instrs.push(Instruction::Binary(Binary {
             op,
             lhs,
             rhs,
-            dst: Rc::clone(&dst),
+            dst: dst.clone(),
         }));
-        Value::Variable(dst)
+        dst
     }
     fn gen_exp_binary_shortcirc(
         &mut self,
@@ -84,7 +84,7 @@ impl<'a> FunInstrsGenerator<'a> {
             ShortCircuitBOT::Or => (new_out_const(1), new_out_const(0)),
         };
 
-        let result = self.symbol_table.declare_var_anon(out_typ);
+        let result = self.register_new_value(out_typ);
 
         /* Begin instructions */
 
@@ -98,7 +98,7 @@ impl<'a> FunInstrsGenerator<'a> {
 
         self.instrs.push(Instruction::Copy(SrcDst {
             src: Value::Constant(fully_evald_val),
-            dst: Rc::clone(&result),
+            dst: result.clone(),
         }));
 
         self.instrs.push(Instruction::Jump(Rc::clone(&label_end)));
@@ -107,12 +107,12 @@ impl<'a> FunInstrsGenerator<'a> {
 
         self.instrs.push(Instruction::Copy(SrcDst {
             src: Value::Constant(shortcirc_val),
-            dst: Rc::clone(&result),
+            dst: result.clone(),
         }));
 
         self.instrs.push(Instruction::Label(label_end));
 
-        Value::Variable(result)
+        result
     }
 }
 

@@ -5,7 +5,6 @@ use crate::{
     stage2_parse::{c_ast as c, phase3_typecheck::TypeCheckedCAst},
     stage3_tacky::tacky_ast::*,
 };
-use std::rc::Rc;
 
 impl<'a> FunInstrsGenerator<'a> {
     /* C Assignment */
@@ -18,24 +17,27 @@ impl<'a> FunInstrsGenerator<'a> {
         let rhs = self.gen_exp_and_get_value(*rhs);
         self.gen_assignment(lhs, rhs)
     }
-    pub(super) fn gen_assignment(&mut self, dst: Object, src: Value) -> Value {
-        match dst {
-            Object::Direct(dst) => {
-                self.instrs
-                    .push(Instruction::Copy(SrcDst { src, dst: Rc::clone(&dst) }));
-                Value::Variable(dst)
+    pub(super) fn gen_assignment(&mut self, dst_obj: Object, src_val: Value) -> Value {
+        match dst_obj {
+            Object::Direct(ident) => {
+                let dst_val = Value::Variable(ident);
+                self.instrs.push(Instruction::Copy(SrcDst {
+                    src: src_val,
+                    dst: dst_val.clone(),
+                }));
+                dst_val
             }
             Object::Pointee { addr, typ: _ } => {
                 self.instrs.push(Instruction::Store(Store {
-                    src: src.clone(),
+                    src: src_val.clone(),
                     dst_addr: addr,
                 }));
-                src
+                src_val
             }
         }
     }
 
-    /* Pointer */
+    /* Object <-> pointer-typed Value */
 
     pub(super) fn gen_exp_deref(
         &mut self,
@@ -52,12 +54,12 @@ impl<'a> FunInstrsGenerator<'a> {
     ) -> Value {
         match self.gen_exp_lvalue(*sub_exp) {
             Object::Direct(ident) => {
-                let dst = self.symbol_table.declare_var_anon(pointer_type);
+                let dst = self.register_new_value(pointer_type);
                 self.instrs.push(Instruction::GetAddress(GetAddress {
-                    src: ident,
-                    dst_addr: Rc::clone(&dst),
+                    src_obj: ident,
+                    dst_addr: dst.clone(),
                 }));
-                Value::Variable(dst)
+                dst
             }
             Object::Pointee { addr, typ: _ } => {
                 /* We implicitly elide `&*foo` expression into the lvalue-conversion of `foo` expression. */

@@ -67,7 +67,7 @@ impl<'a> FunInstrsGenerator<'a> {
         let [label_else, label_end] =
             JumpLabel::create(UniqueId::new(), "exp_cond", ["else", "end"]);
 
-        let result = self.symbol_table.declare_var_anon(out_typ);
+        let result = self.register_new_value(out_typ);
 
         /* Begin instructions */
 
@@ -81,10 +81,8 @@ impl<'a> FunInstrsGenerator<'a> {
 
         let then = self.gen_exp_and_get_value(*then);
 
-        self.instrs.push(Instruction::Copy(SrcDst {
-            src: then,
-            dst: Rc::clone(&result),
-        }));
+        self.instrs
+            .push(Instruction::Copy(SrcDst { src: then, dst: result.clone() }));
 
         self.instrs.push(Instruction::Jump(Rc::clone(&label_end)));
 
@@ -92,13 +90,11 @@ impl<'a> FunInstrsGenerator<'a> {
 
         let elze = self.gen_exp_and_get_value(*elze);
 
-        self.instrs.push(Instruction::Copy(SrcDst {
-            src: elze,
-            dst: Rc::clone(&result),
-        }));
+        self.instrs
+            .push(Instruction::Copy(SrcDst { src: elze, dst: result.clone() }));
 
         self.instrs.push(Instruction::Label(label_end));
 
-        Value::Variable(result)
+        result
     }
 }

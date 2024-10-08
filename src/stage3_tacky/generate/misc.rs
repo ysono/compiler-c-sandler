@@ -9,7 +9,6 @@ use crate::{
     stage3_tacky::tacky_ast::*,
 };
 use std::cmp::Ordering;
-use std::rc::Rc;
 
 impl<'a> FunInstrsGenerator<'a> {
     /* C Cast */
@@ -21,7 +20,7 @@ impl<'a> FunInstrsGenerator<'a> {
         let dst_ari_typ = dst_typ.effective_arithmetic_type();
         let src_ari_typ = sub_exp.typ.effective_arithmetic_type();
 
-        let src_val = self.gen_exp_and_get_value(*sub_exp);
+        let src = self.gen_exp_and_get_value(*sub_exp);
 
         if dst_ari_typ == src_ari_typ {
             /* Eg `int a = 10; int b = ((int) a) + (a = 1000);`
@@ -29,14 +28,11 @@ impl<'a> FunInstrsGenerator<'a> {
             therefore eliding could change the evaluation of a surrounding overall expression;
             but C does not define the ordering of evaluating 2+ causally independent expressions;
             therefore eliding is valid. */
-            src_val
+            src
         } else {
-            let dst = self.symbol_table.declare_var_anon(dst_typ);
+            let dst = self.register_new_value(dst_typ);
 
-            let srcdst = SrcDst {
-                src: src_val,
-                dst: Rc::clone(&dst),
-            };
+            let srcdst = SrcDst { src, dst: dst.clone() };
             let instr = match (dst_ari_typ, src_ari_typ) {
                 (_, ArithmeticType::Double) => {
                     if dst_ari_typ.is_signed() {
@@ -71,7 +67,7 @@ impl<'a> FunInstrsGenerator<'a> {
             };
             self.instrs.push(instr);
 
-            Value::Variable(dst)
+            dst
         }
     }
 
@@ -82,7 +78,7 @@ impl<'a> FunInstrsGenerator<'a> {
         c::FunctionCall { ident, args }: c::FunctionCall<TypeCheckedCAst>,
         out_typ: Singleton<VarType>,
     ) -> Value {
-        let result = self.symbol_table.declare_var_anon(out_typ);
+        let result = self.register_new_value(out_typ);
 
         /* Begin instructions */
 
@@ -94,9 +90,9 @@ impl<'a> FunInstrsGenerator<'a> {
         self.instrs.push(Instruction::FunCall(FunCall {
             ident,
             args,
-            dst: Rc::clone(&result),
+            dst: result.clone(),
         }));
 
-        Value::Variable(result)
+        result
     }
 }

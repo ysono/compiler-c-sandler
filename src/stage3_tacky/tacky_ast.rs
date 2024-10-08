@@ -61,14 +61,14 @@ mod instruction {
     #[derive(Debug)]
     pub struct SrcDst {
         pub src: Value,
-        pub dst: Rc<SymbolIdentifier>,
+        pub dst: Value,
     }
 
     #[derive(Debug)]
     pub struct Unary {
         pub op: UnaryOperator,
         pub src: Value,
-        pub dst: Rc<SymbolIdentifier>,
+        pub dst: Value,
     }
 
     #[derive(Debug)]
@@ -76,19 +76,19 @@ mod instruction {
         pub op: BinaryOperator,
         pub lhs: Value,
         pub rhs: Value,
-        pub dst: Rc<SymbolIdentifier>,
+        pub dst: Value,
     }
 
     #[derive(Debug)]
     pub struct GetAddress {
-        pub src: Rc<SymbolIdentifier>,
-        pub dst_addr: Rc<SymbolIdentifier>,
+        pub src_obj: Rc<SymbolIdentifier>,
+        pub dst_addr: Value,
     }
 
     #[derive(Debug)]
     pub struct Load {
         pub src_addr: Value,
-        pub dst: Rc<SymbolIdentifier>,
+        pub dst: Value,
     }
 
     #[derive(Debug)]
@@ -113,7 +113,7 @@ mod instruction {
     pub struct FunCall {
         pub ident: Rc<SymbolIdentifier>,
         pub args: Vec<Value>,
-        pub dst: Rc<SymbolIdentifier>,
+        pub dst: Value,
     }
 }
 
@@ -176,7 +176,7 @@ mod operand {
     }
 
     /// The "value" concept comprises a bit-sequence and a type; and is readonly.
-    #[derive(Clone, From, Debug)]
+    #[derive(Clone, Debug)]
     pub enum Value {
         /// A value that's contained in a constant (ie somewhere outside the addressable memory).
         Constant(Const),

@@ -14,11 +14,10 @@ use std::rc::Rc;
 impl InstrsGenerator {
     /* Tacky Value -> Asm Operand and type info */
 
-    pub(super) fn value_to_operand_and_type<V: Into<t::Value>>(
+    pub(super) fn value_to_operand_and_type(
         &mut self,
-        t_val: V,
+        t_val: t::Value,
     ) -> (PreFinalOperand, ArithmeticType, AssemblyType) {
-        let t_val = t_val.into();
         let (ari_type, asm_type) = self.value_to_type(&t_val);
         let operand = self.value_to_operand(t_val);
         (operand, ari_type, asm_type)
@@ -38,8 +37,8 @@ impl InstrsGenerator {
             }
         }
     }
-    pub(super) fn value_to_operand<V: Into<t::Value>>(&mut self, t_val: V) -> PreFinalOperand {
-        match t_val.into() {
+    pub(super) fn value_to_operand(&mut self, t_val: t::Value) -> PreFinalOperand {
+        match t_val {
             t::Value::Constant(konst) => match konst {
                 Const::Int(_) | Const::Long(_) | Const::UInt(_) | Const::ULong(_) => {
                     Operand::ImmediateValue(konst.as_bits()).into()
@@ -53,6 +52,10 @@ impl InstrsGenerator {
             },
             t::Value::Variable(ident) => PreFinalOperand::Pseudo(ident),
         }
+    }
+
+    pub(super) fn object_to_operand(ident: Rc<SymbolIdentifier>) -> PreFinalOperand {
+        PreFinalOperand::Pseudo(ident)
     }
 
     /* Asm static constant */

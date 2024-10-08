@@ -55,18 +55,6 @@ pub struct SymbolTable {
     symbol_table: HashMap<Rc<SymbolIdentifier>, Symbol>,
 }
 impl SymbolTable {
-    pub fn declare_var_anon(&mut self, typ: Singleton<VarType>) -> Rc<SymbolIdentifier> {
-        let ident = Rc::new(SymbolIdentifier::new_generated());
-        self.symbol_table.insert(
-            Rc::clone(&ident),
-            Symbol::Var {
-                typ,
-                attrs: VarAttrs::AutomaticStorageDuration,
-            },
-        );
-        ident
-    }
-
     pub fn get(&self, ident: &SymbolIdentifier) -> Result<&Symbol> {
         self.symbol_table
             .get(ident)

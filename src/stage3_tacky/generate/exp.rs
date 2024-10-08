@@ -1,11 +1,19 @@
 use super::FunInstrsGenerator;
 use crate::{
+    common::{
+        identifier::SymbolIdentifier,
+        symbol_table_frontend::{Symbol, VarAttrs},
+        types_frontend::VarType,
+    },
+    ds_n_a::singleton::Singleton,
     stage2_parse::{c_ast as c, phase3_typecheck::TypeCheckedCAst},
     stage3_tacky::tacky_ast::*,
 };
 use std::rc::Rc;
 
 impl<'a> FunInstrsGenerator<'a> {
+    /* Expression */
+
     pub(super) fn gen_exp_and_get_value(
         &mut self,
         exp: c::TypedExpression<c::Expression<TypeCheckedCAst>>,
@@ -48,13 +56,25 @@ impl<'a> FunInstrsGenerator<'a> {
         match object {
             Object::Direct(ident) => Value::Variable(ident),
             Object::Pointee { addr, typ } => {
-                let dst = self.symbol_table.declare_var_anon(typ);
-                self.instrs.push(Instruction::Load(Load {
-                    src_addr: addr,
-                    dst: Rc::clone(&dst),
-                }));
-                Value::Variable(dst)
+                let dst = self.register_new_value(typ);
+                self.instrs
+                    .push(Instruction::Load(Load { src_addr: addr, dst: dst.clone() }));
+                dst
             }
         }
+    }
+
+    /* Helpers */
+
+    pub(super) fn register_new_value(&mut self, typ: Singleton<VarType>) -> Value {
+        let ident = Rc::new(SymbolIdentifier::new_generated());
+        self.symbol_table.as_mut().insert(
+            Rc::clone(&ident),
+            Symbol::Var {
+                typ,
+                attrs: VarAttrs::AutomaticStorageDuration,
+            },
+        );
+        Value::Variable(ident)
     }
 }
