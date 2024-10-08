@@ -44,7 +44,12 @@ impl InstrsGenerator {
                 Const::Int(_) | Const::Long(_) | Const::UInt(_) | Const::ULong(_) => {
                     Operand::ImmediateValue(konst.as_bits()).into()
                 }
-                Const::Double(_) => self.get_or_new_static_constant_operand(None, konst),
+                Const::Double(_) => {
+                    /* Floating-point constant operands cannot be immediate-values.
+                    Here, we specify the default alignment.
+                    In the fixup phase, we can ensure that each SSE instruction accesses 16-bytes-aligned operands. */
+                    self.get_or_new_static_constant_operand(None, konst)
+                }
             },
             t::Value::Variable(ident) => PreFinalOperand::Pseudo(ident),
         }

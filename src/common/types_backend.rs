@@ -17,7 +17,7 @@ impl From<ArithmeticType> for AssemblyType {
     }
 }
 
-#[derive(PartialEq, Eq, Hash, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum Alignment {
     B4 = 4,
     B8 = 8,

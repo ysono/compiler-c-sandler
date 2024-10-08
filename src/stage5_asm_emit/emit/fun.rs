@@ -241,10 +241,10 @@ impl<W: Write> AsmCodeEmitter<W> {
         use OperandByteLen as OBL;
         match operand {
             Operand::ImmediateValue(val) => {
-                /* Allowed formats are: signed decimal, scientific (eg "1e2"), etc.
-                The assembler will interpret each imm as bytes,
+                /* The assembler will interpret each imm as bytes,
                     without sign or type info,
                     with byte-length determined by the instruction (suffix) that uses the imm.
+                Allowed formats are: signed decimal, hexadecimal, etc.
                 We arbitraily choose to emit as signed decimal. */
                 #[allow(clippy::unnecessary_cast)]
                 let val: i64 = val as i64;

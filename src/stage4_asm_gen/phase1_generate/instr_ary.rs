@@ -44,6 +44,7 @@ impl InstrsGenerator {
                     }
                     t::NumericUnaryOperator::Negate => BinaryOperator::Xor,
                 };
+                /* The -0.0 constant will be used by an SSE instruction; hence it must be 16-bytes aligned. */
                 let neg0 = self
                     .get_or_new_static_constant_operand(Some(Alignment::B16), Const::Double(-0.0));
                 Instruction::Binary {
