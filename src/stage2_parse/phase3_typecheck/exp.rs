@@ -66,12 +66,13 @@ impl TypeChecker {
                         (int_typ, lhs, rhs)
                     }
                     BO::Eq | BO::Neq | BO::Lt | BO::Lte | BO::Gt | BO::Gte => {
-                        let (_, lhs, rhs) = Self::cast_to_common_type(lhs, rhs)?;
+                        let (lhs, rhs) = Self::cast_to_common_type(lhs, rhs)?;
                         let int_typ = self.var_type_repo.get_or_new(ArithmeticType::Int.into());
                         (int_typ, lhs, rhs)
                     }
                     BO::Sub | BO::Add | BO::Mul | BO::Div | BO::Rem => {
-                        let (common_typ, lhs, rhs) = Self::cast_to_common_type(lhs, rhs)?;
+                        let (lhs, rhs) = Self::cast_to_common_type(lhs, rhs)?;
+                        let common_typ = lhs.typ.clone();
 
                         if matches!(
                             (&op, common_typ.as_ref()),
@@ -108,7 +109,8 @@ impl TypeChecker {
                 let then = self.typecheck_exp(*then)?;
                 let elze = self.typecheck_exp(*elze)?;
 
-                let (typ, then, elze) = Self::cast_to_common_type(then, elze)?;
+                let (then, elze) = Self::cast_to_common_type(then, elze)?;
+                let typ = then.typ.clone();
 
                 let exp = Expression::Conditional(Conditional {
                     condition: Box::new(condition),

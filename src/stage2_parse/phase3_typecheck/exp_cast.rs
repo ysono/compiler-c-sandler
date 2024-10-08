@@ -3,11 +3,11 @@ use crate::{
     common::{
         primitive::Const,
         types_backend::OperandByteLen,
-        types_frontend::{ArithmeticType, VarType},
+        types_frontend::{ArithmeticType, PointerType, VarType},
     },
     ds_n_a::singleton::Singleton,
     stage2_parse::{c_ast::*, phase2_resolve::ResolvedCAst},
-    utils::noop,
+    utils::Either,
 };
 use anyhow::{anyhow, Result};
 use std::borrow::Borrow;
@@ -19,69 +19,66 @@ impl TypeChecker {
     /* Common type */
 
     pub(super) fn cast_to_common_type(
-        exp1: TypedExp,
-        exp2: TypedExp,
-    ) -> Result<(Singleton<VarType>, TypedExp, TypedExp)> {
-        let common_typ = Self::derive_common_type(&exp1, &exp2)?;
-        let exp1 = Self::maybe_insert_cast_node(&common_typ, exp1);
-        let exp2 = Self::maybe_insert_cast_node(&common_typ, exp2);
-        Ok((common_typ, exp1, exp2))
+        mut exp1: TypedExp,
+        mut exp2: TypedExp,
+    ) -> Result<(TypedExp, TypedExp)> {
+        match Self::derive_common_type(&exp1, &exp2)? {
+            Either::Left(()) => {
+                exp2 = Self::maybe_insert_cast_node(&exp1.typ, exp2);
+            }
+            Either::Right(()) => {
+                exp1 = Self::maybe_insert_cast_node(&exp2.typ, exp1);
+            }
+        }
+        Ok((exp1, exp2))
     }
-    fn derive_common_type(exp1: &TypedExp, exp2: &TypedExp) -> Result<Singleton<VarType>> {
+    fn derive_common_type(exp1: &TypedExp, exp2: &TypedExp) -> Result<Either<(), ()>> {
         match (exp1.typ.as_ref(), exp2.typ.as_ref()) {
             (VarType::Arithmetic(a1), VarType::Arithmetic(a2)) => {
-                match Self::derive_common_arithmetic_type(*a1, *a2) {
-                    None => Ok(exp1.typ.clone()),
-                    Some(()) => Ok(exp2.typ.clone()),
-                }
+                Ok(Self::derive_common_arithmetic_type(*a1, *a2))
             }
-            (VarType::Pointer(_), _) => Self::derive_common_pointer_type(exp1, exp2),
-            (_, VarType::Pointer(_)) => Self::derive_common_pointer_type(exp2, exp1),
+            (VarType::Pointer(ptr_typ), _) => {
+                Self::derive_common_pointer_type(ptr_typ, exp2).map(Either::Left)
+            }
+            (_, VarType::Pointer(ptr_typ)) => {
+                Self::derive_common_pointer_type(ptr_typ, exp1).map(Either::Right)
+            }
         }
     }
     /// Aka "usual arithmetic conversion".
-    ///
-    /// @return An "Either" type. a1 as `None`; a2 as `Some`.
-    fn derive_common_arithmetic_type(a1: ArithmeticType, a2: ArithmeticType) -> Option<()> {
-        let ret1 = None;
-        let ret2 = Some(());
-
+    fn derive_common_arithmetic_type(a1: ArithmeticType, a2: ArithmeticType) -> Either<(), ()> {
         match (a1, a2) {
-            _ if a1 == a2 => ret1,
-            (ArithmeticType::Double, _) => ret1,
-            (_, ArithmeticType::Double) => ret2,
+            _ if a1 == a2 => Either::Left(()),
+            (ArithmeticType::Double, _) => Either::Left(()),
+            (_, ArithmeticType::Double) => Either::Right(()),
             _ => {
                 let bytelen1 = OperandByteLen::from(a1);
                 let bytelen2 = OperandByteLen::from(a2);
                 match bytelen1.cmp(&bytelen2) {
-                    Ordering::Greater => ret1,
-                    Ordering::Less => ret2,
+                    Ordering::Greater => Either::Left(()),
+                    Ordering::Less => Either::Right(()),
                     Ordering::Equal => {
                         if a1.is_signed() {
-                            ret2
+                            Either::Right(())
                         } else {
-                            ret1
+                            Either::Left(())
                         }
                     }
                 }
             }
         }
     }
-    fn derive_common_pointer_type(
-        ptr_exp: &TypedExp,
-        other_exp: &TypedExp,
-    ) -> Result<Singleton<VarType>> {
+    fn derive_common_pointer_type(ptr_typ: &PointerType, other_exp: &TypedExp) -> Result<()> {
         #[allow(clippy::if_same_then_else)]
-        if ptr_exp.typ == other_exp.typ {
-            noop!()
-        } else if matches!(&other_exp.exp, Expression::Const(k) if k.is_zero_integer()) {
-            noop!()
+        if matches!(other_exp.typ.as_ref(), VarType::Pointer(ptr_typ_2) if ptr_typ == ptr_typ_2) {
+            Ok(())
+        } else if matches!(other_exp.exp, Expression::Const(k) if k.is_zero_integer()) {
+            Ok(())
         } else {
-            return Err(anyhow!(
-                "No common type between {ptr_exp:?} and {other_exp:?}"
-            ));
+            Err(anyhow!(
+                "No common type between {ptr_typ:?} and {other_exp:?}"
+            ))
         }
-        Ok(ptr_exp.typ.clone())
     }
 
     /* Casting explicitly */

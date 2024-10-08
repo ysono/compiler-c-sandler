@@ -15,8 +15,12 @@ mod utils {
     macro_rules! noop {
         ( $($comment:tt),* ) => {{} /* Empty expression */};
     }
-
     pub(crate) use noop;
+
+    pub enum Either<L, R> {
+        Left(L),
+        Right(R),
+    }
 }
 
 #[cfg(test)]
