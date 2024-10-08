@@ -120,7 +120,7 @@ mod instruction {
 mod operator {
     use super::*;
 
-    #[derive(Debug)]
+    #[derive(From, Debug)]
     pub enum UnaryOperator {
         Numeric(NumericUnaryOperator),
         Comparison(ComparisonUnaryOperator),

@@ -16,7 +16,7 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
 
             loop {
                 let boi = match self.tokens.peek() {
-                    Some(Ok(t::Token::Operator(t_op))) => BinaryOperatorInfo::from(t_op),
+                    Some(Ok(t::Token::Operator(t_op))) => BinaryOperatorInfo::parse(t_op),
                     _ => None,
                 };
                 if let Some(boi) = boi {
@@ -160,24 +160,33 @@ enum BinaryOperatorInfo {
     ControlQuestion,
     Assign,
 }
+impl<Bo: Into<BinaryOperator>> From<Bo> for BinaryOperatorInfo {
+    fn from(bo: Bo) -> Self {
+        Self::Generic(bo.into())
+    }
+}
 impl BinaryOperatorInfo {
-    fn from(t_op: &t::Operator) -> Option<Self> {
+    fn parse(t_op: &t::Operator) -> Option<Self> {
         use t::Operator as TO;
-        use BinaryOperator as CBO;
+
+        use ArithmeticBinaryOperator as COA;
+        use ComparisonBinaryOperator as COC;
+        use LogicBinaryOperator as COL;
+
         match t_op {
-            TO::Minus => Some(Self::Generic(CBO::Sub)),
-            TO::Plus => Some(Self::Generic(CBO::Add)),
-            TO::Star => Some(Self::Generic(CBO::Mul)),
-            TO::Slash => Some(Self::Generic(CBO::Div)),
-            TO::Percent => Some(Self::Generic(CBO::Rem)),
-            TO::And => Some(Self::Generic(CBO::And)),
-            TO::Or => Some(Self::Generic(CBO::Or)),
-            TO::Eq => Some(Self::Generic(CBO::Eq)),
-            TO::Neq => Some(Self::Generic(CBO::Neq)),
-            TO::Lt => Some(Self::Generic(CBO::Lt)),
-            TO::Lte => Some(Self::Generic(CBO::Lte)),
-            TO::Gt => Some(Self::Generic(CBO::Gt)),
-            TO::Gte => Some(Self::Generic(CBO::Gte)),
+            TO::Minus => Some(Self::from(COA::Sub)),
+            TO::Plus => Some(Self::from(COA::Add)),
+            TO::Star => Some(Self::from(COA::Mul)),
+            TO::Slash => Some(Self::from(COA::Div)),
+            TO::Percent => Some(Self::from(COA::Rem)),
+            TO::And => Some(Self::from(COL::And)),
+            TO::Or => Some(Self::from(COL::Or)),
+            TO::Eq => Some(Self::from(COC::Eq)),
+            TO::Neq => Some(Self::from(COC::Neq)),
+            TO::Lt => Some(Self::from(COC::Lt)),
+            TO::Lte => Some(Self::from(COC::Lte)),
+            TO::Gt => Some(Self::from(COC::Gt)),
+            TO::Gte => Some(Self::from(COC::Gte)),
             TO::Question => Some(Self::ControlQuestion),
             TO::Assign => Some(Self::Assign),
             _ => None,
@@ -189,15 +198,20 @@ impl BinaryOperatorInfo {
 struct BinaryOperatorPrecedence(u8);
 impl<B: Borrow<BinaryOperatorInfo>> From<B> for BinaryOperatorPrecedence {
     fn from(boi: B) -> Self {
-        use BinaryOperator as BO;
+        use BinaryOperator as CO;
+
+        use ArithmeticBinaryOperator as COA;
+        use ComparisonBinaryOperator as COC;
+        use LogicBinaryOperator as COL;
+
         match boi.borrow() {
             BinaryOperatorInfo::Generic(bo) => match bo {
-                BO::Mul | BO::Div | BO::Rem => Self(50),
-                BO::Sub | BO::Add => Self(45),
-                BO::Lt | BO::Lte | BO::Gt | BO::Gte => Self(35),
-                BO::Eq | BO::Neq => Self(30),
-                BO::And => Self(10),
-                BO::Or => Self(5),
+                CO::Arith(COA::Mul | COA::Div | COA::Rem) => Self(50),
+                CO::Arith(COA::Sub | COA::Add) => Self(45),
+                CO::Cmp(COC::Lt | COC::Lte | COC::Gt | COC::Gte) => Self(35),
+                CO::Cmp(COC::Eq | COC::Neq) => Self(30),
+                CO::Logic(COL::And) => Self(10),
+                CO::Logic(COL::Or) => Self(5),
             },
             BinaryOperatorInfo::ControlQuestion => Self(3),
             BinaryOperatorInfo::Assign => Self(1),

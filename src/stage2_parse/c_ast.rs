@@ -10,6 +10,7 @@ use crate::{
     ds_n_a::singleton::Singleton,
 };
 use derivative::Derivative;
+use derive_more::From;
 use std::fmt::Debug;
 
 pub trait CAstVariant {
@@ -191,18 +192,27 @@ mod expression {
         Not,
     }
 
-    #[derive(Debug)]
+    #[derive(From, Debug)]
     pub enum BinaryOperator {
-        /* arithmetic */
+        Arith(ArithmeticBinaryOperator),
+        Logic(LogicBinaryOperator),
+        Cmp(ComparisonBinaryOperator),
+    }
+    #[derive(Debug)]
+    pub enum ArithmeticBinaryOperator {
         Sub,
         Add,
         Mul,
         Div,
         Rem,
-        /* logic */
+    }
+    #[derive(Clone, Copy, Debug)]
+    pub enum LogicBinaryOperator {
         And,
         Or,
-        /* compare */
+    }
+    #[derive(Debug)]
+    pub enum ComparisonBinaryOperator {
         Eq,
         Neq,
         Lt,

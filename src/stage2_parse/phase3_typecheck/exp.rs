@@ -55,28 +55,30 @@ impl TypeChecker {
                 TypedExpression { typ, exp }
             }
             Expression::Binary(Binary { op, lhs, rhs }) => {
-                use BinaryOperator as BO;
+                use BinaryOperator as CO;
+
+                use ArithmeticBinaryOperator as COA;
 
                 let lhs = self.typecheck_exp(*lhs)?;
                 let rhs = self.typecheck_exp(*rhs)?;
 
                 let (out_typ, out_lhs, out_rhs) = match &op {
-                    BO::And | BO::Or => {
+                    CO::Logic(_) => {
                         let int_typ = self.var_type_repo.get_or_new(ArithmeticType::Int.into());
                         (int_typ, lhs, rhs)
                     }
-                    BO::Eq | BO::Neq | BO::Lt | BO::Lte | BO::Gt | BO::Gte => {
+                    CO::Cmp(_) => {
                         let (lhs, rhs) = Self::cast_to_common_type(lhs, rhs)?;
                         let int_typ = self.var_type_repo.get_or_new(ArithmeticType::Int.into());
                         (int_typ, lhs, rhs)
                     }
-                    BO::Sub | BO::Add | BO::Mul | BO::Div | BO::Rem => {
+                    CO::Arith(op_a) => {
                         let (lhs, rhs) = Self::cast_to_common_type(lhs, rhs)?;
                         let common_typ = lhs.typ.clone();
 
                         if matches!(
-                            (&op, common_typ.as_ref()),
-                            (BO::Rem, VarType::Arithmetic(ArithmeticType::Double))
+                            (op_a, common_typ.as_ref()),
+                            (COA::Rem, VarType::Arithmetic(ArithmeticType::Double))
                                 | (_, VarType::Pointer(_))
                         ) {
                             return Err(anyhow!("Cannot apply {op:?} on {lhs:?} and {rhs:?}"));

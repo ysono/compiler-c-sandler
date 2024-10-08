@@ -19,7 +19,16 @@ impl<'a> FunInstrsGenerator<'a> {
         c::Unary { op, sub_exp }: c::Unary<TypeCheckedCAst>,
         out_typ: Singleton<VarType>,
     ) -> Value {
-        let op = convert_op_unary(op);
+        use c::UnaryOperator as CO;
+
+        use ComparisonUnaryOperator as TOC;
+        use NumericUnaryOperator as TON;
+
+        let op = match op {
+            CO::Complement => TON::Complement.into(),
+            CO::Negate => TON::Negate.into(),
+            CO::Not => TOC::Not.into(),
+        };
         let src = self.gen_exp_and_get_value(*sub_exp);
         let dst = self.register_new_value(out_typ);
         self.instrs
@@ -34,12 +43,37 @@ impl<'a> FunInstrsGenerator<'a> {
         c_binary: c::Binary<TypeCheckedCAst>,
         out_typ: Singleton<VarType>,
     ) -> Value {
-        match convert_op_binary(&c_binary.op) {
-            BinaryOperatorType::EvaluateBothHands(t_op) => {
+        use c::BinaryOperator as CO;
+
+        use c::ArithmeticBinaryOperator as COA;
+        use c::ComparisonBinaryOperator as COC;
+
+        use ArithmeticBinaryOperator as TOA;
+        use ComparisonBinaryOperator as TOC;
+        use DivRemBinaryOperator as TOD;
+
+        match &c_binary.op {
+            CO::Arith(c_op_a) => {
+                let t_op = match c_op_a {
+                    COA::Sub => TOA::Sub.into(),
+                    COA::Add => TOA::Add.into(),
+                    COA::Mul => TOA::Mul.into(),
+                    COA::Div => TOD::Div.into(),
+                    COA::Rem => TOD::Rem.into(),
+                };
                 self.gen_exp_binary_evalboth(t_op, c_binary, out_typ)
             }
-            BinaryOperatorType::ShortCircuit(t_op) => {
-                self.gen_exp_binary_shortcirc(t_op, c_binary, out_typ)
+            CO::Logic(c_op_l) => self.gen_exp_binary_shortcirc(*c_op_l, c_binary, out_typ),
+            CO::Cmp(c_op_c) => {
+                let t_op = match c_op_c {
+                    COC::Eq => TOC::Eq.into(),
+                    COC::Neq => TOC::Neq.into(),
+                    COC::Lt => TOC::Lt.into(),
+                    COC::Lte => TOC::Lte.into(),
+                    COC::Gt => TOC::Gt.into(),
+                    COC::Gte => TOC::Gte.into(),
+                };
+                self.gen_exp_binary_evalboth(t_op, c_binary, out_typ)
             }
         }
     }
@@ -62,26 +96,30 @@ impl<'a> FunInstrsGenerator<'a> {
     }
     fn gen_exp_binary_shortcirc(
         &mut self,
-        op_type: ShortCircuitBOT,
+        op: c::LogicBinaryOperator,
         c::Binary { op: _, lhs, rhs }: c::Binary<TypeCheckedCAst>,
         out_typ: Singleton<VarType>,
     ) -> Value {
+        let descr = match op {
+            c::LogicBinaryOperator::And => "and",
+            c::LogicBinaryOperator::Or => "or",
+        };
         let [label_shortcirc, label_end] =
-            JumpLabel::create(UniqueId::new(), op_type.descr(), ["shortcircuit", "end"]);
+            JumpLabel::create(UniqueId::new(), descr, ["shortcircuit", "end"]);
 
         let new_shortcirc_jump_instr = |condition: Value| {
-            let jump_crit = match op_type {
-                ShortCircuitBOT::And => JumpCriterion::JumpIfZero,
-                ShortCircuitBOT::Or => JumpCriterion::JumpIfNotZero,
+            let jump_crit = match op {
+                c::LogicBinaryOperator::And => JumpCriterion::JumpIfZero,
+                c::LogicBinaryOperator::Or => JumpCriterion::JumpIfNotZero,
             };
             let lbl = Rc::clone(&label_shortcirc);
             Instruction::JumpIf(JumpIf { condition, jump_crit, lbl })
         };
 
         let new_out_const = |i: i32| Const::Int(i).cast_at_compile_time(&out_typ);
-        let (shortcirc_val, fully_evald_val) = match op_type {
-            ShortCircuitBOT::And => (new_out_const(0), new_out_const(1)),
-            ShortCircuitBOT::Or => (new_out_const(1), new_out_const(0)),
+        let (shortcirc_val, fully_evald_val) = match op {
+            c::LogicBinaryOperator::And => (new_out_const(0), new_out_const(1)),
+            c::LogicBinaryOperator::Or => (new_out_const(1), new_out_const(0)),
         };
 
         let result = self.register_new_value(out_typ);
@@ -113,57 +151,5 @@ impl<'a> FunInstrsGenerator<'a> {
         self.instrs.push(Instruction::Label(label_end));
 
         result
-    }
-}
-
-enum BinaryOperatorType {
-    EvaluateBothHands(BinaryOperator),
-    ShortCircuit(ShortCircuitBOT),
-}
-enum ShortCircuitBOT {
-    And,
-    Or,
-}
-impl ShortCircuitBOT {
-    pub fn descr(&self) -> &'static str {
-        match self {
-            Self::And => "and",
-            Self::Or => "or",
-        }
-    }
-}
-
-fn convert_op_unary(c_unary_op: c::UnaryOperator) -> UnaryOperator {
-    use c::UnaryOperator as CUO;
-    use ComparisonUnaryOperator as TCUO;
-    use NumericUnaryOperator as TNUO;
-    use UnaryOperator as TUO;
-    match c_unary_op {
-        CUO::Complement => TUO::Numeric(TNUO::Complement),
-        CUO::Negate => TUO::Numeric(TNUO::Negate),
-        CUO::Not => TUO::Comparison(TCUO::Not),
-    }
-}
-fn convert_op_binary(c_binary_op: &c::BinaryOperator) -> BinaryOperatorType {
-    use c::BinaryOperator as CBO;
-    use ArithmeticBinaryOperator as TBOA;
-    use BinaryOperatorType as BOT;
-    use ComparisonBinaryOperator as TBOC;
-    use DivRemBinaryOperator as TBOD;
-    use ShortCircuitBOT as SBOT;
-    match c_binary_op {
-        CBO::And => BOT::ShortCircuit(SBOT::And),
-        CBO::Or => BOT::ShortCircuit(SBOT::Or),
-        CBO::Sub => BOT::EvaluateBothHands(TBOA::Sub.into()),
-        CBO::Add => BOT::EvaluateBothHands(TBOA::Add.into()),
-        CBO::Mul => BOT::EvaluateBothHands(TBOA::Mul.into()),
-        CBO::Div => BOT::EvaluateBothHands(TBOD::Div.into()),
-        CBO::Rem => BOT::EvaluateBothHands(TBOD::Rem.into()),
-        CBO::Eq => BOT::EvaluateBothHands(TBOC::Eq.into()),
-        CBO::Neq => BOT::EvaluateBothHands(TBOC::Neq.into()),
-        CBO::Lt => BOT::EvaluateBothHands(TBOC::Lt.into()),
-        CBO::Lte => BOT::EvaluateBothHands(TBOC::Lte.into()),
-        CBO::Gt => BOT::EvaluateBothHands(TBOC::Gt.into()),
-        CBO::Gte => BOT::EvaluateBothHands(TBOC::Gte.into()),
     }
 }
