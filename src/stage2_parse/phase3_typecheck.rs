@@ -5,10 +5,10 @@
 //! + At each Expression node, validate and annotate the output type.
 //! + Make implicit casts explicit.
 
-mod casting;
 mod decl_fun;
 mod decl_var;
 mod exp;
+mod exp_cast;
 
 use self::{decl_fun::FunDeclScope, decl_var::VarDeclScope};
 use crate::{
@@ -126,11 +126,10 @@ impl TypeChecker {
     ) -> Result<Statement<TypeCheckedCAst>> {
         match stmt {
             Statement::Return(exp) => {
-                let exp = self.typecheck_exp(exp)?;
-
                 // Does transform.
-                let ret_type = &self.curr_fun_type.as_ref().unwrap().ret;
-                let exp = Self::cast_implicitly(ret_type, exp)?;
+                let fun_typ = self.curr_fun_type.as_ref().unwrap();
+                let ret_typ = fun_typ.ret.clone();
+                let exp = self.cast_by_assignment(ret_typ, exp)?;
 
                 Ok(Statement::Return(exp))
             }

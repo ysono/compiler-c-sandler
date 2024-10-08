@@ -1,5 +1,4 @@
 use crate::common::types_frontend::{ArithmeticType, VarType};
-use anyhow::{anyhow, Result};
 use std::hash::{Hash, Hasher};
 use std::mem;
 
@@ -14,10 +13,10 @@ pub enum Const {
 impl Const {
     /// @return a constant whose bitwise representation is `0b000...000`
     pub fn new_zero_bits(typ: &VarType) -> Const {
-        Const::Int(0).cast_at_compile_time(typ).unwrap()
+        Const::Int(0).cast_at_compile_time(typ)
     }
 
-    pub fn cast_at_compile_time(&self, typ: &VarType) -> Result<Const> {
+    pub fn cast_at_compile_time(&self, typ: &VarType) -> Const {
         macro_rules! new_const {
             ( $out_konst_variant:expr, $out_prim:ty ) => {
                 match self {
@@ -29,7 +28,7 @@ impl Const {
                 }
             };
         }
-        let out_konst = match typ {
+        match typ {
             VarType::Arithmetic(a) => match a {
                 ArithmeticType::Int => new_const!(Const::Int, i32),
                 ArithmeticType::Long => new_const!(Const::Long, i64),
@@ -37,15 +36,8 @@ impl Const {
                 ArithmeticType::ULong => new_const!(Const::ULong, u64),
                 ArithmeticType::Double => new_const!(Const::Double, f64),
             },
-            VarType::Pointer(_) => {
-                if self.is_zero_integer() {
-                    new_const!(Const::ULong, u64)
-                } else {
-                    return Err(anyhow!("Cannot cast {self:?} to {typ:?}"));
-                }
-            }
-        };
-        Ok(out_konst)
+            VarType::Pointer(_) => new_const!(Const::ULong, u64),
+        }
     }
 
     pub fn as_bits(&self) -> i64 {

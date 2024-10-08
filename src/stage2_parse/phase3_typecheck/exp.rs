@@ -95,8 +95,7 @@ impl TypeChecker {
                 let lhs = self.typecheck_exp_lvalue(*lhs)?;
                 let typ = lhs.typ.clone();
 
-                let rhs = self.typecheck_exp(*rhs)?;
-                let rhs = Self::cast_implicitly(&typ, rhs)?;
+                let rhs = self.cast_by_assignment(&typ, *rhs)?;
 
                 let exp = Expression::Assignment(Assignment {
                     lhs: Box::new(lhs),
@@ -131,10 +130,7 @@ impl TypeChecker {
                     .params
                     .iter()
                     .zip(args.into_iter())
-                    .map(|(param_typ, arg_exp)| {
-                        let arg_exp = self.typecheck_exp(arg_exp)?;
-                        Self::cast_implicitly(param_typ, arg_exp)
-                    })
+                    .map(|(param_typ, arg_exp)| self.cast_by_assignment(param_typ, arg_exp))
                     .collect::<Result<Vec<_>>>()?;
 
                 let typ = fun_typ.ret.clone();

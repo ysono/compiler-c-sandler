@@ -78,7 +78,7 @@ impl<'a> FunInstrsGenerator<'a> {
             Instruction::JumpIf(JumpIf { condition, jump_crit, lbl })
         };
 
-        let new_out_const = |i: i32| Const::Int(i).cast_at_compile_time(&out_typ).unwrap();
+        let new_out_const = |i: i32| Const::Int(i).cast_at_compile_time(&out_typ);
         let (shortcirc_val, fully_evald_val) = match op_type {
             ShortCircuitBOT::And => (new_out_const(0), new_out_const(1)),
             ShortCircuitBOT::Or => (new_out_const(1), new_out_const(0)),

@@ -1,14 +1,16 @@
 use super::{TypeCheckedCAst, TypeChecker};
 use crate::{
     common::{
+        primitive::Const,
         types_backend::OperandByteLen,
         types_frontend::{ArithmeticType, VarType},
     },
     ds_n_a::singleton::Singleton,
-    stage2_parse::c_ast::*,
+    stage2_parse::{c_ast::*, phase2_resolve::ResolvedCAst},
     utils::noop,
 };
 use anyhow::{anyhow, Result};
+use std::borrow::Borrow;
 use std::cmp::Ordering;
 
 type TypedExp = TypedExpression<Expression<TypeCheckedCAst>>;
@@ -21,8 +23,8 @@ impl TypeChecker {
         exp2: TypedExp,
     ) -> Result<(Singleton<VarType>, TypedExp, TypedExp)> {
         let common_typ = Self::derive_common_type(&exp1, &exp2)?;
-        let exp1 = Self::cast_implicitly(&common_typ, exp1)?;
-        let exp2 = Self::cast_implicitly(&common_typ, exp2)?;
+        let exp1 = Self::maybe_insert_cast_node(&common_typ, exp1);
+        let exp2 = Self::maybe_insert_cast_node(&common_typ, exp2);
         Ok((common_typ, exp1, exp2))
     }
     fn derive_common_type(exp1: &TypedExp, exp2: &TypedExp) -> Result<Singleton<VarType>> {
@@ -82,7 +84,7 @@ impl TypeChecker {
         Ok(ptr_exp.typ.clone())
     }
 
-    /* Casting */
+    /* Casting explicitly */
 
     pub(super) fn cast_explicitly(to: Singleton<VarType>, from: TypedExp) -> Result<TypedExp> {
         let err = || Err(anyhow!("Cannot explicitly cast {to:?} <- {from:?}"));
@@ -98,22 +100,62 @@ impl TypeChecker {
         }
     }
 
-    /// Aka "convert as if by assignment".
-    pub(super) fn cast_implicitly(to: &Singleton<VarType>, from: TypedExp) -> Result<TypedExp> {
-        match (to.as_ref(), from.typ.as_ref(), &from.exp) {
-            /* Omit redundant implicit cast. */
-            (t2, t1, _) if t2 == t1 => return Ok(from),
+    /* Casting "as if by assignment" */
 
-            (VarType::Arithmetic(_), VarType::Arithmetic(_), _) => noop!(),
+    pub(super) fn cast_by_assignment<Vt: Borrow<Singleton<VarType>>>(
+        &mut self,
+        to: Vt,
+        from: Expression<ResolvedCAst>,
+    ) -> Result<TypedExp> {
+        let from = self.typecheck_exp(from)?;
 
-            (VarType::Pointer(_), _, Expression::Const(k)) if k.is_zero_integer() => noop!(),
+        let () = Self::can_cast_by_assignment(to.borrow(), &from)?;
 
-            _ => return Err(anyhow!("Cannot implicitly cast {to:?} <- {from:?}")),
-        }
+        let typed_exp = Self::maybe_insert_cast_node(to, from);
+        Ok(typed_exp)
+    }
+    pub(super) fn cast_statically_by_assignment(
+        &mut self,
+        to: &Singleton<VarType>,
+        from: Expression<ResolvedCAst>,
+    ) -> Result<Const> {
+        let in_konst = match &from {
+            Expression::Const(konst) => *konst,
+            _ => return Err(anyhow!("Casting statically is supported on constexprs only. For each constexpr, only a simple const literal is supported."))
+        };
 
-        Ok(Self::insert_cast_node(to.clone(), from))
+        let from = self.typecheck_exp(from)?;
+
+        let () = Self::can_cast_by_assignment(to, &from)?;
+
+        let out_konst = in_konst.cast_at_compile_time(to);
+        Ok(out_konst)
+    }
+    fn can_cast_by_assignment(to: &VarType, from: &TypedExp) -> Result<()> {
+        let ok = match (to, from.typ.as_ref()) {
+            (t2, t1) if t2 == t1 => Ok(()),
+
+            (VarType::Arithmetic(_), VarType::Arithmetic(_)) => Ok(()),
+
+            (VarType::Pointer(_), _) => match from {
+                TypedExp { exp: Expression::Const(k), .. } if k.is_zero_integer() => Ok(()),
+                _ => Err(()),
+            },
+
+            _ => Err(()),
+        };
+        ok.map_err(|()| anyhow!("Cannot \"convert as if by assignment\" {to:?} <- {from:?}"))
     }
 
+    /* Helpers */
+
+    fn maybe_insert_cast_node<Vt: Borrow<Singleton<VarType>>>(to: Vt, from: TypedExp) -> TypedExp {
+        if to.borrow() == &from.typ {
+            from
+        } else {
+            Self::insert_cast_node(to.borrow().clone(), from)
+        }
+    }
     fn insert_cast_node(to: Singleton<VarType>, from: TypedExp) -> TypedExp {
         TypedExpression {
             typ: to.clone(),

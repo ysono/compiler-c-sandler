@@ -21,75 +21,42 @@ impl TypeChecker {
     /// @return `Some(_)` iff the variable is initialized at run-time, rather than at compile-time.
     pub(super) fn typecheck_decl_var(
         &mut self,
-        decl: VariableDeclaration<ResolvedCAst>,
+        VariableDeclaration { ident, typ, storage_class, init }: VariableDeclaration<ResolvedCAst>,
         scope: VarDeclScope,
     ) -> Result<Option<VariableDefinition<TypeCheckedCAst>>> {
-        let var_attrs = self.declare_var(scope, &decl)?;
+        let decl_summary = self.derive_var_decl_summary(scope, storage_class, init, &typ)?;
 
-        let defn = match var_attrs {
-            VarAttrs::StaticStorageDuration { .. } => None,
-            VarAttrs::AutomaticStorageDuration => {
-                let VariableDeclaration {
-                    ident,
-                    typ,
-                    storage_class: _,
-                    init,
-                } = decl;
-
-                match init {
-                    None => None,
-                    Some(init) => {
-                        let init = self.typecheck_exp(init)?;
-                        let init = Self::cast_implicitly(&typ, init)?;
-
-                        Some(VariableDefinition { ident, init })
-                    }
-                }
-            }
+        let (decl_summary, run_time_init) = match decl_summary {
+            Decl::AutoStorDur(run_time_init) => (Decl::AutoStorDur(()), run_time_init),
+            Decl::StaticStorDur(viz, siv) => (Decl::StaticStorDur(viz, siv), None),
         };
-        Ok(defn)
+
+        self.insert_var_decl(Rc::clone(&ident), decl_summary, &typ)?;
+
+        run_time_init
+            .map(|init| {
+                let init = self.cast_by_assignment(typ, init)?;
+
+                Ok(VariableDefinition { ident, init })
+            })
+            .transpose()
     }
 
-    fn declare_var(
+    fn derive_var_decl_summary(
         &mut self,
         new_scope: VarDeclScope,
-        new_decl @ VariableDeclaration {
-            ident,
-            typ: new_typ,
-            storage_class: new_sc,
-            init: new_init,
-        }: &VariableDeclaration<ResolvedCAst>,
-    ) -> Result<&VarAttrs> {
-        {
-            let new_decl_summary = Self::derive_var_decl_summary(
-                new_scope,
-                new_sc.as_ref(),
-                new_init.as_ref(),
-                new_typ,
-            )?;
-
-            self.insert_var_decl(Rc::clone(ident), new_decl_summary, new_typ)
-        }
-        .with_context(|| anyhow!("{new_scope:?}, {new_decl:?}"))
-    }
-    fn derive_var_decl_summary(
-        new_scope: VarDeclScope,
-        new_sc: Option<&StorageClassSpecifier>,
-        new_init: Option<&Expression<ResolvedCAst>>,
-        new_typ: &VarType,
-    ) -> Result<Decl> {
+        new_sc: Option<StorageClassSpecifier>,
+        new_init: Option<Expression<ResolvedCAst>>,
+        new_typ: &Singleton<VarType>,
+    ) -> Result<Decl<Option<Expression<ResolvedCAst>>>> {
         use StaticInitialValue as SIV;
         use StorageClassSpecifier as SCS;
         use VarDeclScope as DS;
 
-        let siv = |init_exp: &Expression<ResolvedCAst>| {
-            match init_exp {
-                Expression::Const(konst) => {
-                    let konst = konst.cast_at_compile_time(new_typ)?;
-                    Ok(StaticInitialValue::Initial(konst))
-                }
-                _ => Err(anyhow!("On type=var w/ storage_duration=static, initializer, if present, must be constexpr. Only a simple const is supported."))
-            }
+        let mut siv = |init_exp: Expression<ResolvedCAst>| -> Result<_> {
+            let out_konst = self.cast_statically_by_assignment(new_typ, init_exp)?;
+
+            Ok(StaticInitialValue::Initial(out_konst))
         };
         let siv_zero = || StaticInitialValue::Initial(Const::new_zero_bits(new_typ));
 
@@ -101,7 +68,7 @@ impl TypeChecker {
             (DS::File, Some(SCS::Static), None)       => Decl::StaticStorDur(LViz::TranslUnit.into(), SIV::Tentative),
             (DS::File, Some(SCS::Extern), Some(init)) => Decl::StaticStorDur(LViz::PrevOrGlobal.into(), siv(init)?),
             (DS::File, Some(SCS::Extern), None)       => Decl::StaticStorDur(LViz::PrevOrGlobal.into(), SIV::NoInitializer),
-            (DS::Block, None, _)                       => Decl::AutoStorDur,
+            (DS::Block, None, init)                    => Decl::AutoStorDur(init),
             (DS::Block, Some(SCS::Static), Some(init)) => Decl::StaticStorDur(Viz::Local, siv(init)?),
             (DS::Block, Some(SCS::Static), None)       => Decl::StaticStorDur(Viz::Local, siv_zero()),
             (DS::Block, Some(SCS::Extern), Some(_)) => return Err(anyhow!(
@@ -113,7 +80,7 @@ impl TypeChecker {
                     hence our overall resolution of this identifier's declaration is conformant to the C standard. */
                 Decl::StaticStorDur(LViz::PrevOrGlobal.into(), SIV::NoInitializer)
             }
-            (DS::Paren, None, _) => Decl::AutoStorDur,
+            (DS::Paren, None, init) => Decl::AutoStorDur(init),
             (DS::Paren, Some(_), _) => return Err(anyhow!(
                 "Inside parens, type=var must not have any storage class specifier.")),
         };
@@ -122,9 +89,9 @@ impl TypeChecker {
     fn insert_var_decl(
         &mut self,
         ident: Rc<SymbolIdentifier>,
-        new_decl_summary: Decl,
+        new_decl_summary: Decl<()>,
         new_typ: &Singleton<VarType>,
-    ) -> Result<&VarAttrs> {
+    ) -> Result<()> {
         use StaticInitialValue as SIV;
 
         let entry = self.symbol_table.as_mut().entry(ident);
@@ -132,7 +99,7 @@ impl TypeChecker {
             (Entry::Vacant(entry), new_decl_summary) => {
                 let typ = new_typ.clone();
                 let attrs = match new_decl_summary {
-                    Decl::AutoStorDur => VarAttrs::AutomaticStorageDuration,
+                    Decl::AutoStorDur(()) => VarAttrs::AutomaticStorageDuration,
                     Decl::StaticStorDur(viz, initial_value) => {
                         let visibility = match viz {
                             Viz::Lkg(LViz::Global | LViz::PrevOrGlobal) => StaticVisibility::Global,
@@ -141,13 +108,10 @@ impl TypeChecker {
                         VarAttrs::StaticStorageDuration { visibility, initial_value }
                     }
                 };
-                let new_symbol = entry.insert(Symbol::Var { typ, attrs });
-                match new_symbol {
-                    Symbol::Var { attrs, .. } => Ok(attrs),
-                    _ => unreachable!(),
-                }
+                entry.insert(Symbol::Var { typ, attrs });
+                Ok(())
             }
-            (Entry::Occupied(_), Decl::AutoStorDur | Decl::StaticStorDur(Viz::Local, _)) => {
+            (Entry::Occupied(_), Decl::AutoStorDur(()) | Decl::StaticStorDur(Viz::Local, _)) => {
                 Err(anyhow!("Cannot declare same ident 2+ times."))
             }
             (Entry::Occupied(mut entry), Decl::StaticStorDur(Viz::Lkg(new_viz), new_init_val)) => {
@@ -159,24 +123,24 @@ impl TypeChecker {
                         }
                         match attrs {
                             #[rustfmt::skip]
-                                VarAttrs::StaticStorageDuration { visibility, initial_value } => {
-                                    match (visibility, new_viz) {
-                                        (_, LViz::PrevOrGlobal) => noop!(),
-                                        (StaticVisibility::NonGlobal, LViz::TranslUnit) => noop!(),
-                                        (StaticVisibility::NonGlobal, LViz::Global) => return Err(anyhow!("Cannot declare with 2+ visibilities.")),
-                                        (StaticVisibility::Global, LViz::Global) => noop!(),
-                                        (StaticVisibility::Global, LViz::TranslUnit) => return Err(anyhow!("Cannot declare with 2+ visibilities.")),
-                                    }
-                                    match (&initial_value, &new_init_val) {
-                                        (SIV::NoInitializer, SIV::NoInitializer) => noop!(),
-                                        (SIV::NoInitializer, SIV::Tentative | SIV::Initial(_)) => { *initial_value = new_init_val }
-                                        (SIV::Tentative, SIV::NoInitializer | SIV::Tentative) => noop!(),
-                                        (SIV::Tentative, SIV::Initial(_)) => { *initial_value = new_init_val }
-                                        (SIV::Initial(_), SIV::NoInitializer | SIV::Tentative) => noop!(),
-                                        (SIV::Initial(_), SIV::Initial(_)) => return Err(anyhow!("Cannot initialize 2+ times.")),
-                                    };
+                            VarAttrs::StaticStorageDuration { visibility, initial_value } => {
+                                match (visibility, new_viz) {
+                                    (_, LViz::PrevOrGlobal) => noop!(),
+                                    (StaticVisibility::NonGlobal, LViz::TranslUnit) => noop!(),
+                                    (StaticVisibility::NonGlobal, LViz::Global) => return Err(anyhow!("Cannot declare with 2+ visibilities.")),
+                                    (StaticVisibility::Global, LViz::Global) => noop!(),
+                                    (StaticVisibility::Global, LViz::TranslUnit) => return Err(anyhow!("Cannot declare with 2+ visibilities.")),
                                 }
-                            VarAttrs::AutomaticStorageDuration { .. } => {
+                                match (&initial_value, &new_init_val) {
+                                    (SIV::NoInitializer, SIV::NoInitializer) => noop!(),
+                                    (SIV::NoInitializer, SIV::Tentative | SIV::Initial(_)) => { *initial_value = new_init_val; }
+                                    (SIV::Tentative, SIV::NoInitializer | SIV::Tentative) => noop!(),
+                                    (SIV::Tentative, SIV::Initial(_)) => { *initial_value = new_init_val; }
+                                    (SIV::Initial(_), SIV::NoInitializer | SIV::Tentative) => noop!(),
+                                    (SIV::Initial(_), SIV::Initial(_)) => return Err(anyhow!("Cannot initialize 2+ times.")),
+                                }
+                            }
+                            VarAttrs::AutomaticStorageDuration => {
                                 return Err(anyhow!("Cannot declare with 2+ storage durations."))
                             }
                         }
@@ -184,12 +148,7 @@ impl TypeChecker {
                     }
                     _ => return Err(anyhow!("Cannot declare with 2+ types.")),
                 };
-                inner().with_context(|| anyhow!("prev_symbol = {prev_symbol:?}"))?;
-
-                match entry.into_mut() {
-                    Symbol::Var { attrs, .. } => Ok(attrs),
-                    _ => unreachable!(),
-                }
+                inner().with_context(|| anyhow!("prev_symbol = {prev_symbol:?}"))
             }
         }
     }
@@ -202,8 +161,8 @@ pub(super) enum VarDeclScope {
     Paren,
 }
 
-enum Decl {
-    AutoStorDur,
+enum Decl<AutoInit> {
+    AutoStorDur(AutoInit),
     StaticStorDur(Viz, StaticInitialValue),
 }
 #[derive(From)]
