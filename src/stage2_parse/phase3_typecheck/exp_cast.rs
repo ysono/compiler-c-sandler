@@ -82,7 +82,12 @@ impl TypeChecker {
 
     /* Casting explicitly */
 
-    pub(super) fn cast_explicitly(to: Singleton<VarType>, from: TypedExp) -> Result<TypedRExp> {
+    pub(super) fn cast_explicitly(
+        &mut self,
+        Cast { typ: to, sub_exp: from }: Cast<ResolvedCAst>,
+    ) -> Result<TypedRExp> {
+        let from = self.typecheck_exp(*from)?;
+
         let ok = match (to.as_ref(), from.typ().as_ref()) {
             (t2, t1) if t2 == t1 => Ok(()),
 

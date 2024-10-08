@@ -23,11 +23,7 @@ impl TypeChecker {
                 let exp = RExp::Const(konst);
                 TypedRExp { typ, exp }
             }
-            RExp::Cast(Cast { typ, sub_exp }) => {
-                let sub_exp = self.typecheck_exp(*sub_exp)?;
-
-                Self::cast_explicitly(typ, sub_exp)?
-            }
+            RExp::Cast(cast) => self.cast_explicitly(cast)?,
             RExp::Unary(Unary { op, sub_exp }) => {
                 let sub_exp = Box::new(self.typecheck_exp(*sub_exp)?);
 
