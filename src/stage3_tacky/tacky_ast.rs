@@ -2,8 +2,9 @@ pub use self::{instruction::*, operand::*, operator::*};
 use crate::{
     common::{
         identifier::{JumpLabel, SymbolIdentifier},
+        primitive::Const,
         symbol_table_frontend::StaticVisibility,
-        types_frontend::{Const, VarType},
+        types_frontend::VarType,
     },
     ds_n_a::singleton::Singleton,
 };

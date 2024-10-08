@@ -3,8 +3,9 @@ pub use crate::stage1_lex::tokens::StorageClassSpecifier;
 use crate::{
     common::{
         identifier::UniqueId,
+        primitive::Const,
         symbol_table_frontend::StaticVisibility,
-        types_frontend::{Const, FunType, VarType},
+        types_frontend::{FunType, VarType},
     },
     ds_n_a::singleton::Singleton,
 };

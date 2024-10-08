@@ -2,7 +2,8 @@ use super::FunInstrsGenerator;
 use crate::{
     common::{
         identifier::{JumpLabel, UniqueId},
-        types_frontend::{Const, VarType},
+        primitive::Const,
+        types_frontend::VarType,
     },
     ds_n_a::singleton::Singleton,
     stage2_parse::{c_ast as c, phase3_typecheck::TypeCheckedCAst},

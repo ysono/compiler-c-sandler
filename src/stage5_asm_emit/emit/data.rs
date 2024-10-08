@@ -2,9 +2,9 @@ use super::{label::LabelLocality, AsmCodeEmitter, TAB};
 use crate::{
     common::{
         identifier::SymbolIdentifier,
+        primitive::Const,
         symbol_table_frontend::StaticVisibility,
         types_backend::{Alignment, OperandByteLen},
-        types_frontend::Const,
     },
     stage4_asm_gen::asm_ast::*,
 };

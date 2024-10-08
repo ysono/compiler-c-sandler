@@ -2,8 +2,9 @@ use super::{TypeCheckedCAst, TypeChecker};
 use crate::{
     common::{
         identifier::SymbolIdentifier,
+        primitive::Const,
         symbol_table_frontend::{StaticInitialValue, StaticVisibility, Symbol, VarAttrs},
-        types_frontend::{Const, VarType},
+        types_frontend::VarType,
     },
     ds_n_a::singleton::Singleton,
     stage2_parse::{c_ast::*, phase2_resolve::ResolvedCAst},

@@ -12,8 +12,8 @@ mod obj;
 use self::looping::LoopIdToLabels;
 use crate::{
     common::{
+        primitive::Const,
         symbol_table_frontend::{StaticInitialValue, Symbol, SymbolTable, VarAttrs},
-        types_frontend::Const,
     },
     stage2_parse::{c_ast as c, phase3_typecheck::TypeCheckedCAst},
     stage3_tacky::tacky_ast::*,

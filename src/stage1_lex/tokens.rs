@@ -1,4 +1,4 @@
-use crate::common::{identifier::RawIdentifier, types_frontend::Const};
+use crate::common::{identifier::RawIdentifier, primitive::Const};
 use derive_more::From;
 
 #[derive(From, PartialEq, Debug)]

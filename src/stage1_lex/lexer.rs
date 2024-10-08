@@ -1,5 +1,5 @@
 use crate::{
-    common::{identifier::RawIdentifier, types_frontend::Const},
+    common::{identifier::RawIdentifier, primitive::Const},
     stage1_lex::tokens::*,
 };
 use anyhow::{anyhow, Context, Result};

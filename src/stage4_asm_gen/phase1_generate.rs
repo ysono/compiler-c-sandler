@@ -11,8 +11,8 @@ mod operand;
 
 use crate::{
     common::{
-        identifier::SymbolIdentifier, symbol_table_frontend::SymbolTable, types_backend::Alignment,
-        types_frontend::Const,
+        identifier::SymbolIdentifier, primitive::Const, symbol_table_frontend::SymbolTable,
+        types_backend::Alignment,
     },
     stage3_tacky::tacky_ast as t,
     stage4_asm_gen::asm_ast::*,

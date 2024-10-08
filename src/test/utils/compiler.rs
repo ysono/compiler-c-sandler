@@ -1,5 +1,5 @@
 use crate::{
-    common::types_frontend::Const,
+    common::primitive::Const,
     driver::{
         config::{Args, CompilerUntil, DriverUntil},
         files::SrcFilepath,

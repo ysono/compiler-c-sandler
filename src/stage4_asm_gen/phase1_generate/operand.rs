@@ -2,8 +2,9 @@ use super::InstrsGenerator;
 use crate::{
     common::{
         identifier::SymbolIdentifier,
+        primitive::Const,
         types_backend::{Alignment, AssemblyType},
-        types_frontend::{ArithmeticType, Const},
+        types_frontend::ArithmeticType,
     },
     stage3_tacky::tacky_ast as t,
     stage4_asm_gen::asm_ast::*,

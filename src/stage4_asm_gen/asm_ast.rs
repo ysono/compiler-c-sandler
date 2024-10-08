@@ -1,9 +1,9 @@
 pub use self::{operand::*, operator::*};
 use crate::common::{
     identifier::{JumpLabel, SymbolIdentifier},
+    primitive::Const,
     symbol_table_frontend::StaticVisibility,
     types_backend::{Alignment, AssemblyType},
-    types_frontend::Const,
 };
 use derive_more::{Deref, DerefMut, From};
 use std::fmt::Debug;

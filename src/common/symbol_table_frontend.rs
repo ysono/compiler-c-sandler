@@ -1,7 +1,8 @@
 use crate::{
     common::{
         identifier::SymbolIdentifier,
-        types_frontend::{Const, FunType, VarType},
+        primitive::Const,
+        types_frontend::{FunType, VarType},
     },
     ds_n_a::singleton::Singleton,
 };

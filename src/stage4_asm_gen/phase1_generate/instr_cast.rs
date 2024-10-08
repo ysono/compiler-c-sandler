@@ -2,8 +2,8 @@ use super::{GeneratedAsmAst, InstrsGenerator};
 use crate::{
     common::{
         identifier::{JumpLabel, UniqueId},
+        primitive::Const,
         types_backend::AssemblyType,
-        types_frontend::Const,
     },
     stage3_tacky::tacky_ast as t,
     stage4_asm_gen::asm_ast::*,

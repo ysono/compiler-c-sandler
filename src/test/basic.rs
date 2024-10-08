@@ -1,5 +1,5 @@
 use crate::{
-    common::types_frontend::{ArithmeticType, Const},
+    common::{primitive::Const, types_frontend::ArithmeticType},
     stage2_parse::c_ast as c,
     test::utils::{compile_typechecked_c_prog, decompose_var_type, fail, ProtoType},
 };
