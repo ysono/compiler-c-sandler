@@ -99,6 +99,7 @@ impl<'a> FunInstrsGenerator<'a> {
         mut self,
         c::FunctionDefinition {
             ident,
+            typ,
             visibility,
             param_idents,
             body,
@@ -116,6 +117,7 @@ impl<'a> FunInstrsGenerator<'a> {
 
         Function {
             ident,
+            typ,
             visibility,
             param_idents,
             instrs: self.instrs,

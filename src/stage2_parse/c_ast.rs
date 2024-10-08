@@ -59,6 +59,7 @@ mod declaration {
     #[derive(Debug)]
     pub struct FunctionDefinition<T: CAstVariant> {
         pub ident: T::Identifier,
+        pub typ: Singleton<FunType>,
         pub visibility: StaticVisibility,
         pub param_idents: Vec<T::Identifier>,
         pub body: Block<T>,

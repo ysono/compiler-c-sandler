@@ -3,7 +3,9 @@ use crate::{
     common::{
         identifier::SymbolIdentifier,
         types_backend::{AssemblyType, OperandByteLen},
+        types_frontend::FunType,
     },
+    ds_n_a::singleton::Singleton,
     stage3_tacky::tacky_ast as t,
     stage4_asm_gen::asm_ast::*,
 };
@@ -13,18 +15,20 @@ impl InstrsGenerator {
     /// See documentation at [`crate::stage4_asm_gen`].
     pub(super) fn gen_fun_instrs(
         &mut self,
+        fun_typ: Singleton<FunType>,
         param_idents: Vec<Rc<SymbolIdentifier>>,
         t_instrs: Vec<t::Instruction>,
     ) -> Vec<Instruction<GeneratedAsmAst>> {
         /* Instructions that copy incoming args into the current function's stack frame. */
         let mut arg_reg_resolver = ArgRegResolver::default();
         let mut extra_arg_stack_pos = MemoryAddressOffset(8);
-        let mut asm_instrs = param_idents
-            .into_iter()
-            .map(|param_ident| {
-                let (dst, _, asm_type) = self.value_to_operand_and_type(param_ident);
-
+        let params = fun_typ.params.iter().zip(param_idents);
+        let mut asm_instrs = params
+            .map(|(param_type, param_ident)| {
+                let asm_type = AssemblyType::from(param_type.effective_arithmetic_type());
                 let arg_reg = arg_reg_resolver.next_reg(asm_type);
+
+                let dst = self.value_to_operand(param_ident);
 
                 let src = match arg_reg {
                     Some(reg) => Operand::Register(reg).into(),

@@ -48,12 +48,13 @@ impl InstrsGenerator {
         &mut self,
         t::Function {
             ident,
+            typ,
             visibility,
             param_idents,
             instrs,
         }: t::Function,
     ) -> Function<GeneratedAsmAst> {
-        let instrs = self.gen_fun_instrs(param_idents, instrs);
+        let instrs = self.gen_fun_instrs(typ, param_idents, instrs);
         Function { ident, visibility, instrs }
     }
 

@@ -4,7 +4,7 @@ use crate::{
         identifier::{JumpLabel, SymbolIdentifier},
         primitive::Const,
         symbol_table_frontend::StaticVisibility,
-        types_frontend::VarType,
+        types_frontend::{FunType, VarType},
     },
     ds_n_a::singleton::Singleton,
 };
@@ -28,6 +28,7 @@ pub struct StaticVariable {
 #[derive(Debug)]
 pub struct Function {
     pub ident: Rc<SymbolIdentifier>,
+    pub typ: Singleton<FunType>,
     pub visibility: StaticVisibility,
     pub param_idents: Vec<Rc<SymbolIdentifier>>,
     pub instrs: Vec<Instruction>,

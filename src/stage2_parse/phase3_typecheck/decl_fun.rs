@@ -47,12 +47,13 @@ impl TypeChecker {
         let defn = match body {
             None => None,
             Some(body) => {
-                self.curr_fun_type = Some(typ.clone());
+                self.curr_fun_type = Some(typ);
                 let body = self.typecheck_block(body)?;
-                self.curr_fun_type = None;
+                let typ = self.curr_fun_type.take().unwrap();
 
                 Some(FunctionDefinition {
                     ident,
+                    typ,
                     visibility,
                     param_idents,
                     body,
