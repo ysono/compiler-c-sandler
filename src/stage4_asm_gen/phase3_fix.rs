@@ -44,7 +44,7 @@ impl OperandFixer {
                     let reg = Register::R11;
                     let instr_at_reg = Instruction::Mov{
                         asm_type: AssemblyType::Quadword,
-                        src: reg.into(),
+                        src: Operand::Register(reg),
                         dst,
                     };
                     Self::to_reg(AssemblyType::Longword, src, reg, instr_at_reg)
@@ -57,10 +57,7 @@ impl OperandFixer {
                 }
             }
             Instruction::Lea { src, dst } => {
-                debug_assert!(
-                    matches!(src, Operand::MemoryAddress(..) | Operand::Data(_)),
-                    "Lea src {src:?}"
-                );
+                debug_assert!(src.is_on_mem(), "Lea src {src:?}");
 
                 let reg2_to_dst = matches!(&dst, Operand::Register(_)) == false;
                 let reg2_to_dst = reg2_to_dst.then_some((ToFromReg::FromReg, AssemblyType::Quadword));
@@ -139,12 +136,12 @@ impl OperandFixer {
             }
             Instruction::Idiv(asm_type, imm @ Operand::ImmediateValue(_)) => {
                 let reg = Register::R10;
-                let instr_at_reg = Instruction::Idiv(asm_type, reg.into());
+                let instr_at_reg = Instruction::Idiv(asm_type, Operand::Register(reg));
                 Self::to_reg(asm_type, imm, reg, instr_at_reg)
             }
             Instruction::Div(asm_type, imm @ Operand::ImmediateValue(_)) => {
                 let reg = Register::R10;
-                let instr_at_reg = Instruction::Div(asm_type, reg.into());
+                let instr_at_reg = Instruction::Div(asm_type, Operand::Register(reg));
                 Self::to_reg(asm_type, imm, reg, instr_at_reg)
             }
             Instruction::Push(operand) => {
@@ -164,7 +161,7 @@ impl OperandFixer {
                     ]
                 } else if Self::is_imm_outside_i32(AssemblyType::Quadword, &operand)  {
                     let reg = Register::R10;
-                    let instr_at_reg = Instruction::Push(reg.into());
+                    let instr_at_reg = Instruction::Push(Operand::Register(reg));
                     Self::to_reg(AssemblyType::Quadword, operand, reg, instr_at_reg)
                 } else {
                     vec![Instruction::Push(operand)]
@@ -199,7 +196,7 @@ impl OperandFixer {
         let instr_to_reg = Instruction::Mov {
             asm_type,
             src: operand_to_reg,
-            dst: reg.into(),
+            dst: Operand::Register(reg),
         };
         vec![instr_to_reg, instr_at_reg]
     }
@@ -210,13 +207,19 @@ impl OperandFixer {
         dst_tofrom_reg2: Option<(ToFromReg, AssemblyType)>,
         new_instr: impl FnOnce(Operand, Operand) -> Instruction<FinalizedAsmAst>,
     ) -> Vec<Instruction<FinalizedAsmAst>> {
-        let reg1 = |src_asm_type: AssemblyType| match src_asm_type {
-            AssemblyType::Longword | AssemblyType::Quadword => Register::R10,
-            AssemblyType::Double => Register::XMM14,
+        let reg1 = |src_asm_type: AssemblyType| {
+            let reg = match src_asm_type {
+                AssemblyType::Longword | AssemblyType::Quadword => Register::R10,
+                AssemblyType::Double => Register::XMM14,
+            };
+            Operand::Register(reg)
         };
-        let reg2 = |dst_asm_type: AssemblyType| match dst_asm_type {
-            AssemblyType::Longword | AssemblyType::Quadword => Register::R11,
-            AssemblyType::Double => Register::XMM15,
+        let reg2 = |dst_asm_type: AssemblyType| {
+            let reg = match dst_asm_type {
+                AssemblyType::Longword | AssemblyType::Quadword => Register::R11,
+                AssemblyType::Double => Register::XMM15,
+            };
+            Operand::Register(reg)
         };
 
         let mov = |asm_type: AssemblyType, src: Operand, dst: Operand| Instruction::Mov {
@@ -228,8 +231,8 @@ impl OperandFixer {
         let mut instr_to_reg1 = None;
         if let Some(src_asm_type) = src_to_reg1 {
             let reg1 = reg1(src_asm_type);
-            instr_to_reg1 = Some(mov(src_asm_type, src, reg1.into()));
-            src = reg1.into();
+            instr_to_reg1 = Some(mov(src_asm_type, src, reg1.clone()));
+            src = reg1;
         }
 
         let mut instr_to_reg2 = None;
@@ -238,17 +241,17 @@ impl OperandFixer {
             let reg2 = reg2(dst_asm_type);
             match to_from_reg {
                 ToFromReg::ToReg => {
-                    instr_to_reg2 = Some(mov(dst_asm_type, dst, reg2.into()));
+                    instr_to_reg2 = Some(mov(dst_asm_type, dst, reg2.clone()));
                 }
                 ToFromReg::FromReg => {
-                    instr_from_reg2 = Some(mov(dst_asm_type, reg2.into(), dst));
+                    instr_from_reg2 = Some(mov(dst_asm_type, reg2.clone(), dst));
                 }
                 ToFromReg::ToAndFromReg => {
-                    instr_to_reg2 = Some(mov(dst_asm_type, dst.clone(), reg2.into()));
-                    instr_from_reg2 = Some(mov(dst_asm_type, reg2.into(), dst));
+                    instr_to_reg2 = Some(mov(dst_asm_type, dst.clone(), reg2.clone()));
+                    instr_from_reg2 = Some(mov(dst_asm_type, reg2.clone(), dst));
                 }
             }
-            dst = reg2.into();
+            dst = reg2;
         }
 
         let instr = new_instr(src, dst);

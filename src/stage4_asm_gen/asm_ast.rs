@@ -149,18 +149,19 @@ mod operand {
         }
     }
 
-    #[derive(From, Clone, Debug)]
+    #[derive(Clone, Debug)]
     pub enum Operand {
         ImmediateValue(i64),
         Register(Register),
         MemoryAddress(Register, MemoryAddressOffset),
-        Data(Rc<SymbolIdentifier>),
+        ReadWriteData(Rc<SymbolIdentifier>),
+        ReadonlyData(Rc<SymbolIdentifier>),
     }
     impl Operand {
         pub fn is_on_mem(&self) -> bool {
             match self {
                 Self::ImmediateValue(_) | Self::Register(_) => false,
-                Self::MemoryAddress(..) | Self::Data(_) => true,
+                Self::MemoryAddress(..) | Self::ReadWriteData(_) | Self::ReadonlyData(_) => true,
             }
         }
     }

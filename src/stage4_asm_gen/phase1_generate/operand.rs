@@ -68,6 +68,6 @@ impl InstrsGenerator {
             .static_constants
             .entry((alignment, konst))
             .or_insert_with(|| Rc::new(SymbolIdentifier::new_generated()));
-        Operand::Data(Rc::clone(ident)).into()
+        Operand::ReadonlyData(Rc::clone(ident)).into()
     }
 }

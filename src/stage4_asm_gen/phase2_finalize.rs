@@ -150,8 +150,8 @@ impl InstrsFinalizer {
                         let offset = self.var_to_stack_pos.var_to_stack_pos(ident, *asm_type);
                         Operand::MemoryAddress(Register::BP, offset)
                     }
-                    ObjLocation::StaticReadWrite => Operand::Data(ident),
-                    ObjLocation::StaticReadonly => Operand::Data(ident),
+                    ObjLocation::StaticReadWrite => Operand::ReadWriteData(ident),
+                    ObjLocation::StaticReadonly => Operand::ReadonlyData(ident),
                 }
             }
         }

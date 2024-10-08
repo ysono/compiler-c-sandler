@@ -2,7 +2,7 @@ use super::{label::LabelLocality, AsmCodeEmitter, TAB};
 use crate::{
     common::{
         identifier::SymbolIdentifier,
-        symbol_table_backend::{AsmFun, AsmObj, ObjLocation},
+        symbol_table_backend::AsmFun,
         types_backend::{AssemblyType, OperandByteLen},
     },
     stage4_asm_gen::{asm_ast::*, FinalizedAsmAst},
@@ -296,22 +296,15 @@ impl<W: Write> AsmCodeEmitter<W> {
             }
             Operand::MemoryAddress(reg, offset) => {
                 write!(&mut self.w, "{}(", *offset)?;
-                self.write_operand(reg.into(), OperandByteLen::B8)?;
+                self.write_operand(Operand::Register(reg), OperandByteLen::B8)?;
                 write!(&mut self.w, ")")?;
             }
-            Operand::Data(ident) => {
-                let AsmObj { loc, .. } = self.backend_symtab.objs().get(&ident).unwrap();
-                match loc {
-                    ObjLocation::Stack => {
-                        unreachable!("Operand::Data cannot refer to a stack-allocated var.")
-                    }
-                    ObjLocation::StaticReadWrite => {
-                        self.write_symbol_name(&ident, LabelLocality::OF_STATIC_VAR)?
-                    }
-                    ObjLocation::StaticReadonly => {
-                        self.write_symbol_name(&ident, LabelLocality::OF_STATIC_CONST)?
-                    }
-                }
+            Operand::ReadWriteData(ident) => {
+                self.write_symbol_name(&ident, LabelLocality::OF_STATIC_VAR)?;
+                write!(&mut self.w, "(%rip)")?;
+            }
+            Operand::ReadonlyData(ident) => {
+                self.write_symbol_name(&ident, LabelLocality::OF_STATIC_CONST)?;
                 write!(&mut self.w, "(%rip)")?;
             }
         }
