@@ -13,8 +13,11 @@ pub use driver::{config::CliArgs, Driver};
 
 mod utils {
     macro_rules! noop {
-        ($($comment:literal)?) => {{}}; // Empty expression
+        ( $($comment:tt),* ) => {{} /* Empty expression */};
     }
 
     pub(crate) use noop;
 }
+
+#[cfg(test)]
+mod test;

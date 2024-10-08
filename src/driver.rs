@@ -1,5 +1,5 @@
 pub mod config;
-mod files;
+pub mod files;
 
 use self::{
     config::{Args, CompilerUntil, Downstream, DriverUntil},
@@ -87,7 +87,7 @@ impl Driver {
         gcc_cmd.reader()
     }
 
-    fn compile<R: Read + BufRead>(
+    pub(crate) fn compile<R: Read + BufRead>(
         &self,
         src_filepath: &SrcFilepath,
         pp_reader: R,
@@ -224,7 +224,7 @@ impl Driver {
 
 #[allow(unused)] // This is indeed used, by print!().
 #[derive(Debug)]
-enum CompilationResult {
+pub(crate) enum CompilationResult {
     Lexed(Vec<Token>),
     Parsed(c_ast::Program<ParsedCAst>),
     Validated(c_ast::Program<TypeCheckedCAst>, SymbolTable),
