@@ -153,7 +153,7 @@ impl InstrsFinalizer {
                 match loc {
                     ObjLocation::Stack => {
                         let offset = self.var_to_stack_pos.var_to_stack_pos(ident, *asm_type);
-                        Operand::MemoryAddress(Register::BP, offset)
+                        Operand::Memory(Register::BP, offset)
                     }
                     ObjLocation::StaticReadWrite => Operand::ReadWriteData(ident),
                     ObjLocation::StaticReadonly => Operand::ReadonlyData(ident),

@@ -56,7 +56,7 @@ impl<W: Write> AsmCodeEmitter<W> {
                 write!(&mut self.w, "{pfx}{name}")
             }
             SymbolIdentifier::Generated { id, descr: () } => {
-                /* ANON_NAME ought to be a non-empty str that cannot be a substring within any raw identifier string in the C src code. */
+                /* ANON_NAME must be a non-empty str that cannot be a substring within any raw identifier string in the C src code. */
                 const ANON_NAME: &str = "anon.";
                 let id = id.as_int();
                 write!(&mut self.w, "{pfx}{ANON_NAME}{id:x}")

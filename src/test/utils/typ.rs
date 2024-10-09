@@ -21,8 +21,8 @@ pub fn decompose_var_type(var_typ: &VarType) -> ProtoType {
 }
 fn do_decompose_var_type(var_typ: &VarType, items: &mut Vec<TestDeclaratorItem>) -> ArithmeticType {
     match var_typ {
-        VarType::Arithmetic(a) => *a,
-        VarType::Pointer(PointerType { pointee_type }) => {
+        VarType::Arith(a) => *a,
+        VarType::Ptr(PointerType { pointee_type }) => {
             items.push(TestDeclaratorItem::Ptr);
             do_decompose_var_type(pointee_type, items)
         }

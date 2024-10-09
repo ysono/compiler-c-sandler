@@ -38,10 +38,10 @@ impl TypeChecker {
                     (&op, sub_exp.typ.as_ref()),
                     (
                         UnaryOperator::Complement,
-                        VarType::Arithmetic(ArithmeticType::Double)
+                        VarType::Arith(ArithmeticType::Double)
                     ) | (
                         UnaryOperator::Negate | UnaryOperator::Complement,
-                        VarType::Pointer(_)
+                        VarType::Ptr(_)
                     )
                 ) {
                     return Err(anyhow!("Cannot apply {op:?} on {sub_exp:?}"));
@@ -106,7 +106,7 @@ impl TypeChecker {
                 let sub_exp = Box::new(self.typecheck_exp(*sub_exp)?);
 
                 let typ = match sub_exp.typ.as_ref() {
-                    VarType::Pointer(PointerType { pointee_type }) => pointee_type.clone(),
+                    VarType::Ptr(PointerType { pointee_type }) => pointee_type.clone(),
                     _ => return Err(anyhow!("Cannot dereference {sub_exp:?}")),
                 };
 

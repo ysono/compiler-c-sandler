@@ -46,7 +46,7 @@ impl JumpLabel {
             .into_iter()
             .map(|descr2| {
                 Self {
-                    id: id.borrow().unsafely_clone(),
+                    id: id.borrow().privately_clone(),
                     descr1,
                     descr2,
                 }
@@ -67,7 +67,7 @@ impl UniqueId {
         let curr_id = NEXT_ID.fetch_add(1, Ordering::SeqCst);
         Self(curr_id)
     }
-    fn unsafely_clone(&self) -> Self {
+    fn privately_clone(&self) -> Self {
         Self(self.0)
     }
     pub fn as_int(&self) -> u64 {

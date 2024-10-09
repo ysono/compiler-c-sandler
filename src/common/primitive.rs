@@ -29,14 +29,14 @@ impl Const {
             };
         }
         match typ {
-            VarType::Arithmetic(a) => match a {
+            VarType::Arith(a) => match a {
                 ArithmeticType::Int => new_const!(Const::Int, i32),
                 ArithmeticType::Long => new_const!(Const::Long, i64),
                 ArithmeticType::UInt => new_const!(Const::UInt, u32),
                 ArithmeticType::ULong => new_const!(Const::ULong, u64),
                 ArithmeticType::Double => new_const!(Const::Double, f64),
             },
-            VarType::Pointer(_) => new_const!(Const::ULong, u64),
+            VarType::Ptr(_) => new_const!(Const::ULong, u64),
         }
     }
 

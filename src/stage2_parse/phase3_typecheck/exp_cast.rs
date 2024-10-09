@@ -34,13 +34,13 @@ impl TypeChecker {
     }
     fn derive_common_type(exp1: &TypedExp, exp2: &TypedExp) -> Result<Either<(), ()>> {
         match (exp1.typ.as_ref(), exp2.typ.as_ref()) {
-            (VarType::Arithmetic(a1), VarType::Arithmetic(a2)) => {
+            (VarType::Arith(a1), VarType::Arith(a2)) => {
                 Ok(Self::derive_common_arithmetic_type(*a1, *a2))
             }
-            (VarType::Pointer(ptr_typ), _) => {
+            (VarType::Ptr(ptr_typ), _) => {
                 Self::derive_common_pointer_type(ptr_typ, exp2).map(Either::Left)
             }
-            (_, VarType::Pointer(ptr_typ)) => {
+            (_, VarType::Ptr(ptr_typ)) => {
                 Self::derive_common_pointer_type(ptr_typ, exp1).map(Either::Right)
             }
         }
@@ -70,7 +70,7 @@ impl TypeChecker {
     }
     fn derive_common_pointer_type(ptr_typ: &PointerType, other_exp: &TypedExp) -> Result<()> {
         #[allow(clippy::if_same_then_else)]
-        if matches!(other_exp.typ.as_ref(), VarType::Pointer(ptr_typ_2) if ptr_typ == ptr_typ_2) {
+        if matches!(other_exp.typ.as_ref(), VarType::Ptr(ptr_typ_2) if ptr_typ == ptr_typ_2) {
             Ok(())
         } else if matches!(other_exp.exp, Expression::Const(k) if k.is_zero_integer()) {
             Ok(())
@@ -90,8 +90,8 @@ impl TypeChecker {
             /* Elide redundant explicit cast. See more comment in the tacky stage. */
             (t2, t1) if t2 == t1 => Ok(from),
 
-            (VarType::Pointer(_), VarType::Arithmetic(ArithmeticType::Double)) => err(),
-            (VarType::Arithmetic(ArithmeticType::Double), VarType::Pointer(_)) => err(),
+            (VarType::Ptr(_), VarType::Arith(ArithmeticType::Double)) => err(),
+            (VarType::Arith(ArithmeticType::Double), VarType::Ptr(_)) => err(),
 
             _ => Ok(Self::insert_cast_node(to, from)),
         }
@@ -132,9 +132,9 @@ impl TypeChecker {
         let ok = match (to, from.typ.as_ref()) {
             (t2, t1) if t2 == t1 => Ok(()),
 
-            (VarType::Arithmetic(_), VarType::Arithmetic(_)) => Ok(()),
+            (VarType::Arith(_), VarType::Arith(_)) => Ok(()),
 
-            (VarType::Pointer(_), _) => match from {
+            (VarType::Ptr(_), _) => match from {
                 TypedExp { exp: Expression::Const(k), .. } if k.is_zero_integer() => Ok(()),
                 _ => Err(()),
             },

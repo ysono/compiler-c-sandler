@@ -40,9 +40,7 @@ impl TypeChecker {
         let (lhs, rhs) = match op {
             OC::Eq | OC::Neq => Self::cast_to_common_type(lhs, rhs)?,
             OC::Lt | OC::Lte | OC::Gt | OC::Gte => match (lhs.typ.as_ref(), rhs.typ.as_ref()) {
-                (VarType::Arithmetic(_), VarType::Arithmetic(_)) => {
-                    Self::cast_to_common_type(lhs, rhs)?
-                }
+                (VarType::Arith(_), VarType::Arith(_)) => Self::cast_to_common_type(lhs, rhs)?,
                 _ => unimplemented!("ch15"),
             },
         };
@@ -61,7 +59,7 @@ impl TypeChecker {
         use ArithmeticBinaryOperator as OA;
 
         match (lhs.typ.as_ref(), rhs.typ.as_ref()) {
-            (VarType::Arithmetic(_), VarType::Arithmetic(_)) => noop!(),
+            (VarType::Arith(_), VarType::Arith(_)) => noop!(),
             _ => unimplemented!("ch15"),
         }
 
@@ -70,7 +68,7 @@ impl TypeChecker {
 
         if matches!(
             (&op, common_typ.as_ref()),
-            (OA::Rem, VarType::Arithmetic(ArithmeticType::Double))
+            (OA::Rem, VarType::Arith(ArithmeticType::Double))
         ) {
             return Err(anyhow!("Cannot apply {op:?} on {lhs:?} and {rhs:?}"));
         }

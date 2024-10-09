@@ -30,18 +30,18 @@ impl<W: Write> AsmCodeEmitter<W> {
 
     pub fn emit_program(
         mut self,
-        Program { funs, static_vars, static_consts }: Program<FinalizedAsmAst>,
+        Program { static_vars, static_consts, funs }: Program<FinalizedAsmAst>,
     ) -> Result<(), io::Error> {
-        for fun in funs {
-            self.write_fun(fun)?;
-        }
-
         for static_var in static_vars {
             self.write_static_var(static_var)?;
         }
 
         for static_const in static_consts {
             self.write_static_const(static_const)?;
+        }
+
+        for fun in funs {
+            self.write_fun(fun)?;
         }
 
         if cfg!(target_os = "linux") {

@@ -15,17 +15,10 @@ pub trait AsmAstVariant {
 }
 
 #[derive(Debug)]
-pub struct Program<T: AsmAstVariant> {
-    pub static_consts: Vec<StaticConstant>,
+pub struct Program<A: AsmAstVariant> {
     pub static_vars: Vec<StaticVariable>,
-    pub funs: Vec<Function<T>>,
-}
-
-#[derive(Debug)]
-pub struct StaticConstant {
-    pub ident: Rc<SymbolIdentifier>,
-    pub alignment: Alignment,
-    pub init: Const,
+    pub static_consts: Vec<StaticConstant>,
+    pub funs: Vec<Function<A>>,
 }
 
 #[derive(Debug)]
@@ -37,61 +30,68 @@ pub struct StaticVariable {
 }
 
 #[derive(Debug)]
-pub struct Function<T: AsmAstVariant> {
+pub struct StaticConstant {
     pub ident: Rc<SymbolIdentifier>,
-    pub visibility: StaticVisibility,
-    pub instrs: T::Instructions,
+    pub alignment: Alignment,
+    pub init: Const,
 }
 
 #[derive(Debug)]
-pub enum Instruction<T: AsmAstVariant> {
+pub struct Function<A: AsmAstVariant> {
+    pub ident: Rc<SymbolIdentifier>,
+    pub visibility: StaticVisibility,
+    pub instrs: A::Instructions,
+}
+
+#[derive(Debug)]
+pub enum Instruction<A: AsmAstVariant> {
     Mov {
         asm_type: AssemblyType,
-        src: T::Operand,
-        dst: T::Operand,
+        src: A::Operand,
+        dst: A::Operand,
     },
     Movsx {
-        src: T::Operand,
-        dst: T::Operand,
+        src: A::Operand,
+        dst: A::Operand,
     },
     MovZeroExtend {
-        src: T::Operand,
-        dst: T::Operand,
+        src: A::Operand,
+        dst: A::Operand,
     },
     Lea {
-        src: T::Operand,
-        dst: T::Operand,
+        src: A::Operand,
+        dst: A::Operand,
     },
     Cvttsd2si {
         dst_asm_type: AssemblyType,
-        src: T::Operand,
-        dst: T::Operand,
+        src: A::Operand,
+        dst: A::Operand,
     },
     Cvtsi2sd {
         src_asm_type: AssemblyType,
-        src: T::Operand,
-        dst: T::Operand,
+        src: A::Operand,
+        dst: A::Operand,
     },
-    Unary(UnaryOperator, AssemblyType, T::Operand),
+    Unary(UnaryOperator, AssemblyType, A::Operand),
     Binary {
         op: BinaryOperator,
         asm_type: AssemblyType,
-        arg: T::Operand, // Semantic RHS. Asm operand #1 in AT&T syntax.
-        tgt: T::Operand, // Semantic LHS, as well as output. Asm operand #2.
+        arg: A::Operand, // Semantic RHS. Asm operand #1 in AT&A syntax.
+        tgt: A::Operand, // Semantic LHS, as well as output. Asm operand #2.
     },
     Cmp {
         asm_type: AssemblyType,
-        arg: T::Operand, // Semantic RHS. Asm operand #1 in AT&T syntax.
-        tgt: T::Operand, // Semantic LHS, non-modified. Asm operand #2.
+        arg: A::Operand, // Semantic RHS. Asm operand #1 in AT&A syntax.
+        tgt: A::Operand, // Semantic LHS, non-modified. Asm operand #2.
     },
-    Idiv(AssemblyType, T::Operand),
-    Div(AssemblyType, T::Operand),
+    Idiv(AssemblyType, A::Operand),
+    Div(AssemblyType, A::Operand),
     Cdq(AssemblyType),
     Jmp(Rc<JumpLabel>),
     JmpCC(ConditionCode, Rc<JumpLabel>),
-    SetCC(ConditionCode, T::Operand),
+    SetCC(ConditionCode, A::Operand),
     Label(Rc<JumpLabel>),
-    Push(T::Operand),
+    Push(A::Operand),
     Call(Rc<SymbolIdentifier>),
     Ret,
 }
@@ -153,7 +153,7 @@ mod operand {
     pub enum Operand {
         ImmediateValue(i64),
         Register(Register),
-        MemoryAddress(Register, MemoryAddressOffset),
+        Memory(Register, MemoryOffset),
         ReadWriteData(Rc<SymbolIdentifier>),
         ReadonlyData(Rc<SymbolIdentifier>),
     }
@@ -161,7 +161,7 @@ mod operand {
         pub fn is_on_mem(&self) -> bool {
             match self {
                 Self::ImmediateValue(_) | Self::Register(_) => false,
-                Self::MemoryAddress(..) | Self::ReadWriteData(_) | Self::ReadonlyData(_) => true,
+                Self::Memory(..) | Self::ReadWriteData(_) | Self::ReadonlyData(_) => true,
             }
         }
     }
@@ -179,11 +179,14 @@ mod operand {
         SI,
         R8,
         R9,
+        /* scratch */
         R10,
         R11,
+
         /* non-SSE, callee-saved */
         BP,
         SP,
+
         /* SSE */
         XMM0,
         XMM1,
@@ -193,6 +196,7 @@ mod operand {
         XMM5,
         XMM6,
         XMM7,
+        /* scratch */
         XMM14,
         XMM15,
     }
@@ -208,5 +212,5 @@ mod operand {
 
     /// Offset from an address value stored in a register (eg RBP).
     #[derive(Clone, Copy, Deref, DerefMut, Debug)]
-    pub struct MemoryAddressOffset(pub(in crate::stage4_asm_gen) i64);
+    pub struct MemoryOffset(pub(in crate::stage4_asm_gen) i64);
 }

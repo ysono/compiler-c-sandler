@@ -4,14 +4,14 @@ use std::hash::Hash;
 
 #[derive(From, PartialEq, Eq, Hash, Debug)]
 pub enum VarType {
-    Arithmetic(ArithmeticType),
-    Pointer(PointerType),
+    Arith(ArithmeticType),
+    Ptr(PointerType),
 }
 impl VarType {
     pub fn effective_arithmetic_type(&self) -> ArithmeticType {
         match self {
-            Self::Arithmetic(a) => *a,
-            Self::Pointer(_) => ArithmeticType::ULong,
+            Self::Arith(a) => *a,
+            Self::Ptr(_) => ArithmeticType::ULong,
         }
     }
 }
