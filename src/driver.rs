@@ -110,13 +110,14 @@ impl Driver {
         let c_prog = vadlidator.resolve_program(c_prog)?;
 
         let type_checker = TypeChecker::new(var_type_repo);
-        let (c_prog, mut frontend_symtab) = type_checker.typecheck_prog(c_prog)?;
+        let (c_prog, frontend_symtab) = type_checker.typecheck_prog(c_prog)?;
 
         if self.args.until == DriverUntil::Compiler(CompilerUntil::ParserValidate) {
             return Ok(CompilationResult::Validated(c_prog, frontend_symtab));
         }
 
-        let tacky_prog = Tackifier::tackify_program(c_prog, &mut frontend_symtab);
+        let tackifier = Tackifier::new(frontend_symtab);
+        let (tacky_prog, frontend_symtab) = tackifier.tackify_program(c_prog);
         if self.args.until == DriverUntil::Compiler(CompilerUntil::Tacky) {
             return Ok(CompilationResult::Tacky(tacky_prog, frontend_symtab));
         }
@@ -124,7 +125,10 @@ impl Driver {
         let asm_gen = AsmCodeGenerator::new(frontend_symtab);
         let (asm_prog, backend_symtab) = asm_gen.gen_program(tacky_prog);
         if self.args.until == DriverUntil::Compiler(CompilerUntil::AsmGen) {
-            return Ok(CompilationResult::AsmCode(asm_prog, backend_symtab));
+            return Ok(CompilationResult::AsmCode(
+                asm_prog,
+                backend_symtab.into_inner(),
+            ));
         }
 
         let asm_filepath = AsmFilepath::from(src_filepath);

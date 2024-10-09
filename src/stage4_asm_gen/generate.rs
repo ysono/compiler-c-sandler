@@ -1,9 +1,12 @@
 use crate::{
     common::{
+        identifier::SymbolIdentifier,
+        primitive::Const,
         symbol_table_backend::{AsmObj, BackendSymbolTable, ObjLocation},
         symbol_table_frontend::SymbolTable,
         types_backend::{Alignment, AssemblyType},
     },
+    ds_n_a::immutable_owned::ImmutableOwned,
     stage3_tacky::tacky_ast as t,
     stage4_asm_gen::{
         asm_ast::*,
@@ -11,20 +14,21 @@ use crate::{
         phase2_finalize::{FinalizedAsmAst, InstrsFinalizer},
     },
 };
-use std::rc::Rc;
+use std::{collections::HashMap, rc::Rc};
 
 pub struct AsmCodeGenerator {
-    frontend_symtab: SymbolTable,
+    frontend_symtab: ImmutableOwned<SymbolTable>,
 }
 impl AsmCodeGenerator {
     pub fn new(frontend_symtab: SymbolTable) -> Self {
+        let frontend_symtab = ImmutableOwned::from(frontend_symtab);
         Self { frontend_symtab }
     }
 
     pub fn gen_program(
         self,
         t::Program { static_vars, funs }: t::Program,
-    ) -> (Program<FinalizedAsmAst>, BackendSymbolTable) {
+    ) -> (Program<FinalizedAsmAst>, ImmutableOwned<BackendSymbolTable>) {
         let static_vars = static_vars
             .into_iter()
             .map(Self::convert_static_var)
@@ -32,7 +36,7 @@ impl AsmCodeGenerator {
 
         let (funs, static_consts, backend_symtab) = self.convert_funs(funs);
 
-        let prog = Program { static_vars, funs, static_consts };
+        let prog = Program { static_vars, static_consts, funs };
 
         (prog, backend_symtab)
     }
@@ -59,12 +63,12 @@ impl AsmCodeGenerator {
     ) -> (
         Vec<Function<FinalizedAsmAst>>,
         Vec<StaticConstant>,
-        BackendSymbolTable,
+        ImmutableOwned<BackendSymbolTable>,
     ) {
         /* Instrs phase 1 */
 
         let mut gen = InstrsGenerator::new(self.frontend_symtab);
-        let funs = funs
+        let prefinal_funs = funs
             .into_iter()
             .map(|t_fun| gen.convert_fun(t_fun))
             .collect::<Vec<_>>();
@@ -72,28 +76,35 @@ impl AsmCodeGenerator {
 
         /* Preparing for instrs phase 2 and 3 */
 
-        let backend_symtab = BackendSymbolTable::from(frontend_symtab);
-        let backend_symtab = Rc::new(backend_symtab);
+        let frontend_symtab = frontend_symtab.into_inner();
+        let mut backend_symtab = BackendSymbolTable::from(frontend_symtab);
+        let static_consts = Self::reorganize_static_consts(static_consts, &mut backend_symtab);
+        let mut backend_symtab = ImmutableOwned::from(backend_symtab);
 
         /* Instrs phase 2 and 3 */
 
-        let funs = funs
-            .into_iter()
-            .map(|fun| {
-                let fin = InstrsFinalizer::new(Rc::clone(&backend_symtab));
-                fin.finalize_fun(fun)
-            })
-            .collect::<Vec<_>>();
+        let mut final_funs = Vec::with_capacity(prefinal_funs.len());
+        for in_fun in prefinal_funs {
+            let finzer = InstrsFinalizer::new(backend_symtab);
+            let out_fun;
+            (out_fun, backend_symtab) = finzer.finalize_fun(in_fun);
+            final_funs.push(out_fun);
+        }
 
-        /* Static consts */
+        (final_funs, static_consts, backend_symtab)
+    }
 
-        let mut backend_symtab = Rc::try_unwrap(backend_symtab).unwrap();
-
-        /* It's not necessary to have added static consts into the backend symbol table earlier, b/c
-        they aren't read by the finalizer (phase 2) and the fixer (phase 3). */
-        let static_consts = static_consts
+    fn reorganize_static_consts(
+        deduped_static_consts: HashMap<(Alignment, Const), Rc<SymbolIdentifier>>,
+        backend_symtab: &mut BackendSymbolTable,
+    ) -> Vec<StaticConstant> {
+        deduped_static_consts
             .into_iter()
             .map(|((alignment, init), ident)| {
+                /* Note, static consts in the backend symtab are never retrieved,
+                    by asm_gen phase2 or phase3 or by asm_emit.
+                In ch16, we could consolidate Program::static_consts and intra-backend-symtab static const AsmObjs.
+                */
                 backend_symtab.objs_mut().insert(
                     Rc::clone(&ident),
                     AsmObj {
@@ -104,8 +115,6 @@ impl AsmCodeGenerator {
 
                 StaticConstant { ident, alignment, init }
             })
-            .collect::<Vec<_>>();
-
-        (funs, static_consts, backend_symtab)
+            .collect::<Vec<_>>()
     }
 }

@@ -4,6 +4,7 @@ mod label;
 
 use crate::{
     common::symbol_table_backend::BackendSymbolTable,
+    ds_n_a::immutable_owned::ImmutableOwned,
     stage4_asm_gen::{asm_ast::*, FinalizedAsmAst},
 };
 use regex::Regex;
@@ -14,12 +15,12 @@ const TAB: &str = "\t";
 pub struct AsmCodeEmitter<W> {
     label_bad_char: Regex,
 
-    backend_symtab: BackendSymbolTable,
+    backend_symtab: ImmutableOwned<BackendSymbolTable>,
 
     w: W,
 }
 impl<W: Write> AsmCodeEmitter<W> {
-    pub fn new(backend_symtab: BackendSymbolTable, w: W) -> Self {
+    pub fn new(backend_symtab: ImmutableOwned<BackendSymbolTable>, w: W) -> Self {
         Self {
             label_bad_char: Regex::new(r"[^a-zA-Z0-9._]").unwrap(),
             backend_symtab,

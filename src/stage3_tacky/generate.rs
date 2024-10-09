@@ -20,39 +20,45 @@ use crate::{
     stage3_tacky::tacky_ast::*,
     utils::noop,
 };
+use derive_more::{Constructor, Into};
 use std::rc::Rc;
 
-pub struct Tackifier {}
+#[derive(Constructor, Into)]
+pub struct Tackifier {
+    symbol_table: SymbolTable,
+}
 impl Tackifier {
     pub fn tackify_program(
+        mut self,
         c::Program { decls }: c::Program<TypeCheckedCAst>,
-        symbol_table: &mut SymbolTable,
-    ) -> Program {
-        let funs = Self::tackify_funs(decls, symbol_table);
+    ) -> (Program, SymbolTable) {
+        let funs = self.tackify_funs(decls);
 
         /* Book ch10 Tacky page 235:
         ```
         Right now, it doesn’t matter whether we process the AST or the symbol table first. Starting in Chapter 16, it will be important that we process the AST first and the symbol table second.
         ``` */
-        let static_vars = Self::tackify_static_vars(symbol_table);
+        let static_vars = self.tackify_static_vars();
 
-        Program { static_vars, funs }
+        let prog = Program { static_vars, funs };
+
+        (prog, self.symbol_table)
     }
     fn tackify_funs(
+        &mut self,
         c_funs: Vec<c::FunctionDefinition<TypeCheckedCAst>>,
-        symbol_table: &mut SymbolTable,
     ) -> Vec<Function> {
         c_funs
             .into_iter()
             .map(|c_fun| {
-                let gen = FunInstrsGenerator::new(symbol_table);
+                let gen = FunInstrsGenerator::new(&mut self.symbol_table);
                 gen.tackify_fun_defn(c_fun)
             })
             .collect()
     }
-    fn tackify_static_vars(symbol_table: &SymbolTable) -> Vec<StaticVariable> {
+    fn tackify_static_vars(&self) -> Vec<StaticVariable> {
         let mut static_vars = vec![];
-        for (ident, symbol) in symbol_table.iter() {
+        for (ident, symbol) in self.symbol_table.iter() {
             if let Symbol::Var {
                 typ,
                 attrs: VarAttrs::StaticStorageDuration { visibility, initial_value },

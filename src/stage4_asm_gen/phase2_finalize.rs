@@ -9,10 +9,10 @@ use crate::{
         symbol_table_backend::{AsmObj, BackendSymbolTable, ObjLocation},
         types_backend::AssemblyType,
     },
+    ds_n_a::immutable_owned::ImmutableOwned,
     stage4_asm_gen::{asm_ast::*, phase1_generate::GeneratedAsmAst, phase3_fix::OperandFixer},
 };
 use std::collections::VecDeque;
-use std::rc::Rc;
 
 #[derive(Debug)]
 pub struct FinalizedAsmAst(());
@@ -22,12 +22,12 @@ impl AsmAstVariant for FinalizedAsmAst {
 }
 
 pub struct InstrsFinalizer {
-    backend_symtab: Rc<BackendSymbolTable>,
+    backend_symtab: ImmutableOwned<BackendSymbolTable>,
 
     var_to_stack_pos: VarToStackPos,
 }
 impl InstrsFinalizer {
-    pub fn new(backend_symtab: Rc<BackendSymbolTable>) -> Self {
+    pub fn new(backend_symtab: ImmutableOwned<BackendSymbolTable>) -> Self {
         Self {
             backend_symtab,
             var_to_stack_pos: VarToStackPos::default(),
@@ -37,9 +37,14 @@ impl InstrsFinalizer {
     pub fn finalize_fun(
         mut self,
         Function { ident, visibility, instrs }: Function<GeneratedAsmAst>,
-    ) -> Function<FinalizedAsmAst> {
+    ) -> (
+        Function<FinalizedAsmAst>,
+        ImmutableOwned<BackendSymbolTable>,
+    ) {
         let instrs = self.finalize_instrs(instrs.into_iter());
-        Function { ident, visibility, instrs }
+        let fun = Function { ident, visibility, instrs };
+
+        (fun, self.backend_symtab)
     }
 
     /// See documentation at [`crate::stage4_asm_gen`].

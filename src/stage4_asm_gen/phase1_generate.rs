@@ -14,6 +14,7 @@ use crate::{
         identifier::SymbolIdentifier, primitive::Const, symbol_table_frontend::SymbolTable,
         types_backend::Alignment,
     },
+    ds_n_a::immutable_owned::ImmutableOwned,
     stage3_tacky::tacky_ast as t,
     stage4_asm_gen::asm_ast::*,
 };
@@ -30,12 +31,12 @@ impl AsmAstVariant for GeneratedAsmAst {
 
 #[derive(Into)]
 pub struct InstrsGenerator {
-    frontend_symtab: SymbolTable,
+    frontend_symtab: ImmutableOwned<SymbolTable>,
 
     static_constants: HashMap<(Alignment, Const), Rc<SymbolIdentifier>>,
 }
 impl InstrsGenerator {
-    pub fn new(frontend_symtab: SymbolTable) -> Self {
+    pub fn new(frontend_symtab: ImmutableOwned<SymbolTable>) -> Self {
         Self {
             frontend_symtab,
             static_constants: HashMap::default(),
