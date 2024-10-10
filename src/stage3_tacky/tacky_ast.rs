@@ -170,9 +170,9 @@ mod operand {
     use super::*;
 
     #[derive(From)]
-    pub(in crate::stage3_tacky) enum ExpResult {
+    pub(in crate::stage3_tacky) enum ExpResult<LTyp> {
         Value(Value),
-        Object(Object),
+        Object(Object<LTyp>),
     }
 
     /// The "value" concept comprises a bit-sequence and a type; and is readonly.
@@ -189,7 +189,7 @@ mod operand {
     }
 
     /// The "object" concept comprises a memory location that contains a "value"; and is mutable.
-    pub(in crate::stage3_tacky) enum Object {
+    pub(in crate::stage3_tacky) enum Object<LTyp> {
         /// An object whose memory location is identified directly.
         Direct(Rc<SymbolIdentifier>),
 
@@ -198,7 +198,7 @@ mod operand {
             addr: Value,
 
             /// The type of the target pointee object (not the type of the memory location value).
-            typ: SubObjType<ScalarType>,
+            typ: SubObjType<LTyp>,
         },
     }
 }

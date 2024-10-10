@@ -62,6 +62,12 @@ pub struct ArrayType {
     pub elem_type: Singleton<ObjType>,
     pub elem_count: ArrayElementCount,
 }
+impl ArrayType {
+    pub fn as_ptr_to_elem(&self) -> PointerType {
+        let pointee_type = self.elem_type.clone();
+        PointerType { pointee_type }
+    }
+}
 
 #[derive(Constructor, PartialEq, Eq, Hash, Debug)]
 pub struct ArrayElementCount(u64);

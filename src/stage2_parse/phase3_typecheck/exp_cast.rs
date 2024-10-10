@@ -3,7 +3,7 @@ use crate::{
     common::{
         primitive::Const,
         types_backend::OperandByteLen,
-        types_frontend::{ArithmeticType, ObjType, PointerType, ScalarType, SubObjType},
+        types_frontend::{ArithmeticType, ArrayType, ObjType, PointerType, ScalarType, SubObjType},
     },
     ds_n_a::singleton::Singleton,
     stage2_parse::{c_ast::*, phase2_resolve::ResolvedCAst},
@@ -93,9 +93,10 @@ impl TypeChecker {
         &mut self,
         Cast { typ: to, sub_exp: from }: Cast<ResolvedCAst>,
     ) -> Result<TypedRExp> {
-        let to = Self::extract_scalar_type(to);
+        let to = Self::extract_scalar_type(to)
+            .map_err(|typ| anyhow!("Cannot explicitly cast to {typ:?}"))?;
 
-        let from = self.typecheck_exp(*from)?;
+        let from = self.typecheck_exp_and_convert_to_scalar(*from)?;
 
         let ok = match (to.as_ref(), from.typ().as_ref()) {
             (t2, t1) if t2 == t1 => Ok(()),
@@ -118,9 +119,10 @@ impl TypeChecker {
         to: Singleton<ObjType>,
         from: Expression<ResolvedCAst>,
     ) -> Result<TypedExp<ScalarType>> {
-        let to = Self::extract_scalar_type(to);
+        let to = Self::extract_scalar_type(to)
+            .map_err(|typ| anyhow!("Cannot \"convert as if by assignment\" to {typ:?}"))?;
 
-        let from = self.typecheck_exp(from)?;
+        let from = self.typecheck_exp_and_convert_to_scalar(from)?;
 
         let () = Self::can_cast_by_assignment(to.as_ref(), &from)?;
 
@@ -132,14 +134,15 @@ impl TypeChecker {
         to: &Singleton<ObjType>,
         from: Expression<ResolvedCAst>,
     ) -> Result<Const> {
-        let to = Self::extract_scalar_type_ref(to);
+        let to = Self::extract_scalar_type_ref(to)
+            .map_err(|typ| anyhow!("Cannot \"convert as if by assignment\" to {typ:?}"))?;
 
         let in_konst = match &from {
             Expression::R(RExp::Const(konst)) => *konst,
             _ => return Err(anyhow!("Casting statically is supported on constexprs only. For each constexpr, only a simple const literal is supported."))
         };
 
-        let from = self.typecheck_exp(from)?;
+        let from = self.typecheck_exp_and_convert_to_scalar(from)?;
 
         let () = Self::can_cast_by_assignment(to, &from)?;
 
@@ -192,18 +195,30 @@ impl TypeChecker {
         typ: Typ,
     ) -> SubObjType<ScalarType> {
         let obj_typ = self.obj_type_repo.get_or_new(ObjType::Scalar(typ.into()));
-        Self::extract_scalar_type(obj_typ)
+        Self::extract_scalar_type(obj_typ).unwrap()
     }
-    pub(super) fn extract_scalar_type(obj_typ: Singleton<ObjType>) -> SubObjType<ScalarType> {
-        OwningRef::new(obj_typ).map(|obj_typ| match obj_typ {
-            ObjType::Scalar(s) => s,
-            ObjType::Array(_) => todo!(),
-        })
+    pub(super) fn extract_scalar_type(
+        obj_typ: Singleton<ObjType>,
+    ) -> Result<SubObjType<ScalarType>, SubObjType<ArrayType>> {
+        match obj_typ.as_ref() {
+            ObjType::Scalar(sca_typ) => {
+                let sca_typ = sca_typ as *const ScalarType;
+                let sca_typ = unsafe { &*sca_typ };
+                let ownref = OwningRef::new(obj_typ).map(|_| sca_typ);
+                Ok(ownref)
+            }
+            ObjType::Array(arr_typ) => {
+                let arr_typ = arr_typ as *const ArrayType;
+                let arr_typ = unsafe { &*arr_typ };
+                let ownref = OwningRef::new(obj_typ).map(|_| arr_typ);
+                Err(ownref)
+            }
+        }
     }
-    pub(super) fn extract_scalar_type_ref(obj_typ: &ObjType) -> &ScalarType {
+    pub(super) fn extract_scalar_type_ref(obj_typ: &ObjType) -> Result<&ScalarType, &ArrayType> {
         match obj_typ {
-            ObjType::Scalar(s) => s,
-            ObjType::Array(_) => todo!(),
+            ObjType::Scalar(s) => Ok(s),
+            ObjType::Array(a) => Err(a),
         }
     }
 }

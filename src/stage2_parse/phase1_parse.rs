@@ -25,10 +25,15 @@ impl CAstVariant for ParsedCAst {
     type FileScopeDeclaration = Declaration<Self>;
     type BlockScopeDeclaration = Declaration<Self>;
     type ForInitDeclaration = VariableDeclaration<Self>;
+
     type Identifier = RawIdentifier;
+
     type LoopId = ();
+
     type Expression = Expression<Self>;
+    type ScalarExpression = Expression<Self>;
     type LvalueExpression = Expression<Self>;
+    type ScalarLvalueExpression = Expression<Self>;
 }
 
 #[derive(Into)]

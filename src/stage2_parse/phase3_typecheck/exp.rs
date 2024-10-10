@@ -1,9 +1,10 @@
 use super::TypeChecker;
 use crate::{
-    common::types_frontend::{ArithmeticType, PointerType, ScalarType},
+    common::types_frontend::{ArithmeticType, ObjType, PointerType, ScalarType},
     stage2_parse::{c_ast::*, phase2_resolve::ResolvedCAst},
 };
 use anyhow::{anyhow, Result};
+use owning_ref::OwningRef;
 
 impl TypeChecker {
     /// + Validate the input types.
@@ -11,7 +12,7 @@ impl TypeChecker {
     pub(super) fn typecheck_exp(
         &mut self,
         exp: Expression<ResolvedCAst>,
-    ) -> Result<TypedExp<ScalarType>> {
+    ) -> Result<TypedExp<ObjType>> {
         match exp {
             Expression::R(rexp) => self.typecheck_rexp(rexp).map(TypedExp::R),
             Expression::L(lexp) => self.typecheck_lexp(lexp).map(TypedExp::L),
@@ -26,7 +27,7 @@ impl TypeChecker {
             }
             RExp::Cast(cast) => self.cast_explicitly(cast)?,
             RExp::Unary(Unary { op, sub_exp }) => {
-                let sub_exp = Box::new(self.typecheck_exp(*sub_exp)?);
+                let sub_exp = Box::new(self.typecheck_exp_and_convert_to_scalar(*sub_exp)?);
 
                 if matches!(
                     (&op, sub_exp.typ().as_ref()),
@@ -50,9 +51,9 @@ impl TypeChecker {
             }
             RExp::Binary(binary) => self.typecheck_exp_binary(binary)?,
             RExp::Conditional(Conditional { condition, then, elze }) => {
-                let condition = self.typecheck_exp(*condition)?;
-                let then = self.typecheck_exp(*then)?;
-                let elze = self.typecheck_exp(*elze)?;
+                let condition = self.typecheck_exp_and_convert_to_scalar(*condition)?;
+                let then = self.typecheck_exp_and_convert_to_scalar(*then)?;
+                let elze = self.typecheck_exp_and_convert_to_scalar(*elze)?;
 
                 let (then, elze) = Self::cast_to_common_type(then, elze)?;
                 let typ = then.typ().clone();
@@ -80,15 +81,23 @@ impl TypeChecker {
                     .map(|(param_typ, arg_exp)| self.cast_by_assignment(param_typ.clone(), arg_exp))
                     .collect::<Result<Vec<_>>>()?;
 
-                let typ = Self::extract_scalar_type(fun_typ.ret.clone());
+                let typ = match Self::extract_scalar_type(fun_typ.ret.clone()) {
+                    Ok(sca_typ) => sca_typ,
+                    Err(_) => todo!(),
+                };
                 let exp = RExp::FunctionCall(FunctionCall { ident, args });
                 TypedRExp { typ, exp }
             }
             RExp::Assignment(Assignment { lhs, rhs }) => {
-                let lhs = extract_lexp(*lhs)?;
-                let lhs = self.typecheck_lexp(lhs)?;
-                let typ = lhs.typ.clone();
+                let lhs = {
+                    let lexp = extract_lexp(*lhs)?;
+                    let obj_typed_lexp = self.typecheck_lexp(lexp)?;
+                    let sca_typed_exp = self.convert_lexp_to_scalar(obj_typed_lexp);
+                    let sca_typed_lexp = extract_typed_lexp(sca_typed_exp)?;
+                    sca_typed_lexp
+                };
 
+                let typ = lhs.typ.clone();
                 let rhs = self.cast_by_assignment(typ.as_owner().clone(), *rhs)?;
 
                 let exp = RExp::Assignment(Assignment {
@@ -98,34 +107,37 @@ impl TypeChecker {
                 TypedRExp { typ, exp }
             }
             RExp::AddrOf(AddrOf(sub_exp)) => {
-                let sub_exp = extract_lexp(*sub_exp)?;
-                let sub_exp = Box::new(self.typecheck_lexp(sub_exp)?);
+                let sub_exp = {
+                    let lexp = extract_lexp(*sub_exp)?;
+                    let obj_typed_lexp = self.typecheck_lexp(lexp)?;
+                    obj_typed_lexp
+                };
 
                 let pointee_type = sub_exp.typ.as_owner().clone();
                 let typ = self.get_scalar_type(PointerType { pointee_type });
 
-                let exp = RExp::AddrOf(AddrOf(sub_exp));
+                let exp = RExp::AddrOf(AddrOf(Box::new(sub_exp)));
                 TypedRExp { typ, exp }
             }
         };
         Ok(typed_rexp)
     }
-    fn typecheck_lexp(&mut self, lexp: LExp<ResolvedCAst>) -> Result<TypedLExp<ScalarType>> {
+    fn typecheck_lexp(&mut self, lexp: LExp<ResolvedCAst>) -> Result<TypedLExp<ObjType>> {
         let typed_lexp = match lexp {
             LExp::Var(ident) => {
                 let typ = self.symbol_table.get_var_type(&ident)?.clone();
-                let typ = Self::extract_scalar_type(typ);
+                let typ = OwningRef::new(typ);
                 let exp = LExp::Var(ident);
                 TypedLExp { typ, exp }
             }
             LExp::Dereference(Dereference(sub_exp)) => {
-                let sub_exp = Box::new(self.typecheck_exp(*sub_exp)?);
+                let sub_exp = Box::new(self.typecheck_exp_and_convert_to_scalar(*sub_exp)?);
 
                 let typ = match sub_exp.typ().as_ref() {
                     ScalarType::Ptr(PointerType { pointee_type }) => pointee_type.clone(),
                     _ => return Err(anyhow!("Cannot dereference {sub_exp:?}")),
                 };
-                let typ = Self::extract_scalar_type(typ);
+                let typ = OwningRef::new(typ);
 
                 let exp = LExp::Dereference(Dereference(sub_exp));
                 TypedLExp { typ, exp }
@@ -134,11 +146,57 @@ impl TypeChecker {
         };
         Ok(typed_lexp)
     }
+
+    pub(super) fn typecheck_exp_and_convert_to_scalar(
+        &mut self,
+        exp: Expression<ResolvedCAst>,
+    ) -> Result<TypedExp<ScalarType>> {
+        let obj_typed_exp = self.typecheck_exp(exp)?;
+
+        let sca_typed_exp = match obj_typed_exp {
+            TypedExp::R(sca_typed_rexp) => TypedExp::R(sca_typed_rexp),
+            TypedExp::L(obj_typed_lexp) => self.convert_lexp_to_scalar(obj_typed_lexp),
+        };
+        Ok(sca_typed_exp)
+    }
+    /// Transforms an expression with type=array
+    /// into an expression that evaluates to a pointer to the first element (_not_ a pointer to the array).
+    fn convert_lexp_to_scalar(
+        &mut self,
+        obj_typed_lexp: TypedLExp<ObjType>,
+    ) -> TypedExp<ScalarType> {
+        match Self::extract_scalar_type(obj_typed_lexp.typ.as_owner().clone()) {
+            Ok(sca_typ) => {
+                let sca_typed_lexp = TypedLExp {
+                    exp: obj_typed_lexp.exp,
+                    typ: sca_typ,
+                };
+                TypedExp::L(sca_typed_lexp)
+            }
+            Err(arr_typ) => {
+                let ptr_typ = arr_typ.as_ptr_to_elem();
+                let sca_typ = self.get_scalar_type(ptr_typ);
+                let sca_typed_rexp = TypedRExp {
+                    exp: RExp::AddrOf(AddrOf(Box::new(obj_typed_lexp))),
+                    typ: sca_typ,
+                };
+                TypedExp::R(sca_typed_rexp)
+            }
+        }
+    }
 }
 
 fn extract_lexp(exp: Expression<ResolvedCAst>) -> Result<LExp<ResolvedCAst>> {
     match exp {
         Expression::R(rexp) => Err(anyhow!("Expected lvalue expression, but found {rexp:?}")),
         Expression::L(lexp) => Ok(lexp),
+    }
+}
+fn extract_typed_lexp<LTyp>(typed_exp: TypedExp<LTyp>) -> Result<TypedLExp<LTyp>> {
+    match typed_exp {
+        TypedExp::R(typed_rexp) => Err(anyhow!(
+            "Expected lvalue expression, but found {typed_rexp:?}"
+        )),
+        TypedExp::L(typed_lexp) => Ok(typed_lexp),
     }
 }

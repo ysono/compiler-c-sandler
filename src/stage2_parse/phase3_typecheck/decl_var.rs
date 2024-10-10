@@ -66,9 +66,12 @@ impl TypeChecker {
 
             Ok(StaticInitialValue::Initial(out_konst))
         };
-        let siv_zero = || {
-            let new_sca_typ = Self::extract_scalar_type_ref(new_typ);
-            StaticInitialValue::Initial(Const::new_zero_bits(new_sca_typ))
+        let siv_zero = || -> Result<_> {
+            let new_sca_typ = Self::extract_scalar_type_ref(new_typ)
+                .map_err(|typ| anyhow!("Cannot \"convert as if by assignment\" to {typ:?}"))?;
+            let out_konst = Const::new_zero_bits(new_sca_typ);
+
+            Ok(StaticInitialValue::Initial(out_konst))
         };
 
         #[rustfmt::skip]
@@ -81,7 +84,7 @@ impl TypeChecker {
             (DS::File, Some(SCS::Extern), None)       => Decl::StaticStorDur(LViz::PrevOrGlobal.into(), SIV::NoInitializer),
             (DS::Block, None, init)                    => Decl::AutoStorDur(init),
             (DS::Block, Some(SCS::Static), Some(init)) => Decl::StaticStorDur(Viz::Local, siv(init)?),
-            (DS::Block, Some(SCS::Static), None)       => Decl::StaticStorDur(Viz::Local, siv_zero()),
+            (DS::Block, Some(SCS::Static), None)       => Decl::StaticStorDur(Viz::Local, siv_zero()?),
             (DS::Block, Some(SCS::Extern), Some(_)) => return Err(anyhow!(
                 "At scope=block, type=var w/ `extern` cannot have an initializer.")),
             (DS::Block, Some(SCS::Extern), None) => {

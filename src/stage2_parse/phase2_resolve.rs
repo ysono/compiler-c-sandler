@@ -17,10 +17,15 @@ impl CAstVariant for ResolvedCAst {
     type FileScopeDeclaration = Declaration<Self>;
     type BlockScopeDeclaration = Declaration<Self>;
     type ForInitDeclaration = VariableDeclaration<Self>;
+
     type Identifier = Rc<SymbolIdentifier>;
+
     type LoopId = Rc<LoopId>;
+
     type Expression = Expression<Self>;
+    type ScalarExpression = Expression<Self>;
     type LvalueExpression = Expression<Self>;
+    type ScalarLvalueExpression = Expression<Self>;
 }
 
 #[derive(Default)]

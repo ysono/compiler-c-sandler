@@ -30,10 +30,15 @@ impl CAstVariant for TypeCheckedCAst {
     type FileScopeDeclaration = FunctionDefinition<Self>;
     type BlockScopeDeclaration = VariableDefinition<Self>;
     type ForInitDeclaration = VariableDefinition<Self>;
+
     type Identifier = Rc<SymbolIdentifier>;
+
     type LoopId = Rc<LoopId>;
-    type Expression = TypedExp<ScalarType>;
-    type LvalueExpression = TypedLExp<ScalarType>;
+
+    type Expression = TypedExp<ObjType>;
+    type ScalarExpression = TypedExp<ScalarType>;
+    type LvalueExpression = TypedLExp<ObjType>;
+    type ScalarLvalueExpression = TypedLExp<ScalarType>;
 }
 
 pub struct TypeChecker {
@@ -136,7 +141,7 @@ impl TypeChecker {
             }
             Statement::Expression(exp) => self.typecheck_exp(exp).map(Statement::Expression),
             Statement::If(If { condition, then, elze }) => {
-                let condition = self.typecheck_exp(condition)?;
+                let condition = self.typecheck_exp_and_convert_to_scalar(condition)?;
                 let then = Box::new(self.typecheck_stmt(*then)?);
                 let elze = elze
                     .map(|elze| self.typecheck_stmt(*elze))
@@ -148,13 +153,13 @@ impl TypeChecker {
             Statement::Break(loop_id) => Ok(Statement::Break(loop_id)),
             Statement::Continue(loop_id) => Ok(Statement::Continue(loop_id)),
             Statement::While(loop_id, CondBody { condition, body }) => {
-                let condition = self.typecheck_exp(condition)?;
+                let condition = self.typecheck_exp_and_convert_to_scalar(condition)?;
                 let body = Box::new(self.typecheck_stmt(*body)?);
                 Ok(Statement::While(loop_id, CondBody { condition, body }))
             }
             Statement::DoWhile(loop_id, CondBody { body, condition }) => {
                 let body = Box::new(self.typecheck_stmt(*body)?);
-                let condition = self.typecheck_exp(condition)?;
+                let condition = self.typecheck_exp_and_convert_to_scalar(condition)?;
                 Ok(Statement::DoWhile(loop_id, CondBody { body, condition }))
             }
             Statement::For(loop_id, For { init, condition, post, body }) => {
@@ -170,7 +175,9 @@ impl TypeChecker {
                     ForInit::Exp(exp) => self.typecheck_exp(exp).map(ForInit::Exp)?,
                     ForInit::None => ForInit::None,
                 };
-                let condition = condition.map(|cond| self.typecheck_exp(cond)).transpose()?;
+                let condition = condition
+                    .map(|cond| self.typecheck_exp_and_convert_to_scalar(cond))
+                    .transpose()?;
                 let post = post.map(|post| self.typecheck_exp(post)).transpose()?;
                 let body = Box::new(self.typecheck_stmt(*body)?);
                 Ok(Statement::For(loop_id, For { init, condition, post, body }))

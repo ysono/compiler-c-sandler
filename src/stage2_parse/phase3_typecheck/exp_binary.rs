@@ -13,8 +13,8 @@ impl TypeChecker {
     ) -> Result<TypedRExp> {
         use BinaryOperator as O;
 
-        let lhs = self.typecheck_exp(*lhs)?;
-        let rhs = self.typecheck_exp(*rhs)?;
+        let lhs = self.typecheck_exp_and_convert_to_scalar(*lhs)?;
+        let rhs = self.typecheck_exp_and_convert_to_scalar(*rhs)?;
 
         match op {
             O::Logic(op) => {
