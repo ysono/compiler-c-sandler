@@ -24,6 +24,7 @@ impl<Ot: Borrow<ObjType>> From<Ot> for AssemblyType {
                 let ari_typ = sca_typ.effective_arithmetic_type();
                 Self::from(ari_typ)
             }
+            ObjType::Array(_) => todo!(),
         }
     }
 }

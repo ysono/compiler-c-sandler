@@ -68,6 +68,7 @@ impl Tackifier {
             {
                 let sca_typ = OwningRef::new(typ.clone()).map(|obj_typ| match obj_typ {
                     ObjType::Scalar(s) => s,
+                    ObjType::Array(_) => todo!(),
                 });
                 let konst = match initial_value {
                     StaticInitialValue::Initial(konst) => *konst,

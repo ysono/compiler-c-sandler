@@ -31,7 +31,10 @@ impl InstrsGenerator {
             }
             t::Value::Variable(ident) => {
                 let obj_type = self.frontend_symtab.get_var_type(ident).unwrap();
-                let ObjType::Scalar(sca_type) = obj_type.as_ref();
+                let sca_type = match obj_type.as_ref() {
+                    ObjType::Scalar(s) => s,
+                    ObjType::Array(_) => todo!(),
+                };
                 let ari_type = sca_type.effective_arithmetic_type();
                 let asm_type = AssemblyType::from(ari_type);
                 (ari_type, asm_type)

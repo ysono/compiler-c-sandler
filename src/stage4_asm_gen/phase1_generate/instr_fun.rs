@@ -25,7 +25,9 @@ impl InstrsGenerator {
         let params = fun_typ.params.iter().zip(param_idents);
         let mut asm_instrs = params
             .map(|(param_type, param_ident)| {
-                let ObjType::Scalar(sca_type) = param_type.as_ref();
+                let ObjType::Scalar(sca_type) = param_type.as_ref() else {
+                    todo!()
+                };
                 let asm_type = AssemblyType::from(sca_type.effective_arithmetic_type());
                 let arg_reg = arg_reg_resolver.next_reg(asm_type);
 

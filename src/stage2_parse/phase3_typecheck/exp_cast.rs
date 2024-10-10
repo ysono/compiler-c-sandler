@@ -191,11 +191,13 @@ impl TypeChecker {
     pub(super) fn extract_scalar_type(obj_typ: Singleton<ObjType>) -> SubObjType<ScalarType> {
         OwningRef::new(obj_typ).map(|obj_typ| match obj_typ {
             ObjType::Scalar(s) => s,
+            ObjType::Array(_) => todo!(),
         })
     }
     pub(super) fn extract_scalar_type_ref(obj_typ: &ObjType) -> &ScalarType {
         match obj_typ {
             ObjType::Scalar(s) => s,
+            ObjType::Array(_) => todo!(),
         }
     }
 }

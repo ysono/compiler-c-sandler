@@ -28,5 +28,6 @@ fn do_decompose_obj_type(obj_typ: &ObjType, items: &mut Vec<TestDeclaratorItem>)
                 do_decompose_obj_type(pointee_type, items)
             }
         },
+        ObjType::Array(_) => todo!(),
     }
 }
