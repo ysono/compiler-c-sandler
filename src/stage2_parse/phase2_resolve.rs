@@ -26,6 +26,8 @@ impl CAstVariant for ResolvedCAst {
     type ScalarExpression = Expression<Self>;
     type LvalueExpression = Expression<Self>;
     type ScalarLvalueExpression = Expression<Self>;
+
+    type BinaryOperator = BinaryOperator;
 }
 
 #[derive(Default)]

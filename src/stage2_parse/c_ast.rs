@@ -26,6 +26,8 @@ pub trait CAstVariant {
     type ScalarExpression: Debug;
     type LvalueExpression: Debug;
     type ScalarLvalueExpression: Debug;
+
+    type BinaryOperator: Debug;
 }
 
 #[derive(Debug)]
@@ -192,7 +194,7 @@ mod expression {
 
     #[derive(Debug)]
     pub struct Binary<C: CAstVariant> {
-        pub op: BinaryOperator,
+        pub op: C::BinaryOperator,
         pub lhs: Box<C::ScalarExpression>,
         pub rhs: Box<C::ScalarExpression>,
     }
@@ -212,6 +214,14 @@ mod expression {
         Logic(LogicBinaryOperator),
         Cmp(ComparisonBinaryOperator),
     }
+    #[derive(From, Debug)]
+    pub enum TypeCheckedBinaryOperator {
+        Arith(ArithmeticBinaryOperator),
+        ArithPtr(PointerArithmeticBinaryOperator),
+        Logic(LogicBinaryOperator),
+        Cmp(ComparisonBinaryOperator),
+    }
+
     #[derive(Debug)]
     pub enum ArithmeticBinaryOperator {
         Sub,
@@ -219,6 +229,13 @@ mod expression {
         Mul,
         Div,
         Rem,
+    }
+    #[allow(clippy::enum_variant_names)]
+    #[derive(Debug)]
+    pub enum PointerArithmeticBinaryOperator {
+        PointerPlusInteger,
+        PointerMinusInteger,
+        PointerMinusPointer,
     }
     #[derive(Clone, Copy, Debug)]
     pub enum LogicBinaryOperator {

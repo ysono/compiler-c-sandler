@@ -44,6 +44,12 @@ pub enum ArithmeticType {
     Double,
 }
 impl ArithmeticType {
+    pub fn is_integer(&self) -> bool {
+        match self {
+            Self::Int | Self::Long | Self::UInt | Self::ULong => true,
+            Self::Double => false,
+        }
+    }
     pub fn is_signed(&self) -> bool {
         match self {
             Self::Int | Self::Long | Self::Double => true,

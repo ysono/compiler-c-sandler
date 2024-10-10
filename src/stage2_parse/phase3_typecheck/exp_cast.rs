@@ -167,7 +167,7 @@ impl TypeChecker {
 
     /* Helpers on casting */
 
-    fn maybe_insert_cast_node<St: Borrow<SubObjType<ScalarType>>>(
+    pub(super) fn maybe_insert_cast_node<St: Borrow<SubObjType<ScalarType>>>(
         to: St,
         from: TypedExp<ScalarType>,
     ) -> TypedExp<ScalarType> {

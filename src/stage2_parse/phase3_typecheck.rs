@@ -39,6 +39,8 @@ impl CAstVariant for TypeCheckedCAst {
     type ScalarExpression = TypedExp<ScalarType>;
     type LvalueExpression = TypedLExp<ObjType>;
     type ScalarLvalueExpression = TypedLExp<ScalarType>;
+
+    type BinaryOperator = TypeCheckedBinaryOperator;
 }
 
 pub struct TypeChecker {

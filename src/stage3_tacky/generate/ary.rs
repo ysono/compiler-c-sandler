@@ -42,7 +42,7 @@ impl<'a> FunInstrsGenerator<'a> {
         c_binary: c::Binary<TypeCheckedCAst>,
         out_typ: SubObjType<ScalarType>,
     ) -> Value {
-        use c::BinaryOperator as CO;
+        use c::TypeCheckedBinaryOperator as CO;
 
         use c::ArithmeticBinaryOperator as COA;
         use c::ComparisonBinaryOperator as COC;
@@ -62,6 +62,7 @@ impl<'a> FunInstrsGenerator<'a> {
                 };
                 self.gen_exp_binary_evalboth(t_op, c_binary, out_typ)
             }
+            CO::ArithPtr(_) => todo!(),
             CO::Logic(c_op_l) => self.gen_exp_binary_shortcirc(*c_op_l, c_binary, out_typ),
             CO::Cmp(c_op_c) => {
                 let t_op = match c_op_c {
