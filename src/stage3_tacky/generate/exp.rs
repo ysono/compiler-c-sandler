@@ -13,7 +13,7 @@ use std::rc::Rc;
 impl<'a> FunInstrsGenerator<'a> {
     /* Expression */
 
-    pub(super) fn gen_exp(&mut self, typed_exp: c::TypedExp) -> ExpResult {
+    pub(super) fn gen_exp(&mut self, typed_exp: c::TypedExp<ScalarType>) -> ExpResult {
         match typed_exp {
             c::TypedExp::R(typed_rexp) => self.gen_rexp(typed_rexp).into(),
             c::TypedExp::L(typed_lexp) => self.gen_lexp(typed_lexp).into(),
@@ -31,7 +31,10 @@ impl<'a> FunInstrsGenerator<'a> {
             c::RExp::AddrOf(c_addrof) => self.gen_exp_addrof(c_addrof, typ),
         }
     }
-    pub(super) fn gen_lexp(&mut self, c::TypedLExp { exp, typ }: c::TypedLExp) -> Object {
+    pub(super) fn gen_lexp(
+        &mut self,
+        c::TypedLExp { exp, typ }: c::TypedLExp<ScalarType>,
+    ) -> Object {
         match exp {
             c::LExp::Var(ident) => Object::Direct(ident),
             c::LExp::Dereference(c_deref) => self.gen_exp_deref(c_deref, typ),
@@ -42,7 +45,7 @@ impl<'a> FunInstrsGenerator<'a> {
     /// 1. Generate tacky instructions; and get as the result either a value or an object.
     /// 1. If the given expression was an lvalue-expression, ie if the expression designated an object,
     ///     then lvalue-convert the expression, ie extract the value out of the object.
-    pub(super) fn gen_exp_and_get_value(&mut self, typed_exp: c::TypedExp) -> Value {
+    pub(super) fn gen_exp_and_get_value(&mut self, typed_exp: c::TypedExp<ScalarType>) -> Value {
         match self.gen_exp(typed_exp) {
             ExpResult::Value(val) => val,
             ExpResult::Object(obj) => match obj {

@@ -18,9 +18,9 @@ impl TypeChecker {
     /* Common type */
 
     pub(super) fn cast_to_common_type(
-        mut exp1: TypedExp,
-        mut exp2: TypedExp,
-    ) -> Result<(TypedExp, TypedExp)> {
+        mut exp1: TypedExp<ScalarType>,
+        mut exp2: TypedExp<ScalarType>,
+    ) -> Result<(TypedExp<ScalarType>, TypedExp<ScalarType>)> {
         match Self::derive_common_type(&exp1, &exp2)? {
             Either::Left(()) => {
                 exp2 = Self::maybe_insert_cast_node(exp1.typ(), exp2);
@@ -31,7 +31,10 @@ impl TypeChecker {
         }
         Ok((exp1, exp2))
     }
-    fn derive_common_type(exp1: &TypedExp, exp2: &TypedExp) -> Result<Either<(), ()>> {
+    fn derive_common_type(
+        exp1: &TypedExp<ScalarType>,
+        exp2: &TypedExp<ScalarType>,
+    ) -> Result<Either<(), ()>> {
         match (exp1.typ().as_ref(), exp2.typ().as_ref()) {
             (ScalarType::Arith(a1), ScalarType::Arith(a2)) => {
                 Ok(Self::derive_common_arithmetic_type(*a1, *a2))
@@ -67,7 +70,10 @@ impl TypeChecker {
             }
         }
     }
-    fn derive_common_pointer_type(ptr_typ: &PointerType, other_exp: &TypedExp) -> Result<()> {
+    fn derive_common_pointer_type(
+        ptr_typ: &PointerType,
+        other_exp: &TypedExp<ScalarType>,
+    ) -> Result<()> {
         #[allow(clippy::if_same_then_else)]
         if matches!(other_exp.typ().as_ref(), ScalarType::Ptr(ptr_typ_2) if ptr_typ == ptr_typ_2) {
             Ok(())
@@ -111,7 +117,7 @@ impl TypeChecker {
         &mut self,
         to: Singleton<ObjType>,
         from: Expression<ResolvedCAst>,
-    ) -> Result<TypedExp> {
+    ) -> Result<TypedExp<ScalarType>> {
         let to = Self::extract_scalar_type(to);
 
         let from = self.typecheck_exp(from)?;
@@ -140,7 +146,7 @@ impl TypeChecker {
         let out_konst = in_konst.cast_at_compile_time(to);
         Ok(out_konst)
     }
-    fn can_cast_by_assignment(to: &ScalarType, from: &TypedExp) -> Result<()> {
+    fn can_cast_by_assignment(to: &ScalarType, from: &TypedExp<ScalarType>) -> Result<()> {
         let ok = match (to, from.typ().as_ref()) {
             (t2, t1) if t2 == t1 => Ok(()),
 
@@ -160,8 +166,8 @@ impl TypeChecker {
 
     fn maybe_insert_cast_node<St: Borrow<SubObjType<ScalarType>>>(
         to: St,
-        from: TypedExp,
-    ) -> TypedExp {
+        from: TypedExp<ScalarType>,
+    ) -> TypedExp<ScalarType> {
         if to.borrow() == from.typ() {
             from
         } else {
@@ -169,7 +175,7 @@ impl TypeChecker {
             TypedExp::R(out_typed_rexp)
         }
     }
-    fn insert_cast_node(to: SubObjType<ScalarType>, from: TypedExp) -> TypedRExp {
+    fn insert_cast_node(to: SubObjType<ScalarType>, from: TypedExp<ScalarType>) -> TypedRExp {
         TypedRExp {
             exp: RExp::Cast(Cast {
                 typ: to.as_owner().clone(),

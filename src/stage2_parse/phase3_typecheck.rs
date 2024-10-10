@@ -16,7 +16,7 @@ use crate::{
     common::{
         identifier::SymbolIdentifier,
         symbol_table_frontend::SymbolTable,
-        types_frontend::{FunType, ObjType},
+        types_frontend::{FunType, ObjType, ScalarType},
     },
     ds_n_a::singleton::{Singleton, SingletonRepository},
     stage2_parse::{c_ast::*, phase2_resolve::ResolvedCAst},
@@ -32,8 +32,8 @@ impl CAstVariant for TypeCheckedCAst {
     type ForInitDeclaration = VariableDefinition<Self>;
     type Identifier = Rc<SymbolIdentifier>;
     type LoopId = Rc<LoopId>;
-    type Expression = TypedExp;
-    type LvalueExpression = TypedLExp;
+    type Expression = TypedExp<ScalarType>;
+    type LvalueExpression = TypedLExp<ScalarType>;
 }
 
 pub struct TypeChecker {

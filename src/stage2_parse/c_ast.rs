@@ -267,11 +267,11 @@ mod typed_expression {
     use super::*;
 
     #[derive(Debug)]
-    pub enum TypedExp {
+    pub enum TypedExp<LTyp> {
         R(TypedRExp),
-        L(TypedLExp),
+        L(TypedLExp<LTyp>),
     }
-    impl TypedExp {
+    impl TypedExp<ScalarType> {
         pub fn typ(&self) -> &SubObjType<ScalarType> {
             match self {
                 Self::R(typed_rexp) => &typed_rexp.typ,
@@ -281,10 +281,10 @@ mod typed_expression {
     }
 
     #[derive(Debug)]
-    pub struct TypAndExp<Exp> {
-        pub typ: SubObjType<ScalarType>,
+    pub struct TypAndExp<Typ, Exp> {
+        pub typ: Typ,
         pub exp: Exp,
     }
-    pub type TypedRExp = TypAndExp<RExp<TypeCheckedCAst>>;
-    pub type TypedLExp = TypAndExp<LExp<TypeCheckedCAst>>;
+    pub type TypedRExp = TypAndExp<SubObjType<ScalarType>, RExp<TypeCheckedCAst>>;
+    pub type TypedLExp<LTyp> = TypAndExp<SubObjType<LTyp>, LExp<TypeCheckedCAst>>;
 }

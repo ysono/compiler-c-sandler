@@ -8,7 +8,10 @@ use anyhow::{anyhow, Result};
 impl TypeChecker {
     /// + Validate the input types.
     /// + Annotate the output type.
-    pub(super) fn typecheck_exp(&mut self, exp: Expression<ResolvedCAst>) -> Result<TypedExp> {
+    pub(super) fn typecheck_exp(
+        &mut self,
+        exp: Expression<ResolvedCAst>,
+    ) -> Result<TypedExp<ScalarType>> {
         match exp {
             Expression::R(rexp) => self.typecheck_rexp(rexp).map(TypedExp::R),
             Expression::L(lexp) => self.typecheck_lexp(lexp).map(TypedExp::L),
@@ -107,7 +110,7 @@ impl TypeChecker {
         };
         Ok(typed_rexp)
     }
-    fn typecheck_lexp(&mut self, lexp: LExp<ResolvedCAst>) -> Result<TypedLExp> {
+    fn typecheck_lexp(&mut self, lexp: LExp<ResolvedCAst>) -> Result<TypedLExp<ScalarType>> {
         let typed_lexp = match lexp {
             LExp::Var(ident) => {
                 let typ = self.symbol_table.get_var_type(&ident)?.clone();

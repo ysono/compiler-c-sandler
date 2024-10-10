@@ -29,8 +29,8 @@ impl TypeChecker {
     fn typecheck_cmp(
         &mut self,
         op: ComparisonBinaryOperator,
-        lhs: TypedExp,
-        rhs: TypedExp,
+        lhs: TypedExp<ScalarType>,
+        rhs: TypedExp<ScalarType>,
     ) -> Result<TypedRExp> {
         use ComparisonBinaryOperator as OC;
 
@@ -52,8 +52,8 @@ impl TypeChecker {
     fn typecheck_arith(
         &mut self,
         op: ArithmeticBinaryOperator,
-        lhs: TypedExp,
-        rhs: TypedExp,
+        lhs: TypedExp<ScalarType>,
+        rhs: TypedExp<ScalarType>,
     ) -> Result<TypedRExp> {
         use ArithmeticBinaryOperator as OA;
 
@@ -78,8 +78,8 @@ impl TypeChecker {
 
 fn new_binary_exp<Op: Into<BinaryOperator>>(
     op: Op,
-    lhs: TypedExp,
-    rhs: TypedExp,
+    lhs: TypedExp<ScalarType>,
+    rhs: TypedExp<ScalarType>,
     typ: SubObjType<ScalarType>,
 ) -> TypedRExp {
     TypedRExp {
