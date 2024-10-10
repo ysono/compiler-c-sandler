@@ -2,7 +2,7 @@ pub use self::{operand::*, operator::*};
 use crate::common::{
     identifier::{JumpLabel, SymbolIdentifier},
     primitive::Const,
-    symbol_table_frontend::StaticVisibility,
+    symbol_table_frontend::{InitializerItem, StaticVisibility},
     types_backend::{Alignment, AssemblyType},
 };
 use derive_more::{Deref, DerefMut, From};
@@ -26,7 +26,7 @@ pub struct StaticVariable {
     pub ident: Rc<SymbolIdentifier>,
     pub visibility: StaticVisibility,
     pub alignment: Alignment,
-    pub init: Const,
+    pub inits: Vec<InitializerItem<Const>>,
 }
 
 #[derive(Debug)]

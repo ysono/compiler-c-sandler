@@ -3,7 +3,7 @@ use crate::{
     common::{
         identifier::SymbolIdentifier,
         primitive::Const,
-        symbol_table_frontend::StaticVisibility,
+        symbol_table_frontend::{InitializerItem, StaticVisibility},
         types_backend::{Alignment, OperandByteLen},
     },
     stage4_asm_gen::asm_ast::*,
@@ -18,9 +18,18 @@ impl<W: Write> AsmCodeEmitter<W> {
             ident,
             visibility,
             alignment,
-            init,
+            inits,
         }: StaticVariable,
     ) -> Result<(), io::Error> {
+        let init = match inits.first() {
+            Some(InitializerItem::Single(konst)) => *konst,
+            Some(InitializerItem::Zero(bytelen)) => match bytelen.as_int() {
+                4 => Const::Int(0),
+                8 => Const::Long(0),
+                _ => todo!(),
+            },
+            _ => todo!(),
+        };
         let section = match init {
             Const::Int(0) | Const::Long(0) | Const::UInt(0) | Const::ULong(0) => ".bss",
             Const::Int(_) | Const::Long(_) | Const::UInt(_) | Const::ULong(_) => ".data",

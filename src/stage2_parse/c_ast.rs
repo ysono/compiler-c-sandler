@@ -60,6 +60,7 @@ mod declaration {
     #[derive(Debug)]
     pub struct VariableDefinition<C: CAstVariant> {
         pub ident: C::Identifier,
+        pub typ: Singleton<ObjType>,
         pub init: Vec<InitializerItem<C::ScalarExpression>>,
     }
 

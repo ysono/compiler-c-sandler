@@ -3,9 +3,9 @@ use crate::{
     common::{
         identifier::{JumpLabel, SymbolIdentifier},
         primitive::Const,
-        symbol_table_frontend::StaticVisibility,
+        symbol_table_frontend::{InitializerItem, StaticVisibility},
         types_backend::ByteLen,
-        types_frontend::{ScalarFunType, ScalarType, SubObjType},
+        types_frontend::{ObjType, ScalarFunType, SubObjType},
     },
     ds_n_a::singleton::Singleton,
 };
@@ -22,8 +22,8 @@ pub struct Program {
 pub struct StaticVariable {
     pub ident: Rc<SymbolIdentifier>,
     pub visibility: StaticVisibility,
-    pub typ: SubObjType<ScalarType>,
-    pub init: Const,
+    pub typ: Singleton<ObjType>,
+    pub inits: Vec<InitializerItem<Const>>,
 }
 
 #[derive(Debug)]

@@ -12,8 +12,8 @@ pub enum Const {
 }
 impl Const {
     /// @return a constant whose bitwise representation is `0b000...000`
-    pub fn new_zero_bits(typ: &ScalarType) -> Const {
-        Const::Int(0).cast_at_compile_time(typ)
+    pub fn new_zero_bits(typ: ArithmeticType) -> Const {
+        Const::Int(0).cast_at_compile_time(&typ.into())
     }
 
     pub fn cast_at_compile_time(&self, typ: &ScalarType) -> Const {

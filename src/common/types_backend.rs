@@ -1,5 +1,5 @@
 use crate::common::types_frontend::{ArithmeticType, ObjType};
-use derive_more::{AddAssign, Constructor};
+use derive_more::{Add, AddAssign, Constructor};
 use std::{borrow::Borrow, ops::Mul};
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -49,6 +49,17 @@ impl Alignment {
             AssemblyType::Double => Self::B8,
         }
     }
+
+    pub fn default_of_obj_type(obj_typ: &ObjType) -> Self {
+        match obj_typ {
+            ObjType::Scalar(sca_typ) => {
+                let ari_typ = sca_typ.effective_arithmetic_type();
+                let asm_typ = AssemblyType::from(ari_typ);
+                Self::default_of(asm_typ)
+            }
+            ObjType::Array(_) => todo!(),
+        }
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -68,7 +79,7 @@ impl<T: Into<AssemblyType>> From<T> for OperandByteLen {
     }
 }
 
-#[derive(Constructor, Clone, Copy, PartialEq, Eq, AddAssign, Debug)]
+#[derive(Constructor, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Add, AddAssign, Debug)]
 pub struct ByteLen(u64);
 impl<T: Into<OperandByteLen>> From<T> for ByteLen {
     fn from(t: T) -> Self {

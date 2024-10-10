@@ -18,14 +18,14 @@ use crate::{
         symbol_table_frontend::{
             InitializerItem, StaticInitialValue, Symbol, SymbolTable, VarAttrs,
         },
-        types_frontend::ObjType,
+        types_backend::ByteLen,
     },
     stage2_parse::{c_ast as c, phase3_typecheck::TypeCheckedCAst},
     stage3_tacky::tacky_ast::*,
     utils::noop,
 };
 use derive_more::{Constructor, Into};
-use owning_ref::OwningRef;
+use std::mem;
 use std::rc::Rc;
 
 #[derive(Constructor, Into)]
@@ -61,36 +61,34 @@ impl Tackifier {
             })
             .collect()
     }
-    fn tackify_static_vars(&self) -> Vec<StaticVariable> {
+    fn tackify_static_vars(&mut self) -> Vec<StaticVariable> {
         let mut static_vars = vec![];
-        for (ident, symbol) in self.symbol_table.iter() {
+        for (ident, symbol) in self.symbol_table.as_mut().iter_mut() {
             if let Symbol::Var {
                 typ,
                 attrs: VarAttrs::StaticStorageDuration { visibility, initial_value },
             } = symbol
             {
-                let sca_typ = OwningRef::new(typ.clone()).map(|obj_typ| match obj_typ {
-                    ObjType::Scalar(s) => s,
-                    ObjType::Array(_) => todo!(),
-                });
-                let konst = match initial_value {
-                    StaticInitialValue::Initial(inits) => match inits.first() {
-                        Some(InitializerItem::Single(konst)) => *konst,
-                        Some(InitializerItem::Zero(bytelen)) => match bytelen.as_int() {
-                            4 => Const::Int(0),
-                            8 => Const::Long(0),
-                            _ => todo!(),
-                        },
-                        _ => todo!(),
-                    },
-                    StaticInitialValue::Tentative => Const::new_zero_bits(sca_typ.as_ref()),
+                /* Here, we're moving the StaticInitialValue vector
+                    out of the frontend symtab
+                    into the tacky AST.
+                In ch16, we might decide to keep everything in the symtab. */
+                let inits = match initial_value {
+                    StaticInitialValue::Initial(inits) => {
+                        mem::replace(inits, Vec::with_capacity(0))
+                    }
+                    StaticInitialValue::Tentative => {
+                        let bytelen = typ.bytelen();
+                        let item = InitializerItem::Zero(bytelen);
+                        vec![item]
+                    }
                     StaticInitialValue::NoInitializer => continue,
                 };
                 let static_var = StaticVariable {
                     ident: Rc::clone(ident),
                     visibility: *visibility,
-                    typ: sca_typ,
-                    init: konst,
+                    typ: typ.clone(),
+                    inits,
                 };
                 static_vars.push(static_var);
             }
@@ -148,15 +146,40 @@ impl<'a> FunInstrsGenerator<'a> {
     }
     fn gen_var_defn(
         &mut self,
-        c::VariableDefinition { ident, init }: c::VariableDefinition<TypeCheckedCAst>,
+        c::VariableDefinition { ident, typ, init }: c::VariableDefinition<TypeCheckedCAst>,
     ) {
-        let obj = Object::Direct(ident);
-        match init.into_iter().next() {
-            Some(InitializerItem::Single(exp)) => {
-                let val = self.gen_exp_and_get_value(exp);
-                self.gen_assignment(obj, val);
+        let single_type = typ.single_type();
+        let single_bytelen = ByteLen::from(single_type);
+        let single_zero = Const::new_zero_bits(single_type);
+        let new_cto = |src: Value, offset: ByteLen| {
+            Instruction::CopyToOffset(CopyToOffset {
+                src,
+                dst_obj: Rc::clone(&ident),
+                offset,
+            })
+        };
+
+        /* Begin instructions */
+
+        let mut offset = ByteLen::new(0);
+        for item in init {
+            match item {
+                InitializerItem::Single(exp) => {
+                    let val = self.gen_exp_and_get_value(exp);
+
+                    self.instrs.push(new_cto(val, offset));
+                    offset += single_bytelen;
+                }
+                InitializerItem::Zero(bytelen) => {
+                    let final_offset = offset + bytelen;
+                    while offset < final_offset {
+                        self.instrs
+                            .push(new_cto(Value::Constant(single_zero), offset));
+                        offset += single_bytelen;
+                    }
+                    debug_assert_eq!(offset, final_offset);
+                }
             }
-            _ => todo!(),
         }
     }
 

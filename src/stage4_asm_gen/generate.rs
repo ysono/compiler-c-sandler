@@ -44,14 +44,14 @@ impl AsmCodeGenerator {
     /* Tacky StaticVariable */
 
     fn convert_static_var(
-        t::StaticVariable { ident, visibility, typ, init }: t::StaticVariable,
+        t::StaticVariable { ident, visibility, typ, inits }: t::StaticVariable,
     ) -> StaticVariable {
-        let alignment = Alignment::default_of(typ.effective_arithmetic_type());
+        let alignment = Alignment::default_of_obj_type(&typ);
         StaticVariable {
             ident,
             visibility,
             alignment,
-            init,
+            inits,
         }
     }
 

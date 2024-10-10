@@ -23,6 +23,19 @@ impl From<ArrayType> for ObjType {
     }
 }
 impl ObjType {
+    /// This un-aggregates the self type into a single scalar type.
+    /// + In case self is scalar, then self.
+    /// + In case self is array, then the leaf-level element type.
+    ///
+    /// Even though the semantic information is [`ScalarType`], we return [`ArithmeticType`],
+    ///     b/c that's all that our use cases need and it's cheaper to represent.
+    pub fn single_type(&self) -> ArithmeticType {
+        match self {
+            Self::Scalar(s) => s.effective_arithmetic_type(),
+            Self::Array(a) => *a.single_type(),
+        }
+    }
+
     pub fn bytelen(&self) -> ByteLen {
         match self {
             Self::Scalar(s) => ByteLen::from(s.effective_arithmetic_type()),
@@ -81,12 +94,21 @@ pub struct ArrayType {
     elem_count: ArrayElementCount,
 
     #[derivative(PartialEq = "ignore", Hash = "ignore")]
+    single_type: ArithmeticType,
+
+    #[derivative(PartialEq = "ignore", Hash = "ignore")]
     bytelen: ByteLen,
 }
 impl ArrayType {
     pub fn new(elem_type: Singleton<ObjType>, elem_count: ArrayElementCount) -> Self {
+        let single_type = elem_type.single_type();
         let bytelen = elem_type.bytelen() * elem_count.as_int();
-        Self { elem_type, elem_count, bytelen }
+        Self {
+            elem_type,
+            elem_count,
+            single_type,
+            bytelen,
+        }
     }
 
     pub fn as_ptr_to_elem(&self) -> PointerType {
@@ -117,36 +139,37 @@ mod test {
     use crate::test::utils::{TestDeclaratorItem as Dec, TypeBuilder};
 
     #[test]
-    fn obj_type_bytelen() {
+    fn obj_type_properties() {
         let mut typ_bld = TypeBuilder::default();
 
+        let mut get_properties = |items_outward: &[Dec], base_typ: ArithmeticType| {
+            let obj_typ = typ_bld.build_obj_type(items_outward, base_typ);
+            (obj_typ.single_type(), obj_typ.bytelen().as_int())
+        };
+
         assert_eq!(
-            typ_bld
-                .build_obj_type(&[Dec::Arr(17)], ArithmeticType::Int)
-                .bytelen()
-                .as_int(),
-            4 * 17
+            get_properties(&[], ArithmeticType::Int),
+            (ArithmeticType::Int, 4)
         );
         assert_eq!(
-            typ_bld
-                .build_obj_type(&[Dec::Arr(17), Dec::Arr(7)], ArithmeticType::Long)
-                .bytelen()
-                .as_int(),
-            8 * 7 * 17
+            get_properties(&[Dec::Ptr], ArithmeticType::Int),
+            (ArithmeticType::ULong, 8)
         );
         assert_eq!(
-            typ_bld
-                .build_obj_type(&[Dec::Ptr], ArithmeticType::Int)
-                .bytelen()
-                .as_int(),
-            8
+            get_properties(&[Dec::Ptr, Dec::Arr(17), Dec::Ptr], ArithmeticType::Int),
+            (ArithmeticType::ULong, 8)
         );
         assert_eq!(
-            typ_bld
-                .build_obj_type(&[Dec::Ptr, Dec::Ptr, Dec::Arr(17)], ArithmeticType::UInt)
-                .bytelen()
-                .as_int(),
-            8
+            get_properties(&[Dec::Arr(17)], ArithmeticType::Int),
+            (ArithmeticType::Int, 17 * 4)
+        );
+        assert_eq!(
+            get_properties(&[Dec::Arr(17), Dec::Arr(7)], ArithmeticType::Int),
+            (ArithmeticType::Int, 17 * 7 * 4)
+        );
+        assert_eq!(
+            get_properties(&[Dec::Arr(17), Dec::Ptr, Dec::Arr(7)], ArithmeticType::Int),
+            (ArithmeticType::ULong, 17 * 8)
         );
     }
 }
