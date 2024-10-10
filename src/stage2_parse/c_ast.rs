@@ -231,7 +231,7 @@ mod expression {
         Rem,
     }
     #[allow(clippy::enum_variant_names)]
-    #[derive(Debug)]
+    #[derive(Clone, Copy, Debug)]
     pub enum PointerArithmeticBinaryOperator {
         PointerPlusInteger,
         PointerMinusInteger,

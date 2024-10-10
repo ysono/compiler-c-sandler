@@ -62,7 +62,7 @@ impl<'a> FunInstrsGenerator<'a> {
                 };
                 self.gen_exp_binary_evalboth(t_op, c_binary, out_typ)
             }
-            CO::ArithPtr(_) => todo!(),
+            CO::ArithPtr(c_op_p) => self.gen_exp_binary_ptr(*c_op_p, c_binary, out_typ),
             CO::Logic(c_op_l) => self.gen_exp_binary_shortcirc(*c_op_l, c_binary, out_typ),
             CO::Cmp(c_op_c) => {
                 let t_op = match c_op_c {

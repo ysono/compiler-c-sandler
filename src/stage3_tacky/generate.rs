@@ -9,6 +9,7 @@ mod exp;
 mod looping;
 mod misc;
 mod obj;
+mod ptr;
 
 use self::looping::LoopIdToLabels;
 use crate::{

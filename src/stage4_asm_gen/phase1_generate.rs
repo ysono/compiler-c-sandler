@@ -80,6 +80,8 @@ impl InstrsGenerator {
             t::Instruction::GetAddress(t_getaddr) => self.gen_getaddr_instrs(t_getaddr),
             t::Instruction::Load(t_load) => self.gen_load_instrs(t_load),
             t::Instruction::Store(t_store) => self.gen_store_instrs(t_store),
+            t::Instruction::AddPtr(_) => todo!(),
+            t::Instruction::CopyToOffset(_) => todo!(),
             t::Instruction::Jump(lbl) => vec![Instruction::Jmp(lbl)],
             t::Instruction::JumpIf(t_jumpif) => self.gen_jumpif_instrs(t_jumpif),
             t::Instruction::Label(lbl) => vec![Instruction::Label(lbl)],

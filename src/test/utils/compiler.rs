@@ -60,3 +60,12 @@ pub fn expect_tacky_implicit_return_instr(mut t_prog: t::Program) -> t::Program 
     }
     t_prog
 }
+
+pub fn assert_value_eq(val1: &t::Value, val2: &t::Value) {
+    let ok = match (val1, val2) {
+        (t::Value::Constant(k1), t::Value::Constant(k2)) => k1 == k2,
+        (t::Value::Variable(ident1), t::Value::Variable(ident2)) => ident1 == ident2,
+        _ => false,
+    };
+    assert!(ok, "{:?}", (val1, val2));
+}

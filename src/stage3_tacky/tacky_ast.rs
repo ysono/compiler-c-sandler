@@ -4,6 +4,7 @@ use crate::{
         identifier::{JumpLabel, SymbolIdentifier},
         primitive::Const,
         symbol_table_frontend::StaticVisibility,
+        types_backend::ByteLen,
         types_frontend::{ScalarFunType, ScalarType, SubObjType},
     },
     ds_n_a::singleton::Singleton,
@@ -50,6 +51,8 @@ pub enum Instruction {
     GetAddress(GetAddress),
     Load(Load),
     Store(Store),
+    AddPtr(AddPtr),
+    CopyToOffset(CopyToOffset),
     Jump(Rc<JumpLabel>),
     JumpIf(JumpIf),
     Label(Rc<JumpLabel>),
@@ -95,6 +98,21 @@ mod instruction {
     pub struct Store {
         pub src: Value,
         pub dst_addr: Value,
+    }
+
+    #[derive(Debug)]
+    pub struct AddPtr {
+        pub ptr: Value,
+        pub idx: Value,
+        pub scale: ByteLen,
+        pub dst: Value,
+    }
+
+    #[derive(Debug)]
+    pub struct CopyToOffset {
+        pub src: Value,
+        pub dst_obj: Rc<SymbolIdentifier>,
+        pub offset: ByteLen,
     }
 
     #[derive(Debug)]
