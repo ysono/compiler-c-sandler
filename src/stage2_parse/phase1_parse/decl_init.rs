@@ -1,5 +1,5 @@
 use super::{decl::DeclaratorResult, ParsedCAst, Parser};
-use crate::{stage1_lex::tokens as t, stage2_parse::c_ast::*};
+use crate::{stage1_lex::tokens as t, stage2_parse::c_ast::*, utils::noop};
 use anyhow::{anyhow, Context, Result};
 
 impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
@@ -35,12 +35,12 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
         inner().context("[ <declaration> ]")
     }
 
-    fn parse_var_init(&mut self) -> Result<Option<Expression<ParsedCAst>>> {
+    fn parse_var_init(&mut self) -> Result<Option<VariableInitializer<ParsedCAst>>> {
         let mut inner = || -> Result<_> {
             match self.tokens.next() {
                 Some(Ok(t::Token::Demarcator(t::Demarcator::Semicolon))) => Ok(None),
                 Some(Ok(t::Token::Operator(t::Operator::Assign))) => {
-                    let init = self.parse_exp()?;
+                    let init = self.parse_initializer()?;
 
                     self.expect_exact(&[t::Demarcator::Semicolon.into()])?;
 
@@ -49,7 +49,42 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
                 actual => Err(anyhow!("{actual:?}")),
             }
         };
-        inner().context(r#"[ "=" <exp> ] ";""#)
+        inner().context(r#"[ "=" <initializer> ] ";""#)
+    }
+    fn parse_initializer(&mut self) -> Result<VariableInitializer<ParsedCAst>> {
+        let mut inner = || -> Result<_> {
+            match self.tokens.peek() {
+                Some(Ok(t::Token::Demarcator(t::Demarcator::CurlyOpen))) => {
+                    self.tokens.next();
+
+                    let init = self.parse_initializer()?;
+                    let mut inits = vec![init];
+
+                    loop {
+                        match self.tokens.next() {
+                            Some(Ok(t::Token::Demarcator(t::Demarcator::CurlyClose))) => break,
+                            Some(Ok(t::Token::Demarcator(t::Demarcator::Comma))) => noop!(),
+                            actual => return Err(anyhow!("{actual:?}")),
+                        }
+
+                        match self.tokens.peek() {
+                            Some(Ok(t::Token::Demarcator(t::Demarcator::CurlyClose))) => {
+                                self.tokens.next();
+                                break;
+                            }
+                            _ => {
+                                let init = self.parse_initializer()?;
+                                inits.push(init);
+                            }
+                        }
+                    }
+
+                    Ok(VariableInitializer::Compound(inits))
+                }
+                _ => self.parse_exp().map(VariableInitializer::Single),
+            }
+        };
+        inner().context("<initializer>")
     }
 
     fn parse_fun_body(&mut self) -> Result<Option<Block<ParsedCAst>>> {

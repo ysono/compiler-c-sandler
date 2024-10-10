@@ -1,6 +1,7 @@
 use super::{ParsedCAst, Parser};
 use crate::{stage1_lex::tokens as t, stage2_parse::c_ast::*};
 use anyhow::{anyhow, Context, Result};
+use derive_more::From;
 use std::borrow::Borrow;
 
 impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
@@ -12,7 +13,7 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
         min_prec: BinaryOperatorPrecedence,
     ) -> Result<Expression<ParsedCAst>> {
         let mut inner = || -> Result<_> {
-            let mut lhs = self.parse_factor()?;
+            let mut lhs = self.parse_unary_exp()?;
 
             loop {
                 let boi = match self.tokens.peek() {
@@ -73,63 +74,74 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
         };
         inner().context("<exp>")
     }
-    fn parse_factor(&mut self) -> Result<Expression<ParsedCAst>> {
+    fn parse_unary_exp(&mut self) -> Result<Expression<ParsedCAst>> {
         let mut inner = || -> Result<_> {
             match self.tokens.next() {
-                Some(Ok(t::Token::Const(konst))) => Ok(RExp::Const(konst).into()),
-                Some(Ok(t::Token::Identifier(ident))) => match self.tokens.peek() {
-                    Some(Ok(t::Token::Demarcator(t::Demarcator::ParenOpen))) => {
-                        let args = self.parse_arg_list()?;
-                        Ok(RExp::FunctionCall(FunctionCall { ident, args }).into())
-                    }
-                    _ => Ok(LExp::Var(ident).into()),
-                },
-                Some(Ok(t::Token::Operator(t_op))) => self.parse_unary(t_op),
+                Some(Ok(t::Token::Const(konst))) => {
+                    let primary_exp = RExp::Const(konst).into();
+
+                    self.parse_postfix_exp(primary_exp)
+                }
+                Some(Ok(t::Token::Identifier(ident))) => {
+                    let primary_exp = match self.tokens.peek() {
+                        Some(Ok(t::Token::Demarcator(t::Demarcator::ParenOpen))) => {
+                            let args = self.parse_arg_list()?;
+                            RExp::FunctionCall(FunctionCall { ident, args }).into()
+                        }
+                        _ => LExp::Var(ident).into(),
+                    };
+
+                    self.parse_postfix_exp(primary_exp)
+                }
+                Some(Ok(t::Token::Operator(t_op))) => self.parse_unary_op_exp(t_op),
                 Some(Ok(t::Token::Demarcator(t::Demarcator::ParenOpen))) => {
                     match self.parse_cast_type()? {
                         Some(typ) => {
                             self.expect_exact(&[t::Demarcator::ParenClose.into()])?;
 
-                            let sub_exp = Box::new(self.parse_factor()?);
-
+                            let sub_exp = Box::new(self.parse_unary_exp()?);
                             Ok(RExp::Cast(Cast { typ, sub_exp }).into())
                         }
                         None => {
-                            let exp = self.do_parse_exp(BinaryOperatorPrecedence::min())?;
+                            let primary_exp = self.parse_exp()?;
 
                             self.expect_exact(&[t::Demarcator::ParenClose.into()])?;
 
-                            Ok(exp)
+                            self.parse_postfix_exp(primary_exp)
                         }
                     }
                 }
                 actual => Err(anyhow!("{actual:?}")),
             }
         };
-        inner().context("<factor>")
+        inner().context("<unary-exp>")
     }
-    fn parse_unary(&mut self, t_op: t::Operator) -> Result<Expression<ParsedCAst>> {
+    fn parse_unary_op_exp(&mut self, t_op: t::Operator) -> Result<Expression<ParsedCAst>> {
         let inner = || -> Result<_> {
-            let mut new_unary = |op: UnaryOperator| {
-                let exp = self.parse_factor()?;
-                Ok(RExp::Unary(Unary { op, sub_exp: Box::new(exp) }).into())
-            };
-            match t_op {
-                t::Operator::Tilde => new_unary(UnaryOperator::Complement),
-                t::Operator::Minus => new_unary(UnaryOperator::Negate),
-                t::Operator::Bang => new_unary(UnaryOperator::Not),
-                t::Operator::Star => {
-                    let exp = Box::new(self.parse_factor()?);
-                    Ok(LExp::Dereference(Dereference(exp)).into())
-                }
-                t::Operator::Ampersand => {
-                    let exp = Box::new(self.parse_factor()?);
-                    Ok(RExp::AddrOf(AddrOf(exp)).into())
-                }
-                actual => Err(anyhow!("{actual:?}")),
+            #[derive(From)]
+            enum Op {
+                Unary(UnaryOperator),
+                Deref,
+                AddrOf,
             }
+            let op = match t_op {
+                t::Operator::Tilde => UnaryOperator::Complement.into(),
+                t::Operator::Minus => UnaryOperator::Negate.into(),
+                t::Operator::Bang => UnaryOperator::Not.into(),
+                t::Operator::Star => Op::Deref,
+                t::Operator::Ampersand => Op::AddrOf,
+                actual => return Err(anyhow!("{actual:?}")),
+            };
+
+            let sub_exp = Box::new(self.parse_unary_exp()?);
+            let exp = match op {
+                Op::Unary(op) => RExp::Unary(Unary { op, sub_exp }).into(),
+                Op::Deref => LExp::Dereference(Dereference(sub_exp)).into(),
+                Op::AddrOf => RExp::AddrOf(AddrOf(sub_exp)).into(),
+            };
+            Ok(exp)
         };
-        inner().context("<factor> unary")
+        inner().context("<unary-exp> unary")
     }
     fn parse_arg_list(&mut self) -> Result<Vec<Expression<ParsedCAst>>> {
         let mut inner = || -> Result<_> {
@@ -147,7 +159,7 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
                             self.expect_exact(&[t::Demarcator::Comma.into()])?;
                         }
 
-                        let arg = self.do_parse_exp(BinaryOperatorPrecedence::min())?;
+                        let arg = self.parse_exp()?;
                         args.push(arg);
                     }
                 }
@@ -155,6 +167,29 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
             Ok(args)
         };
         inner().context("<argument-list>")
+    }
+    fn parse_postfix_exp(
+        &mut self,
+        mut lhs_exp: Expression<ParsedCAst>,
+    ) -> Result<Expression<ParsedCAst>> {
+        let inner = || -> Result<_> {
+            while let Some(Ok(t::Token::Demarcator(t::Demarcator::SquareOpen))) = self.tokens.peek()
+            {
+                self.tokens.next();
+
+                let rhs_exp = self.parse_exp()?;
+
+                self.expect_exact(&[t::Demarcator::SquareClose.into()])?;
+
+                lhs_exp = LExp::Subscript(Subscript {
+                    exp1: Box::new(lhs_exp),
+                    exp2: Box::new(rhs_exp),
+                })
+                .into();
+            }
+            Ok(lhs_exp)
+        };
+        inner().context("<postfix-exp> suffix")
     }
 }
 

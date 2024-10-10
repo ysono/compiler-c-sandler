@@ -53,13 +53,15 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
             loop {
                 match self.tokens.peek() {
                     None => break,
-                    _ => {
-                        let decl = self.parse_declaration()?.ok_or_else(|| {
+                    _ => match self.parse_declaration()? {
+                        Some(decl) => {
+                            decls.push(decl);
+                        }
+                        None => {
                             let actual = self.tokens.peek();
-                            anyhow!("Expected <declaration> but found {actual:?}")
-                        })?;
-                        decls.push(decl);
-                    }
+                            return Err(anyhow!("Expected <declaration> but found {actual:?}"));
+                        }
+                    },
                 }
             }
             Ok(Program { decls })
@@ -71,12 +73,12 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
 
     fn parse_block(&mut self) -> Result<Block<ParsedCAst>> {
         let mut inner = || -> Result<_> {
-            self.expect_exact(&[t::Demarcator::BraceOpen.into()])?;
+            self.expect_exact(&[t::Demarcator::CurlyOpen.into()])?;
 
             let mut items = vec![];
             loop {
                 match self.tokens.peek() {
-                    Some(Ok(t::Token::Demarcator(t::Demarcator::BraceClose))) => {
+                    Some(Ok(t::Token::Demarcator(t::Demarcator::CurlyClose))) => {
                         self.tokens.next();
                         break;
                     }

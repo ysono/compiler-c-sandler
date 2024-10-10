@@ -65,11 +65,29 @@ impl CAstValidator {
                 .ident_resolver
                 .declare_var(ident, storage_class.as_ref())?;
 
-            let init = init.map(|exp| self.resolve_exp(exp)).transpose()?;
+            let init = init.map(|init| self.resolve_var_init(init)).transpose()?;
 
             Ok(VariableDeclaration { ident, typ, storage_class, init })
         };
         inner().context("<variable-declaration>")
+    }
+    fn resolve_var_init(
+        &mut self,
+        init: VariableInitializer<ParsedCAst>,
+    ) -> Result<VariableInitializer<ResolvedCAst>> {
+        let inner = || -> Result<_> {
+            match init {
+                VariableInitializer::Single(exp) => {
+                    self.resolve_exp(exp).map(VariableInitializer::Single)
+                }
+                VariableInitializer::Compound(inits) => inits
+                    .into_iter()
+                    .map(|init| self.resolve_var_init(init))
+                    .collect::<Result<Vec<_>>>()
+                    .map(VariableInitializer::Compound),
+            }
+        };
+        inner().context("<initializer>")
     }
     fn resolve_decl_fun(
         &mut self,
@@ -339,6 +357,11 @@ impl CAstValidator {
             LExp::Dereference(Dereference(exp)) => {
                 let exp = Box::new(self.resolve_exp(*exp)?);
                 LExp::Dereference(Dereference(exp))
+            }
+            LExp::Subscript(Subscript { exp1, exp2 }) => {
+                let exp1 = Box::new(self.resolve_exp(*exp1)?);
+                let exp2 = Box::new(self.resolve_exp(*exp2)?);
+                LExp::Subscript(Subscript { exp1, exp2 })
             }
         };
         Ok(lexp)

@@ -17,8 +17,10 @@ pub enum Token {
 pub enum Demarcator {
     ParenOpen,
     ParenClose,
-    BraceOpen,
-    BraceClose,
+    CurlyOpen,
+    CurlyClose,
+    SquareOpen,
+    SquareClose,
     Semicolon,
     Comma,
 }

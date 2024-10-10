@@ -2,11 +2,15 @@ use super::Parser;
 use crate::{
     common::{
         identifier::RawIdentifier,
-        types_frontend::{ArithmeticType, FunType, ObjType, PointerType},
+        primitive::Const,
+        types_frontend::{
+            ArithmeticType, ArrayElementCount, ArrayType, FunType, ObjType, PointerType,
+        },
     },
     ds_n_a::singleton::Singleton,
     stage1_lex::tokens as t,
     stage2_parse::c_ast::*,
+    utils::noop,
 };
 use anyhow::{anyhow, Context, Result};
 use std::cmp;
@@ -104,13 +108,9 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
     }
     fn parse_direct_declarator(&mut self) -> Result<Declarator> {
         let mut inner = || -> Result<_> {
-            let mut declarator = self.parse_simple_declarator()?;
+            let declarator = self.parse_simple_declarator()?;
 
-            if let Some(params) = self.parse_param_list()? {
-                declarator.items_baseward.push(DeclaratorItem::Fun(params));
-            }
-
-            Ok(declarator)
+            self.parse_declarator_suffx(declarator)
         };
         inner().context("<direct-declarator>")
     }
@@ -130,6 +130,22 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
         };
         inner().context("<simple-declarator>")
     }
+    fn parse_declarator_suffx(&mut self, mut declarator: Declarator) -> Result<Declarator> {
+        let inner = || -> Result<_> {
+            match self.parse_param_list()? {
+                Some(params) => declarator.items_baseward.push(DeclaratorItem::Fun(params)),
+                None => {
+                    while let Some(elem_count) = self.parse_arr_elem_count()? {
+                        declarator
+                            .items_baseward
+                            .push(DeclaratorItem::Arr(elem_count))
+                    }
+                }
+            }
+            Ok(declarator)
+        };
+        inner().context("[ <declarator-suffix> ]")
+    }
     fn parse_param_list(&mut self) -> Result<Option<Vec<Param>>> {
         let mut inner = || -> Result<_> {
             match self.tokens.peek() {
@@ -146,7 +162,6 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
                 }
                 _ => {
                     let mut params = vec![];
-
                     loop {
                         let param_ari_type = match self.parse_specifiers()? {
                             Some((t, None)) => t,
@@ -165,7 +180,6 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
                             _ => break,
                         }
                     }
-
                     params
                 }
             };
@@ -175,6 +189,33 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
             Ok(Some(params))
         };
         inner().context("[ <param-list> ]")
+    }
+    fn parse_arr_elem_count(&mut self) -> Result<Option<ArrayElementCount>> {
+        let mut inner = || -> Result<_> {
+            match self.tokens.peek() {
+                Some(Ok(t::Token::Demarcator(t::Demarcator::SquareOpen))) => {
+                    self.tokens.next();
+                }
+                _ => return Ok(None),
+            }
+
+            let elem_count = match self.tokens.next() {
+                Some(Ok(t::Token::Const(konst))) => match konst {
+                    /* Note, the lexer emits integer literals that are >= 0. */
+                    Const::Int(i) => i as u64,
+                    Const::Long(i) => i as u64,
+                    Const::UInt(i) => i as u64,
+                    Const::ULong(i) => i,
+                    actual => return Err(anyhow!("{actual:?}")),
+                },
+                actual => return Err(anyhow!("{actual:?}")),
+            };
+
+            self.expect_exact(&[t::Demarcator::SquareClose.into()])?;
+
+            Ok(Some(ArrayElementCount::new(elem_count)))
+        };
+        inner().context(r#"[ "[" <const> "]" ]"#)
     }
 
     fn derive_declared_type(
@@ -193,11 +234,25 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
                             .get_or_new(PointerType { pointee_type: cur_type }.into());
                     }
                 }
+                DeclaratorItem::Arr(elem_count) => {
+                    match items_baseward.last() {
+                        Some(DeclaratorItem::Fun(_)) => noop!(
+                            "In C, a function can't return an array.",
+                            "The official tester expects us to assert this at a later phase."
+                        ),
+                        Some(DeclaratorItem::Ptr(_) | DeclaratorItem::Arr(_)) | None => {
+                            noop!("Happy path.")
+                        }
+                    }
+                    cur_type = self
+                        .obj_type_repo
+                        .get_or_new(ArrayType { elem_type: cur_type, elem_count }.into());
+                }
                 DeclaratorItem::Fun(params) => match items_baseward.last() {
                     Some(DeclaratorItem::Fun(_)) => {
                         return Err(anyhow!("In C, a function can't return a function."))
                     }
-                    Some(DeclaratorItem::Ptr(_)) => {
+                    Some(DeclaratorItem::Ptr(_) | DeclaratorItem::Arr(_)) => {
                         return Err(anyhow!("Function pointers aren't supported."))
                     }
                     None => {
@@ -274,18 +329,29 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
     }
     fn parse_direct_abstract_declarator(&mut self) -> Result<AbstractDeclarator> {
         let mut inner = || -> Result<_> {
-            match self.tokens.peek() {
+            let mut declarator = match self.tokens.peek() {
                 Some(Ok(t::Token::Demarcator(t::Demarcator::ParenOpen))) => {
                     self.tokens.next();
 
                     let declarator = self.parse_abstract_declarator()?;
+                    if declarator.items_baseward.is_empty() {
+                        return Err(anyhow!("Empty parentheses. It means a param-list. Can't cast to a function type."));
+                    }
 
                     self.expect_exact(&[t::Demarcator::ParenClose.into()])?;
 
-                    Ok(declarator)
+                    declarator
                 }
-                _ => Ok(AbstractDeclarator::new()),
+                _ => AbstractDeclarator::new(),
+            };
+
+            while let Some(elem_count) = self.parse_arr_elem_count()? {
+                declarator
+                    .items_baseward
+                    .push(AbstractDeclaratorItem::Arr(elem_count));
             }
+
+            Ok(declarator)
         };
         inner().context("[ <direct-abstract-declarator> ]")
     }
@@ -305,6 +371,11 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
                             .obj_type_repo
                             .get_or_new(PointerType { pointee_type: cur_type }.into());
                     }
+                }
+                AbstractDeclaratorItem::Arr(elem_count) => {
+                    cur_type = self
+                        .obj_type_repo
+                        .get_or_new(ArrayType { elem_type: cur_type, elem_count }.into());
                 }
             }
         }
@@ -333,6 +404,7 @@ impl Declarator {
 #[derive(Debug)]
 enum DeclaratorItem {
     Ptr(u64), // The u64 = repetition.
+    Arr(ArrayElementCount),
     Fun(Vec<Param>),
 }
 #[derive(Debug)]
@@ -362,4 +434,5 @@ impl AbstractDeclarator {
 #[derive(Debug)]
 enum AbstractDeclaratorItem {
     Ptr(u64), // The u64 = repetition.
+    Arr(ArrayElementCount),
 }

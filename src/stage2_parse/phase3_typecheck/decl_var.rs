@@ -35,7 +35,11 @@ impl TypeChecker {
 
         run_time_init
             .map(|init| {
-                let init = self.cast_by_assignment(typ, init)?;
+                let init_exp = match init {
+                    VariableInitializer::Single(exp) => exp,
+                    _ => todo!(),
+                };
+                let init = self.cast_by_assignment(typ, init_exp)?;
 
                 Ok(VariableDefinition { ident, init })
             })
@@ -46,14 +50,18 @@ impl TypeChecker {
         &mut self,
         new_scope: VarDeclScope,
         new_sc: Option<StorageClassSpecifier>,
-        new_init: Option<Expression<ResolvedCAst>>,
+        new_init: Option<VariableInitializer<ResolvedCAst>>,
         new_typ: &Singleton<ObjType>,
-    ) -> Result<Decl<Option<Expression<ResolvedCAst>>>> {
+    ) -> Result<Decl<Option<VariableInitializer<ResolvedCAst>>>> {
         use StaticInitialValue as SIV;
         use StorageClassSpecifier as SCS;
         use VarDeclScope as DS;
 
-        let mut siv = |init_exp: Expression<ResolvedCAst>| -> Result<_> {
+        let mut siv = |init: VariableInitializer<ResolvedCAst>| -> Result<_> {
+            let init_exp = match init {
+                VariableInitializer::Single(exp) => exp,
+                _ => todo!(),
+            };
             let out_konst = self.cast_statically_by_assignment(new_typ, init_exp)?;
 
             Ok(StaticInitialValue::Initial(out_konst))

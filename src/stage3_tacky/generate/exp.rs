@@ -35,6 +35,7 @@ impl<'a> FunInstrsGenerator<'a> {
         match exp {
             c::LExp::Var(ident) => Object::Direct(ident),
             c::LExp::Dereference(c_deref) => self.gen_exp_deref(c_deref, typ),
+            c::LExp::Subscript(_) => todo!(),
         }
     }
 

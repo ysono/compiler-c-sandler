@@ -3,17 +3,20 @@
 <program> ::= { <declaration> }
 
 <declaration> ::= <variable-declaration> | <function-declaration>
-<variable-declaration> ::= { <specifier> }+ <declarator> [ "=" <exp> ] ";"
-<function-declaration> ::= { <specifier> }+ <declarator> ( <block> | ";")
+<variable-declaration> ::= { <specifier> }+ <declarator> [ "=" <initializer> ] ";"
+<function-declaration> ::= { <specifier> }+ <declarator> ( <block> | ";" )
 
 <specifier> ::= <type-specifier> | "static" | "extern"
 <type-specifier> ::= "int" | "long" | "unsigned" | "signed" | "double"
 
 <declarator> ::= "*" <declarator> | <direct-declarator>
-<direct-declarator> ::= <simple-declarator> [ <param-list> ]
+<direct-declarator> ::= <simple-declarator> [ <declarator-suffix> ]
 <simple-declarator> ::= <identifier> | "(" <declarator> ")"
+<declarator-suffix> ::= <param-list> | { "[" <const> "]" }+
 <param-list> ::= "(" "void" ")" | "(" <param> { "," <param> } ")"
 <param> ::= { <type-specifier> }+ <declarator>
+
+<initializer> ::= <exp> | "{" <initializer> { "," <initializer> } [ "," ] "}"
 
 <block> ::= "{" { <block-item> } "}"
 <block-item> ::= <statement> | <declaration>
@@ -30,17 +33,20 @@
               | ";"
 <for-init> ::= <variable-declaration> | [ <exp> ] ";"
 
-<exp> ::= <factor> | <exp> <binop> <exp> | <exp> "?" <exp> ":" <exp>
-<factor> ::= <const>
-           | <identifier>
-           | "(" { <type-specifier> }+ [ <abstract-declarator> ] ")" <factor>
-           | <unop> <factor>
-           | "(" <exp> ")"
-           | <identifier> "(" [ <argument-list> ] ")"
+<exp> ::= <unary-exp> | <exp> <binop> <exp> | <exp> "?" <exp> ":" <exp>
+<unary-exp> ::= <unop> <unary-exp>
+              | "(" { <type-specifier> }+ [ <abstract-declarator> ] ")" <unary-exp>
+              | <postfix-exp>
+<postfix-exp> ::= <primary-exp> { "[" <exp> "]" }
+<primary-exp> ::= <const>
+                | <identifier>
+                | "(" <exp> ")"
+                | <identifier> "(" [ <argument-list> ] ")"
 <argument-list> ::= <exp> { "," <exp> }
 
 <abstract-declarator> ::= "*" [ <abstract-declarator> ] | <direct-abstract-declarator>
-<direct-abstract-declarator> ::= "(" <abstract-declarator> ")"
+<direct-abstract-declarator> ::= "(" <abstract-declarator> ")" { "[" <const> "]" }
+                               | { "[" <const> "]" }+
 
 <unop> ::= "-" | "~" | "!" | "*" | "&"
 <binop> ::= "-" | "+" | "*" | "/" | "%" | "&&" | "||" | "==" | "!=" | "<" | "<=" | ">" | ">=" | "="

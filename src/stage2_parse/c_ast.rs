@@ -41,8 +41,15 @@ mod declaration {
         pub ident: C::Identifier,
         pub typ: Singleton<ObjType>,
         pub storage_class: Option<StorageClassSpecifier>,
-        pub init: Option<C::Expression>,
+        pub init: Option<VariableInitializer<C>>,
     }
+
+    #[derive(Debug)]
+    pub enum VariableInitializer<C: CAstVariant> {
+        Single(C::Expression),
+        Compound(Vec<VariableInitializer<C>>),
+    }
+
     #[derive(Debug)]
     pub struct VariableDefinition<C: CAstVariant> {
         pub ident: C::Identifier,
@@ -57,6 +64,7 @@ mod declaration {
         pub param_idents: Vec<C::Identifier>,
         pub body: Option<Block<C>>,
     }
+
     #[derive(Debug)]
     pub struct FunctionDefinition<C: CAstVariant> {
         pub ident: C::Identifier,
@@ -160,6 +168,7 @@ pub enum RExp<C: CAstVariant> {
 pub enum LExp<C: CAstVariant> {
     Var(C::Identifier),
     Dereference(Dereference<C>),
+    Subscript(Subscript<C>),
 }
 mod expression {
     use super::*;
@@ -245,6 +254,12 @@ mod expression {
 
     #[derive(Debug)]
     pub struct Dereference<C: CAstVariant>(pub Box<C::Expression>);
+
+    #[derive(Debug)]
+    pub struct Subscript<C: CAstVariant> {
+        pub exp1: Box<C::Expression>,
+        pub exp2: Box<C::Expression>,
+    }
 }
 
 mod typed_expression {

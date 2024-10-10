@@ -156,8 +156,10 @@ impl<R: Read + BufRead> Lexer<R> {
         match sfx_bytes[0] {
             b'(' => Ok((1, Demarcator::ParenOpen.into())),
             b')' => Ok((1, Demarcator::ParenClose.into())),
-            b'{' => Ok((1, Demarcator::BraceOpen.into())),
-            b'}' => Ok((1, Demarcator::BraceClose.into())),
+            b'{' => Ok((1, Demarcator::CurlyOpen.into())),
+            b'}' => Ok((1, Demarcator::CurlyClose.into())),
+            b'[' => Ok((1, Demarcator::SquareOpen.into())),
+            b']' => Ok((1, Demarcator::SquareClose.into())),
             b';' => Ok((1, Demarcator::Semicolon.into())),
             b',' => Ok((1, Demarcator::Comma.into())),
             b'*' => Ok((1, Operator::Star.into())),

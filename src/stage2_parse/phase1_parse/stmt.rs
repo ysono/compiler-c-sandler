@@ -21,7 +21,7 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
                     Ok(Statement::Return(exp))
                 }
                 Some(Ok(t::Token::Control(t::Control::If))) => self.parse_stmt_if(),
-                Some(Ok(t::Token::Demarcator(t::Demarcator::BraceOpen))) => {
+                Some(Ok(t::Token::Demarcator(t::Demarcator::CurlyOpen))) => {
                     let block = self.parse_block()?;
 
                     Ok(Statement::Compound(block))

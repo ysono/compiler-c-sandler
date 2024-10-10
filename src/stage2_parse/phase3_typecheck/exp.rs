@@ -127,6 +127,7 @@ impl TypeChecker {
                 let exp = LExp::Dereference(Dereference(sub_exp));
                 TypedLExp { typ, exp }
             }
+            LExp::Subscript(_) => todo!(),
         };
         Ok(typed_lexp)
     }

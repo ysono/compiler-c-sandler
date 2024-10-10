@@ -1,5 +1,5 @@
 use crate::ds_n_a::singleton::Singleton;
-use derive_more::From;
+use derive_more::{Constructor, From};
 use owning_ref::OwningRef;
 use std::hash::Hash;
 
@@ -13,6 +13,11 @@ pub enum ObjType {
 impl<St: Into<ScalarType>> From<St> for ObjType {
     fn from(sca_typ: St) -> Self {
         Self::Scalar(sca_typ.into())
+    }
+}
+impl From<ArrayType> for ObjType {
+    fn from(arr_typ: ArrayType) -> Self {
+        Self::Array(arr_typ)
     }
 }
 
@@ -54,12 +59,17 @@ pub struct PointerType {
 
 #[derive(PartialEq, Eq, Hash, Debug)]
 pub struct ArrayType {
-    elem_type: Singleton<ObjType>,
-    elem_count: ArrayElementCount,
+    pub elem_type: Singleton<ObjType>,
+    pub elem_count: ArrayElementCount,
 }
 
-#[derive(PartialEq, Eq, Hash, Debug)]
+#[derive(Constructor, PartialEq, Eq, Hash, Debug)]
 pub struct ArrayElementCount(u64);
+impl ArrayElementCount {
+    pub fn as_int(&self) -> u64 {
+        self.0
+    }
+}
 
 #[derive(PartialEq, Eq, Hash, Debug)]
 pub struct FunType {

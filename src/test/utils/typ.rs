@@ -1,4 +1,4 @@
-use crate::common::types_frontend::{ArithmeticType, ObjType, PointerType, ScalarType};
+use crate::common::types_frontend::{ArithmeticType, ArrayType, ObjType, PointerType, ScalarType};
 
 #[derive(PartialEq, Eq, Debug)]
 pub struct ProtoType {
@@ -8,6 +8,7 @@ pub struct ProtoType {
 #[derive(PartialEq, Eq, Debug)]
 pub enum TestDeclaratorItem {
     Ptr,
+    Arr(u64), // Elem count.
 }
 
 /// This decomposition enables [`ObjType`]s to be compared easily.
@@ -28,6 +29,9 @@ fn do_decompose_obj_type(obj_typ: &ObjType, items: &mut Vec<TestDeclaratorItem>)
                 do_decompose_obj_type(pointee_type, items)
             }
         },
-        ObjType::Array(_) => todo!(),
+        ObjType::Array(ArrayType { elem_type, elem_count }) => {
+            items.push(TestDeclaratorItem::Arr(elem_count.as_int()));
+            do_decompose_obj_type(elem_type, items)
+        }
     }
 }
