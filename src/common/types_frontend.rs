@@ -84,7 +84,9 @@ impl ArrayElementCount {
 }
 
 #[derive(PartialEq, Eq, Hash, Debug)]
-pub struct FunType {
-    pub params: Vec<Singleton<ObjType>>,
-    pub ret: Singleton<ObjType>,
+pub struct FunType<Typ> {
+    pub params: Vec<Typ>,
+    pub ret: Typ,
 }
+pub type ParsedFunType = FunType<Singleton<ObjType>>;
+pub type ScalarFunType = FunType<SubObjType<ScalarType>>;

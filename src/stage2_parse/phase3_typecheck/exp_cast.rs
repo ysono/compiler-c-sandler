@@ -122,9 +122,16 @@ impl TypeChecker {
         let to = Self::extract_scalar_type(to)
             .map_err(|typ| anyhow!("Cannot \"convert as if by assignment\" to {typ:?}"))?;
 
+        self.cast_scalar_by_assignment(to, from)
+    }
+    pub(super) fn cast_scalar_by_assignment<St: Borrow<SubObjType<ScalarType>>>(
+        &mut self,
+        to: St,
+        from: Expression<ResolvedCAst>,
+    ) -> Result<TypedExp<ScalarType>> {
         let from = self.typecheck_exp_and_convert_to_scalar(from)?;
 
-        let () = Self::can_cast_by_assignment(to.as_ref(), &from)?;
+        let () = Self::can_cast_by_assignment(to.borrow().as_ref(), &from)?;
 
         let typed_exp = Self::maybe_insert_cast_node(to, from);
         Ok(typed_exp)

@@ -78,13 +78,10 @@ impl TypeChecker {
                     .params
                     .iter()
                     .zip(args.into_iter())
-                    .map(|(param_typ, arg_exp)| self.cast_by_assignment(param_typ.clone(), arg_exp))
+                    .map(|(param_typ, arg_exp)| self.cast_scalar_by_assignment(param_typ, arg_exp))
                     .collect::<Result<Vec<_>>>()?;
 
-                let typ = match Self::extract_scalar_type(fun_typ.ret.clone()) {
-                    Ok(sca_typ) => sca_typ,
-                    Err(_) => todo!(),
-                };
+                let typ = fun_typ.ret.clone();
                 let exp = RExp::FunctionCall(FunctionCall { ident, args });
                 TypedRExp { typ, exp }
             }
@@ -98,7 +95,7 @@ impl TypeChecker {
                 };
 
                 let typ = lhs.typ.clone();
-                let rhs = self.cast_by_assignment(typ.as_owner().clone(), *rhs)?;
+                let rhs = self.cast_scalar_by_assignment(&typ, *rhs)?;
 
                 let exp = RExp::Assignment(Assignment {
                     lhs: Box::new(lhs),

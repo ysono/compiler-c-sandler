@@ -4,7 +4,7 @@ use crate::{
         identifier::RawIdentifier,
         primitive::Const,
         types_frontend::{
-            ArithmeticType, ArrayElementCount, ArrayType, FunType, ObjType, PointerType,
+            ArithmeticType, ArrayElementCount, ArrayType, ObjType, ParsedFunType, PointerType,
         },
     },
     ds_n_a::singleton::Singleton,
@@ -274,7 +274,7 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
                             }
                         }
 
-                        let fun_type = FunType {
+                        let fun_type = ParsedFunType {
                             params: param_types,
                             ret: cur_type,
                         };
@@ -413,7 +413,7 @@ struct Param(ArithmeticType, Declarator);
 #[derive(Debug)]
 pub(super) enum DeclaratorResult {
     Var(RawIdentifier, Singleton<ObjType>),
-    Fun(RawIdentifier, Singleton<FunType>, Vec<RawIdentifier>),
+    Fun(RawIdentifier, Singleton<ParsedFunType>, Vec<RawIdentifier>),
 }
 
 /* Abstract declarator */

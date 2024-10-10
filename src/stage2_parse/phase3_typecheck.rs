@@ -16,7 +16,7 @@ use crate::{
     common::{
         identifier::SymbolIdentifier,
         symbol_table_frontend::SymbolTable,
-        types_frontend::{FunType, ObjType, ScalarType},
+        types_frontend::{ObjType, ScalarFunType, ScalarType},
     },
     ds_n_a::singleton::{Singleton, SingletonRepository},
     stage2_parse::{c_ast::*, phase2_resolve::ResolvedCAst},
@@ -45,15 +45,17 @@ impl CAstVariant for TypeCheckedCAst {
 
 pub struct TypeChecker {
     obj_type_repo: SingletonRepository<ObjType>,
+    fun_type_repo: SingletonRepository<ScalarFunType>,
 
     symbol_table: SymbolTable,
 
-    curr_fun_type: Option<Singleton<FunType>>,
+    curr_fun_type: Option<Singleton<ScalarFunType>>,
 }
 impl TypeChecker {
     pub fn new(obj_type_repo: SingletonRepository<ObjType>) -> Self {
         Self {
             obj_type_repo,
+            fun_type_repo: Default::default(), // New repo, separate from the one that Parser uses.
             symbol_table: Default::default(),
             curr_fun_type: Default::default(),
         }
@@ -137,7 +139,7 @@ impl TypeChecker {
                 // Does transform.
                 let fun_typ = self.curr_fun_type.as_ref().unwrap();
                 let ret_typ = fun_typ.ret.clone();
-                let exp = self.cast_by_assignment(ret_typ, exp)?;
+                let exp = self.cast_scalar_by_assignment(ret_typ, exp)?;
 
                 Ok(Statement::Return(exp))
             }

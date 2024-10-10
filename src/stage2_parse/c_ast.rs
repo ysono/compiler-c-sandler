@@ -5,7 +5,7 @@ use crate::{
         identifier::UniqueId,
         primitive::Const,
         symbol_table_frontend::StaticVisibility,
-        types_frontend::{FunType, ObjType, ScalarType, SubObjType},
+        types_frontend::{ObjType, ParsedFunType, ScalarFunType, ScalarType, SubObjType},
     },
     ds_n_a::singleton::Singleton,
 };
@@ -66,7 +66,7 @@ mod declaration {
     #[derive(Debug)]
     pub struct FunctionDeclaration<C: CAstVariant> {
         pub ident: C::Identifier,
-        pub typ: Singleton<FunType>,
+        pub typ: Singleton<ParsedFunType>,
         pub storage_class: Option<StorageClassSpecifier>,
         pub param_idents: Vec<C::Identifier>,
         pub body: Option<Block<C>>,
@@ -75,7 +75,7 @@ mod declaration {
     #[derive(Debug)]
     pub struct FunctionDefinition<C: CAstVariant> {
         pub ident: C::Identifier,
-        pub typ: Singleton<FunType>,
+        pub typ: Singleton<ScalarFunType>,
         pub visibility: StaticVisibility,
         pub param_idents: Vec<C::Identifier>,
         pub body: Block<C>,

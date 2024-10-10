@@ -2,7 +2,7 @@ use crate::{
     common::{
         identifier::SymbolIdentifier,
         primitive::Const,
-        types_frontend::{FunType, ObjType},
+        types_frontend::{ObjType, ScalarFunType},
     },
     ds_n_a::singleton::Singleton,
 };
@@ -18,7 +18,7 @@ pub enum Symbol {
         attrs: VarAttrs,
     },
     Fun {
-        typ: Singleton<FunType>,
+        typ: Singleton<ScalarFunType>,
         attrs: FunAttrs,
     },
 }
@@ -67,7 +67,7 @@ impl SymbolTable {
             _ => Err(anyhow!("Not variable. {ident:?} {symbol:?}")),
         }
     }
-    pub fn get_fun_type(&self, ident: &SymbolIdentifier) -> Result<&Singleton<FunType>> {
+    pub fn get_fun_type(&self, ident: &SymbolIdentifier) -> Result<&Singleton<ScalarFunType>> {
         let symbol = self.get(ident)?;
         match symbol {
             Symbol::Fun { typ, .. } => Ok(typ),

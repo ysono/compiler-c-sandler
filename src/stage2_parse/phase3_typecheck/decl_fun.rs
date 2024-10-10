@@ -3,7 +3,7 @@ use crate::{
     common::{
         identifier::SymbolIdentifier,
         symbol_table_frontend::{FunAttrs, StaticVisibility, Symbol},
-        types_frontend::FunType,
+        types_frontend::{ParsedFunType, ScalarFunType, ScalarType, SubObjType},
     },
     ds_n_a::singleton::Singleton,
     stage2_parse::{c_ast::*, phase2_resolve::ResolvedCAst},
@@ -19,41 +19,32 @@ impl TypeChecker {
     /// @return `Some(_)` iff the function is defined.
     pub(super) fn typecheck_decl_fun(
         &mut self,
-        decl: FunctionDeclaration<ResolvedCAst>,
-        scope: FunDeclScope,
-    ) -> Result<Option<FunctionDefinition<TypeCheckedCAst>>> {
-        /* Visibility never changes following the first declaration. */
-        let visibility = self.declare_fun(scope, &decl)?;
-
-        let FunctionDeclaration {
+        FunctionDeclaration {
             ident,
             typ,
-            storage_class: _,
+            storage_class,
             param_idents,
             body,
-        } = decl;
+        }: FunctionDeclaration<ResolvedCAst>,
+        scope: FunDeclScope,
+    ) -> Result<Option<FunctionDefinition<TypeCheckedCAst>>> {
+        let fun_typ = self.typecheck_fun_type(typ)?;
 
-        for (param_ident, param_typ) in param_idents.iter().zip(typ.params.iter()) {
-            let mock_var_decl = VariableDeclaration {
-                ident: Rc::clone(param_ident),
-                typ: param_typ.clone(),
-                storage_class: None,
-                init: None,
-            };
-            let param_defn = self.typecheck_decl_var(mock_var_decl, VarDeclScope::Paren)?;
-            debug_assert!(param_defn.is_none());
-        }
+        /* Visibility never changes following the first declaration. */
+        let visibility = self.declare_fun(scope, &ident, storage_class, body.as_ref(), &fun_typ)?;
+
+        self.declare_params(&param_idents, &fun_typ.params)?;
 
         let defn = match body {
             None => None,
             Some(body) => {
-                self.curr_fun_type = Some(typ);
+                self.curr_fun_type = Some(fun_typ);
                 let body = self.typecheck_block(body)?;
-                let typ = self.curr_fun_type.take().unwrap();
+                let fun_typ = self.curr_fun_type.take().unwrap();
 
                 Some(FunctionDefinition {
                     ident,
-                    typ,
+                    typ: fun_typ,
                     visibility,
                     param_idents,
                     body,
@@ -63,30 +54,49 @@ impl TypeChecker {
         Ok(defn)
     }
 
+    fn typecheck_fun_type(
+        &mut self,
+        in_fun_typ: Singleton<ParsedFunType>,
+    ) -> Result<Singleton<ScalarFunType>> {
+        let ParsedFunType { params, ret } = in_fun_typ.as_ref();
+
+        let ret = Self::extract_scalar_type(ret.clone())
+            .map_err(|typ| anyhow!("In C, a function can't return {typ:?}"))?;
+
+        let params = params
+            .iter()
+            .map(
+                |param_typ| match Self::extract_scalar_type(param_typ.clone()) {
+                    Ok(sca_typ) => sca_typ,
+                    Err(arr_typ) => self.get_scalar_type(arr_typ.as_ptr_to_elem()),
+                },
+            )
+            .collect::<Vec<_>>();
+
+        let out_fun_typ = self.fun_type_repo.get_or_new(ScalarFunType { params, ret });
+        Ok(out_fun_typ)
+    }
+
     fn declare_fun(
         &mut self,
         new_scope: FunDeclScope,
-        new_decl @ FunctionDeclaration {
-            ident,
-            typ: new_typ,
-            storage_class: new_sc,
-            param_idents: _, // Params are not handled by this API.
-            body: new_body,
-        }: &FunctionDeclaration<ResolvedCAst>,
+        ident: &Rc<SymbolIdentifier>,
+        new_sc: Option<StorageClassSpecifier>,
+        new_body: Option<&Block<ResolvedCAst>>,
+        new_typ: &Singleton<ScalarFunType>,
     ) -> Result<StaticVisibility> {
         let mut inner = || {
-            let new_viz =
-                Self::derive_fun_decl_visibility(new_scope, new_sc.as_ref(), new_body.as_ref())?;
+            let new_viz = Self::derive_fun_decl_visibility(new_scope, new_sc, new_body)?;
 
             let newly_defined = new_body.is_some();
 
             self.insert_fun_decl(Rc::clone(ident), new_viz, newly_defined, new_typ)
         };
-        inner().with_context(|| anyhow!("{new_scope:?}, {new_decl:?}"))
+        inner().with_context(|| anyhow!("{new_scope:?}, {ident:?}"))
     }
     fn derive_fun_decl_visibility(
         new_scope: FunDeclScope,
-        new_sc: Option<&StorageClassSpecifier>,
+        new_sc: Option<StorageClassSpecifier>,
         new_body: Option<&Block<ResolvedCAst>>,
     ) -> Result<Viz> {
         use FunDeclScope as DS;
@@ -114,7 +124,7 @@ impl TypeChecker {
         ident: Rc<SymbolIdentifier>,
         new_viz: Viz,
         newly_defined: bool,
-        new_typ: &Singleton<FunType>,
+        new_typ: &Singleton<ScalarFunType>,
     ) -> Result<StaticVisibility> {
         match self.symbol_table.as_mut().entry(ident) {
             Entry::Vacant(entry) => {
@@ -161,6 +171,24 @@ impl TypeChecker {
                 inner().with_context(|| anyhow!("prev_symbol = {prev_symbol:?}"))
             }
         }
+    }
+
+    fn declare_params(
+        &mut self,
+        param_idents: &[Rc<SymbolIdentifier>],
+        param_types: &[SubObjType<ScalarType>],
+    ) -> Result<()> {
+        for (param_ident, param_typ) in param_idents.iter().zip(param_types.iter()) {
+            let mock_var_decl = VariableDeclaration {
+                ident: Rc::clone(param_ident),
+                typ: param_typ.as_owner().clone(),
+                storage_class: None,
+                init: None,
+            };
+            let param_defn = self.typecheck_decl_var(mock_var_decl, VarDeclScope::Paren)?;
+            debug_assert!(param_defn.is_none());
+        }
+        Ok(())
     }
 }
 

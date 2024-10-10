@@ -3,7 +3,7 @@ use crate::{
     common::{
         identifier::SymbolIdentifier,
         types_backend::{AssemblyType, OperandByteLen},
-        types_frontend::{FunType, ObjType},
+        types_frontend::ScalarFunType,
     },
     ds_n_a::singleton::Singleton,
     stage3_tacky::tacky_ast as t,
@@ -15,7 +15,7 @@ impl InstrsGenerator {
     /// See documentation at [`crate::stage4_asm_gen`].
     pub(super) fn gen_fun_instrs(
         &mut self,
-        fun_typ: Singleton<FunType>,
+        fun_typ: Singleton<ScalarFunType>,
         param_idents: Vec<Rc<SymbolIdentifier>>,
         t_instrs: Vec<t::Instruction>,
     ) -> Vec<Instruction<GeneratedAsmAst>> {
@@ -25,10 +25,7 @@ impl InstrsGenerator {
         let params = fun_typ.params.iter().zip(param_idents);
         let mut asm_instrs = params
             .map(|(param_type, param_ident)| {
-                let ObjType::Scalar(sca_type) = param_type.as_ref() else {
-                    todo!()
-                };
-                let asm_type = AssemblyType::from(sca_type.effective_arithmetic_type());
+                let asm_type = AssemblyType::from(param_type.effective_arithmetic_type());
                 let arg_reg = arg_reg_resolver.next_reg(asm_type);
 
                 let dst = Self::object_to_operand(param_ident);
