@@ -1,5 +1,6 @@
 use crate::common::types_frontend::{ArithmeticType, ObjType};
-use std::borrow::Borrow;
+use derive_more::{AddAssign, Constructor};
+use std::{borrow::Borrow, ops::Mul};
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum AssemblyType {
@@ -64,5 +65,25 @@ impl<T: Into<AssemblyType>> From<T> for OperandByteLen {
             AssemblyType::Quadword => Self::B8,
             AssemblyType::Double => Self::B8,
         }
+    }
+}
+
+#[derive(Constructor, Clone, Copy, PartialEq, Eq, AddAssign, Debug)]
+pub struct ByteLen(u64);
+impl<T: Into<OperandByteLen>> From<T> for ByteLen {
+    fn from(t: T) -> Self {
+        let bytelen = t.into() as u64;
+        Self(bytelen)
+    }
+}
+impl Mul<u64> for ByteLen {
+    type Output = Self;
+    fn mul(self, rhs: u64) -> Self {
+        Self(self.0 * rhs)
+    }
+}
+impl ByteLen {
+    pub fn as_int(&self) -> u64 {
+        self.0
     }
 }

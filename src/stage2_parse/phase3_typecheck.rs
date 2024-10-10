@@ -7,6 +7,7 @@
 
 mod decl_fun;
 mod decl_var;
+mod decl_var_init;
 mod exp;
 mod exp_binary;
 mod exp_cast;

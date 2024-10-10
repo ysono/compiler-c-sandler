@@ -4,7 +4,7 @@ use crate::{
     common::{
         identifier::UniqueId,
         primitive::Const,
-        symbol_table_frontend::StaticVisibility,
+        symbol_table_frontend::{InitializerItem, StaticVisibility},
         types_frontend::{ObjType, ParsedFunType, ScalarFunType, ScalarType, SubObjType},
     },
     ds_n_a::singleton::Singleton,
@@ -60,7 +60,7 @@ mod declaration {
     #[derive(Debug)]
     pub struct VariableDefinition<C: CAstVariant> {
         pub ident: C::Identifier,
-        pub init: C::ScalarExpression,
+        pub init: Vec<InitializerItem<C::ScalarExpression>>,
     }
 
     #[derive(Debug)]

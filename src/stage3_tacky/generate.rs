@@ -14,7 +14,9 @@ use self::looping::LoopIdToLabels;
 use crate::{
     common::{
         primitive::Const,
-        symbol_table_frontend::{StaticInitialValue, Symbol, SymbolTable, VarAttrs},
+        symbol_table_frontend::{
+            InitializerItem, StaticInitialValue, Symbol, SymbolTable, VarAttrs,
+        },
         types_frontend::ObjType,
     },
     stage2_parse::{c_ast as c, phase3_typecheck::TypeCheckedCAst},
@@ -71,7 +73,15 @@ impl Tackifier {
                     ObjType::Array(_) => todo!(),
                 });
                 let konst = match initial_value {
-                    StaticInitialValue::Initial(konst) => *konst,
+                    StaticInitialValue::Initial(inits) => match inits.first() {
+                        Some(InitializerItem::Single(konst)) => *konst,
+                        Some(InitializerItem::Zero(bytelen)) => match bytelen.as_int() {
+                            4 => Const::Int(0),
+                            8 => Const::Long(0),
+                            _ => todo!(),
+                        },
+                        _ => todo!(),
+                    },
                     StaticInitialValue::Tentative => Const::new_zero_bits(sca_typ.as_ref()),
                     StaticInitialValue::NoInitializer => continue,
                 };
@@ -140,8 +150,13 @@ impl<'a> FunInstrsGenerator<'a> {
         c::VariableDefinition { ident, init }: c::VariableDefinition<TypeCheckedCAst>,
     ) {
         let obj = Object::Direct(ident);
-        let val = self.gen_exp_and_get_value(init);
-        self.gen_assignment(obj, val);
+        match init.into_iter().next() {
+            Some(InitializerItem::Single(exp)) => {
+                let val = self.gen_exp_and_get_value(exp);
+                self.gen_assignment(obj, val);
+            }
+            _ => todo!(),
+        }
     }
 
     /* Block */

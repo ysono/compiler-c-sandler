@@ -2,6 +2,7 @@ use crate::{
     common::{
         identifier::SymbolIdentifier,
         primitive::Const,
+        types_backend::ByteLen,
         types_frontend::{ObjType, ScalarFunType},
     },
     ds_n_a::singleton::Singleton,
@@ -33,9 +34,16 @@ pub enum VarAttrs {
 }
 #[derive(Debug)]
 pub enum StaticInitialValue {
-    Initial(Const),
+    Initial(Vec<InitializerItem<Const>>),
     Tentative,
     NoInitializer,
+}
+
+#[derive(Debug)]
+#[cfg_attr(test, derive(PartialEq))]
+pub enum InitializerItem<Sngl> {
+    Single(Sngl),
+    Zero(ByteLen),
 }
 
 #[derive(Debug)]

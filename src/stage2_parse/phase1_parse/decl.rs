@@ -246,7 +246,7 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
                     }
                     cur_type = self
                         .obj_type_repo
-                        .get_or_new(ArrayType { elem_type: cur_type, elem_count }.into());
+                        .get_or_new(ArrayType::new(cur_type, elem_count).into());
                 }
                 DeclaratorItem::Fun(params) => match items_baseward.last() {
                     Some(DeclaratorItem::Fun(_)) => {
@@ -375,7 +375,7 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
                 AbstractDeclaratorItem::Arr(elem_count) => {
                     cur_type = self
                         .obj_type_repo
-                        .get_or_new(ArrayType { elem_type: cur_type, elem_count }.into());
+                        .get_or_new(ArrayType::new(cur_type, elem_count).into());
                 }
             }
         }

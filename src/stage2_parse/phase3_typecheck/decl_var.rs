@@ -2,7 +2,6 @@ use super::{TypeCheckedCAst, TypeChecker};
 use crate::{
     common::{
         identifier::SymbolIdentifier,
-        primitive::Const,
         symbol_table_frontend::{StaticInitialValue, StaticVisibility, Symbol, VarAttrs},
         types_frontend::ObjType,
     },
@@ -35,12 +34,7 @@ impl TypeChecker {
 
         run_time_init
             .map(|init| {
-                let init_exp = match init {
-                    VariableInitializer::Single(exp) => exp,
-                    _ => todo!(),
-                };
-                let init = self.cast_by_assignment(typ, init_exp)?;
-
+                let init = self.typecheck_initializer_runtime(&typ, init)?;
                 Ok(VariableDefinition { ident, init })
             })
             .transpose()
@@ -57,22 +51,11 @@ impl TypeChecker {
         use StorageClassSpecifier as SCS;
         use VarDeclScope as DS;
 
-        let mut siv = |init: VariableInitializer<ResolvedCAst>| -> Result<_> {
-            let init_exp = match init {
-                VariableInitializer::Single(exp) => exp,
-                _ => todo!(),
-            };
-            let out_konst = self.cast_statically_by_assignment(new_typ, init_exp)?;
-
-            Ok(StaticInitialValue::Initial(out_konst))
+        let mut siv = |init: VariableInitializer<ResolvedCAst>| {
+            self.typecheck_initializer_static(new_typ, init)
+                .map(StaticInitialValue::Initial)
         };
-        let siv_zero = || -> Result<_> {
-            let new_sca_typ = Self::extract_scalar_type_ref(new_typ)
-                .map_err(|typ| anyhow!("Cannot \"convert as if by assignment\" to {typ:?}"))?;
-            let out_konst = Const::new_zero_bits(new_sca_typ);
-
-            Ok(StaticInitialValue::Initial(out_konst))
-        };
+        let siv_zero = || Self::generate_zero_static_initial_value(new_typ);
 
         #[rustfmt::skip]
         let new_decl_summary = match (new_scope, new_sc, new_init) {
@@ -84,7 +67,7 @@ impl TypeChecker {
             (DS::File, Some(SCS::Extern), None)       => Decl::StaticStorDur(LViz::PrevOrGlobal.into(), SIV::NoInitializer),
             (DS::Block, None, init)                    => Decl::AutoStorDur(init),
             (DS::Block, Some(SCS::Static), Some(init)) => Decl::StaticStorDur(Viz::Local, siv(init)?),
-            (DS::Block, Some(SCS::Static), None)       => Decl::StaticStorDur(Viz::Local, siv_zero()?),
+            (DS::Block, Some(SCS::Static), None)       => Decl::StaticStorDur(Viz::Local, siv_zero()),
             (DS::Block, Some(SCS::Extern), Some(_)) => return Err(anyhow!(
                 "At scope=block, type=var w/ `extern` cannot have an initializer.")),
             (DS::Block, Some(SCS::Extern), None) => {
