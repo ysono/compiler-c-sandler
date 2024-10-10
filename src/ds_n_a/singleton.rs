@@ -4,6 +4,7 @@ mod test;
 use core::borrow::Borrow;
 use core::hash::{Hash, Hasher};
 use core::ops::Deref;
+use owning_ref::{CloneStableAddress, StableAddress};
 use std::collections::HashSet;
 use std::rc::Rc;
 
@@ -140,3 +141,5 @@ impl<T> PartialEq<Self> for Singleton<T> {
     }
 }
 impl<T> Eq for Singleton<T> {}
+unsafe impl<T> StableAddress for Singleton<T> {}
+unsafe impl<T> CloneStableAddress for Singleton<T> {}

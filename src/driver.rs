@@ -104,12 +104,12 @@ impl Driver {
             return Ok(CompilationResult::Parsed(c_prog));
         }
 
-        let (_, var_type_repo, _) = parser.into();
+        let (_, obj_type_repo, _) = parser.into();
 
         let mut vadlidator = CAstValidator::default();
         let c_prog = vadlidator.resolve_program(c_prog)?;
 
-        let type_checker = TypeChecker::new(var_type_repo);
+        let type_checker = TypeChecker::new(obj_type_repo);
         let (c_prog, frontend_symtab) = type_checker.typecheck_prog(c_prog)?;
 
         if self.args.until == DriverUntil::Compiler(CompilerUntil::ParserValidate) {

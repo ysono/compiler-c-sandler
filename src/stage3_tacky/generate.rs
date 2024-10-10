@@ -15,12 +15,14 @@ use crate::{
     common::{
         primitive::Const,
         symbol_table_frontend::{StaticInitialValue, Symbol, SymbolTable, VarAttrs},
+        types_frontend::ObjType,
     },
     stage2_parse::{c_ast as c, phase3_typecheck::TypeCheckedCAst},
     stage3_tacky::tacky_ast::*,
     utils::noop,
 };
 use derive_more::{Constructor, Into};
+use owning_ref::OwningRef;
 use std::rc::Rc;
 
 #[derive(Constructor, Into)]
@@ -64,15 +66,18 @@ impl Tackifier {
                 attrs: VarAttrs::StaticStorageDuration { visibility, initial_value },
             } = symbol
             {
+                let sca_typ = OwningRef::new(typ.clone()).map(|obj_typ| match obj_typ {
+                    ObjType::Scalar(s) => s,
+                });
                 let konst = match initial_value {
                     StaticInitialValue::Initial(konst) => *konst,
-                    StaticInitialValue::Tentative => Const::new_zero_bits(typ),
+                    StaticInitialValue::Tentative => Const::new_zero_bits(sca_typ.as_ref()),
                     StaticInitialValue::NoInitializer => continue,
                 };
                 let static_var = StaticVariable {
                     ident: Rc::clone(ident),
                     visibility: *visibility,
-                    typ: typ.clone(),
+                    typ: sca_typ,
                     init: konst,
                 };
                 static_vars.push(static_var);

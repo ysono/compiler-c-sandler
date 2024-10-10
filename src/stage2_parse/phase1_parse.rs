@@ -8,7 +8,7 @@ mod stmt;
 use crate::{
     common::{
         identifier::RawIdentifier,
-        types_frontend::{FunType, VarType},
+        types_frontend::{FunType, ObjType},
     },
     ds_n_a::singleton::SingletonRepository,
     stage1_lex::tokens as t,
@@ -35,14 +35,14 @@ impl CAstVariant for ParsedCAst {
 pub struct Parser<T: Iterator<Item = Result<t::Token>>> {
     tokens: Peekable<T>,
 
-    var_type_repo: SingletonRepository<VarType>,
+    obj_type_repo: SingletonRepository<ObjType>,
     fun_type_repo: SingletonRepository<FunType>,
 }
 impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
     pub fn new(tokens: T) -> Self {
         Self {
             tokens: tokens.peekable(),
-            var_type_repo: Default::default(),
+            obj_type_repo: Default::default(),
             fun_type_repo: Default::default(),
         }
     }

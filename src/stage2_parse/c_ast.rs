@@ -5,7 +5,7 @@ use crate::{
         identifier::UniqueId,
         primitive::Const,
         symbol_table_frontend::StaticVisibility,
-        types_frontend::{FunType, VarType},
+        types_frontend::{FunType, ObjType, ScalarType, SubObjType},
     },
     ds_n_a::singleton::Singleton,
 };
@@ -39,7 +39,7 @@ mod declaration {
     #[derive(Debug)]
     pub struct VariableDeclaration<C: CAstVariant> {
         pub ident: C::Identifier,
-        pub typ: Singleton<VarType>,
+        pub typ: Singleton<ObjType>,
         pub storage_class: Option<StorageClassSpecifier>,
         pub init: Option<C::Expression>,
     }
@@ -166,7 +166,7 @@ mod expression {
 
     #[derive(Debug)]
     pub struct Cast<C: CAstVariant> {
-        pub typ: Singleton<VarType>,
+        pub typ: Singleton<ObjType>,
         pub sub_exp: Box<C::Expression>,
     }
 
@@ -257,7 +257,7 @@ mod typed_expression {
         L(TypedLExp),
     }
     impl TypedExp {
-        pub fn typ(&self) -> &Singleton<VarType> {
+        pub fn typ(&self) -> &SubObjType<ScalarType> {
             match self {
                 Self::R(typed_rexp) => &typed_rexp.typ,
                 Self::L(typed_lexp) => &typed_lexp.typ,
@@ -267,7 +267,7 @@ mod typed_expression {
 
     #[derive(Debug)]
     pub struct TypAndExp<Exp> {
-        pub typ: Singleton<VarType>,
+        pub typ: SubObjType<ScalarType>,
         pub exp: Exp,
     }
     pub type TypedRExp = TypAndExp<RExp<TypeCheckedCAst>>;

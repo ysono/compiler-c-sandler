@@ -1,7 +1,6 @@
 use super::TypeChecker;
 use crate::{
-    common::types_frontend::{ArithmeticType, VarType},
-    ds_n_a::singleton::Singleton,
+    common::types_frontend::{ArithmeticType, ScalarType, SubObjType},
     stage2_parse::{c_ast::*, phase2_resolve::ResolvedCAst},
     utils::noop,
 };
@@ -19,7 +18,7 @@ impl TypeChecker {
 
         match op {
             O::Logic(op) => {
-                let int_typ = self.var_type_repo.get_or_new(ArithmeticType::Int.into());
+                let int_typ = self.get_scalar_type(ArithmeticType::Int);
                 Ok(new_binary_exp(op, lhs, rhs, int_typ))
             }
             O::Cmp(op) => self.typecheck_cmp(op, lhs, rhs),
@@ -38,12 +37,14 @@ impl TypeChecker {
         let (lhs, rhs) = match op {
             OC::Eq | OC::Neq => Self::cast_to_common_type(lhs, rhs)?,
             OC::Lt | OC::Lte | OC::Gt | OC::Gte => match (lhs.typ().as_ref(), rhs.typ().as_ref()) {
-                (VarType::Arith(_), VarType::Arith(_)) => Self::cast_to_common_type(lhs, rhs)?,
+                (ScalarType::Arith(_), ScalarType::Arith(_)) => {
+                    Self::cast_to_common_type(lhs, rhs)?
+                }
                 _ => unimplemented!("ch15"),
             },
         };
 
-        let int_typ = self.var_type_repo.get_or_new(ArithmeticType::Int.into());
+        let int_typ = self.get_scalar_type(ArithmeticType::Int);
 
         Ok(new_binary_exp(op, lhs, rhs, int_typ))
     }
@@ -57,7 +58,7 @@ impl TypeChecker {
         use ArithmeticBinaryOperator as OA;
 
         match (lhs.typ().as_ref(), rhs.typ().as_ref()) {
-            (VarType::Arith(_), VarType::Arith(_)) => noop!(),
+            (ScalarType::Arith(_), ScalarType::Arith(_)) => noop!(),
             _ => unimplemented!("ch15"),
         }
 
@@ -66,7 +67,7 @@ impl TypeChecker {
 
         if matches!(
             (&op, common_typ.as_ref()),
-            (OA::Rem, VarType::Arith(ArithmeticType::Double))
+            (OA::Rem, ScalarType::Arith(ArithmeticType::Double))
         ) {
             return Err(anyhow!("Cannot apply {op:?} on {lhs:?} and {rhs:?}"));
         }
@@ -79,7 +80,7 @@ fn new_binary_exp<Op: Into<BinaryOperator>>(
     op: Op,
     lhs: TypedExp,
     rhs: TypedExp,
-    typ: Singleton<VarType>,
+    typ: SubObjType<ScalarType>,
 ) -> TypedRExp {
     TypedRExp {
         exp: RExp::Binary(Binary {

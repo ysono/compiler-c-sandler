@@ -2,9 +2,8 @@ use super::FunInstrsGenerator;
 use crate::{
     common::{
         identifier::{JumpLabel, UniqueId},
-        types_frontend::VarType,
+        types_frontend::{ScalarType, SubObjType},
     },
-    ds_n_a::singleton::Singleton,
     stage2_parse::{c_ast as c, phase3_typecheck::TypeCheckedCAst},
     stage3_tacky::tacky_ast::*,
 };
@@ -62,7 +61,7 @@ impl<'a> FunInstrsGenerator<'a> {
     pub(super) fn gen_exp_conditional(
         &mut self,
         c::Conditional { condition, then, elze }: c::Conditional<TypeCheckedCAst>,
-        out_typ: Singleton<VarType>,
+        out_typ: SubObjType<ScalarType>,
     ) -> Value {
         let [label_else, label_end] =
             JumpLabel::create(UniqueId::new(), "exp_cond", ["else", "end"]);

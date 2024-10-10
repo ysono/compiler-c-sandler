@@ -3,9 +3,8 @@ use crate::{
     common::{
         identifier::{JumpLabel, UniqueId},
         primitive::Const,
-        types_frontend::VarType,
+        types_frontend::{ScalarType, SubObjType},
     },
-    ds_n_a::singleton::Singleton,
     stage2_parse::{c_ast as c, phase3_typecheck::TypeCheckedCAst},
     stage3_tacky::tacky_ast::*,
 };
@@ -17,7 +16,7 @@ impl<'a> FunInstrsGenerator<'a> {
     pub(super) fn gen_exp_unary(
         &mut self,
         c::Unary { op, sub_exp }: c::Unary<TypeCheckedCAst>,
-        out_typ: Singleton<VarType>,
+        out_typ: SubObjType<ScalarType>,
     ) -> Value {
         use c::UnaryOperator as CO;
 
@@ -41,7 +40,7 @@ impl<'a> FunInstrsGenerator<'a> {
     pub(super) fn gen_exp_binary(
         &mut self,
         c_binary: c::Binary<TypeCheckedCAst>,
-        out_typ: Singleton<VarType>,
+        out_typ: SubObjType<ScalarType>,
     ) -> Value {
         use c::BinaryOperator as CO;
 
@@ -81,7 +80,7 @@ impl<'a> FunInstrsGenerator<'a> {
         &mut self,
         op: BinaryOperator,
         c::Binary { op: _, lhs, rhs }: c::Binary<TypeCheckedCAst>,
-        out_typ: Singleton<VarType>,
+        out_typ: SubObjType<ScalarType>,
     ) -> Value {
         let lhs = self.gen_exp_and_get_value(*lhs);
         let rhs = self.gen_exp_and_get_value(*rhs);
@@ -98,7 +97,7 @@ impl<'a> FunInstrsGenerator<'a> {
         &mut self,
         op: c::LogicBinaryOperator,
         c::Binary { op: _, lhs, rhs }: c::Binary<TypeCheckedCAst>,
-        out_typ: Singleton<VarType>,
+        out_typ: SubObjType<ScalarType>,
     ) -> Value {
         let descr = match op {
             c::LogicBinaryOperator::And => "and",

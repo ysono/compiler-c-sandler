@@ -39,11 +39,11 @@ impl From<SymbolTable> for BackendSymbolTable {
         for (ident, symbol) in c_table.into_iter() {
             match symbol {
                 Symbol::Var { typ, attrs } => {
-                    let asm_type = AssemblyType::from(typ.effective_arithmetic_type());
+                    let asm_type = AssemblyType::from(typ.as_ref());
                     let loc = match attrs {
                         VarAttrs::AutomaticStorageDuration => ObjLocation::Stack,
                         VarAttrs::StaticStorageDuration { .. } => ObjLocation::StaticReadWrite,
-                        /* I wonder whether, if var_type==Double, we should be locating it on a readonly section. */
+                        /* I wonder whether, if type==Double, we should be locating it on a readonly section. */
                     };
                     objs.insert(ident, AsmObj { asm_type, loc });
                 }

@@ -1,4 +1,4 @@
-use crate::common::types_frontend::{ArithmeticType, VarType};
+use crate::common::types_frontend::{ArithmeticType, ScalarType};
 use std::hash::{Hash, Hasher};
 use std::mem;
 
@@ -12,11 +12,11 @@ pub enum Const {
 }
 impl Const {
     /// @return a constant whose bitwise representation is `0b000...000`
-    pub fn new_zero_bits(typ: &VarType) -> Const {
+    pub fn new_zero_bits(typ: &ScalarType) -> Const {
         Const::Int(0).cast_at_compile_time(typ)
     }
 
-    pub fn cast_at_compile_time(&self, typ: &VarType) -> Const {
+    pub fn cast_at_compile_time(&self, typ: &ScalarType) -> Const {
         macro_rules! new_const {
             ( $out_konst_variant:expr, $out_prim:ty ) => {
                 match self {
@@ -29,14 +29,14 @@ impl Const {
             };
         }
         match typ {
-            VarType::Arith(a) => match a {
+            ScalarType::Arith(a) => match a {
                 ArithmeticType::Int => new_const!(Const::Int, i32),
                 ArithmeticType::Long => new_const!(Const::Long, i64),
                 ArithmeticType::UInt => new_const!(Const::UInt, u32),
                 ArithmeticType::ULong => new_const!(Const::ULong, u64),
                 ArithmeticType::Double => new_const!(Const::Double, f64),
             },
-            VarType::Ptr(_) => new_const!(Const::ULong, u64),
+            ScalarType::Ptr(_) => new_const!(Const::ULong, u64),
         }
     }
 

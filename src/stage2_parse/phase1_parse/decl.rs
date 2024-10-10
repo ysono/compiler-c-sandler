@@ -2,7 +2,7 @@ use super::Parser;
 use crate::{
     common::{
         identifier::RawIdentifier,
-        types_frontend::{ArithmeticType, FunType, PointerType, VarType},
+        types_frontend::{ArithmeticType, FunType, ObjType, PointerType},
     },
     ds_n_a::singleton::Singleton,
     stage1_lex::tokens as t,
@@ -182,14 +182,14 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
         base_type: ArithmeticType,
         Declarator { ident, mut items_baseward, .. }: Declarator,
     ) -> Result<DeclaratorResult> {
-        let mut cur_type = self.var_type_repo.get_or_new(base_type.into());
+        let mut cur_type = self.obj_type_repo.get_or_new(base_type.into());
 
         while let Some(item) = items_baseward.pop() {
             match item {
                 DeclaratorItem::Ptr(ptr_count) => {
                     for _ in 0..ptr_count {
                         cur_type = self
-                            .var_type_repo
+                            .obj_type_repo
                             .get_or_new(PointerType { pointee_type: cur_type }.into());
                     }
                 }
@@ -236,7 +236,7 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
 
     /* Abstract declarator */
 
-    pub(super) fn parse_cast_type(&mut self) -> Result<Option<Singleton<VarType>>> {
+    pub(super) fn parse_cast_type(&mut self) -> Result<Option<Singleton<ObjType>>> {
         let mut inner = || -> Result<_> {
             let base_type = match self.parse_specifiers()? {
                 None => return Ok(None),
@@ -294,15 +294,15 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
         &mut self,
         base_type: ArithmeticType,
         AbstractDeclarator { mut items_baseward, .. }: AbstractDeclarator,
-    ) -> Singleton<VarType> {
-        let mut cur_type = self.var_type_repo.get_or_new(base_type.into());
+    ) -> Singleton<ObjType> {
+        let mut cur_type = self.obj_type_repo.get_or_new(base_type.into());
 
         while let Some(item) = items_baseward.pop() {
             match item {
                 AbstractDeclaratorItem::Ptr(ptr_count) => {
                     for _ in 0..ptr_count {
                         cur_type = self
-                            .var_type_repo
+                            .obj_type_repo
                             .get_or_new(PointerType { pointee_type: cur_type }.into());
                     }
                 }
@@ -340,7 +340,7 @@ struct Param(ArithmeticType, Declarator);
 
 #[derive(Debug)]
 pub(super) enum DeclaratorResult {
-    Var(RawIdentifier, Singleton<VarType>),
+    Var(RawIdentifier, Singleton<ObjType>),
     Fun(RawIdentifier, Singleton<FunType>, Vec<RawIdentifier>),
 }
 

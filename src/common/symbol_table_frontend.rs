@@ -2,7 +2,7 @@ use crate::{
     common::{
         identifier::SymbolIdentifier,
         primitive::Const,
-        types_frontend::{FunType, VarType},
+        types_frontend::{FunType, ObjType},
     },
     ds_n_a::singleton::Singleton,
 };
@@ -14,7 +14,7 @@ use std::rc::Rc;
 #[derive(Debug)]
 pub enum Symbol {
     Var {
-        typ: Singleton<VarType>,
+        typ: Singleton<ObjType>,
         attrs: VarAttrs,
     },
     Fun {
@@ -60,7 +60,7 @@ impl SymbolTable {
             .get(ident)
             .ok_or_else(|| anyhow!("Not declared. {ident:?}"))
     }
-    pub fn get_var_type(&self, ident: &SymbolIdentifier) -> Result<&Singleton<VarType>> {
+    pub fn get_var_type(&self, ident: &SymbolIdentifier) -> Result<&Singleton<ObjType>> {
         let symbol = self.get(ident)?;
         match symbol {
             Symbol::Var { typ, .. } => Ok(typ),

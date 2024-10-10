@@ -3,9 +3,8 @@ use crate::{
     common::{
         identifier::SymbolIdentifier,
         symbol_table_frontend::{Symbol, VarAttrs},
-        types_frontend::VarType,
+        types_frontend::{ScalarType, SubObjType},
     },
-    ds_n_a::singleton::Singleton,
     stage2_parse::c_ast as c,
     stage3_tacky::tacky_ast::*,
 };
@@ -23,7 +22,7 @@ impl<'a> FunInstrsGenerator<'a> {
     pub(super) fn gen_rexp(&mut self, c::TypedRExp { exp, typ }: c::TypedRExp) -> Value {
         match exp {
             c::RExp::Const(konst) => Value::Constant(konst),
-            c::RExp::Cast(c_cast) => self.gen_exp_cast(c_cast),
+            c::RExp::Cast(c_cast) => self.gen_exp_cast(c_cast, typ),
             c::RExp::Unary(c_unary) => self.gen_exp_unary(c_unary, typ),
             c::RExp::Binary(c_binary) => self.gen_exp_binary(c_binary, typ),
             c::RExp::Conditional(c_cond) => self.gen_exp_conditional(c_cond, typ),
@@ -59,12 +58,12 @@ impl<'a> FunInstrsGenerator<'a> {
 
     /* Helpers */
 
-    pub(super) fn register_new_value(&mut self, typ: Singleton<VarType>) -> Value {
+    pub(super) fn register_new_value(&mut self, typ: SubObjType<ScalarType>) -> Value {
         let ident = Rc::new(SymbolIdentifier::new_generated());
         self.symbol_table.as_mut().insert(
             Rc::clone(&ident),
             Symbol::Var {
-                typ,
+                typ: typ.into_owner(),
                 attrs: VarAttrs::AutomaticStorageDuration,
             },
         );

@@ -4,7 +4,7 @@ use crate::{
         identifier::SymbolIdentifier,
         primitive::Const,
         types_backend::{Alignment, AssemblyType},
-        types_frontend::ArithmeticType,
+        types_frontend::{ArithmeticType, ObjType},
     },
     stage3_tacky::tacky_ast as t,
     stage4_asm_gen::asm_ast::*,
@@ -30,8 +30,9 @@ impl InstrsGenerator {
                 (ari_type, asm_type)
             }
             t::Value::Variable(ident) => {
-                let var_type = self.frontend_symtab.get_var_type(ident).unwrap();
-                let ari_type = var_type.effective_arithmetic_type();
+                let obj_type = self.frontend_symtab.get_var_type(ident).unwrap();
+                let ObjType::Scalar(sca_type) = obj_type.as_ref();
+                let ari_type = sca_type.effective_arithmetic_type();
                 let asm_type = AssemblyType::from(ari_type);
                 (ari_type, asm_type)
             }

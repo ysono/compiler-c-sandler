@@ -4,7 +4,7 @@ use crate::{
         identifier::SymbolIdentifier,
         primitive::Const,
         symbol_table_frontend::{StaticInitialValue, StaticVisibility, Symbol, VarAttrs},
-        types_frontend::VarType,
+        types_frontend::ObjType,
     },
     ds_n_a::singleton::Singleton,
     stage2_parse::{c_ast::*, phase2_resolve::ResolvedCAst},
@@ -47,7 +47,7 @@ impl TypeChecker {
         new_scope: VarDeclScope,
         new_sc: Option<StorageClassSpecifier>,
         new_init: Option<Expression<ResolvedCAst>>,
-        new_typ: &Singleton<VarType>,
+        new_typ: &Singleton<ObjType>,
     ) -> Result<Decl<Option<Expression<ResolvedCAst>>>> {
         use StaticInitialValue as SIV;
         use StorageClassSpecifier as SCS;
@@ -58,7 +58,10 @@ impl TypeChecker {
 
             Ok(StaticInitialValue::Initial(out_konst))
         };
-        let siv_zero = || StaticInitialValue::Initial(Const::new_zero_bits(new_typ));
+        let siv_zero = || {
+            let new_sca_typ = Self::extract_scalar_type_ref(new_typ);
+            StaticInitialValue::Initial(Const::new_zero_bits(new_sca_typ))
+        };
 
         #[rustfmt::skip]
         let new_decl_summary = match (new_scope, new_sc, new_init) {
@@ -90,7 +93,7 @@ impl TypeChecker {
         &mut self,
         ident: Rc<SymbolIdentifier>,
         new_decl_summary: Decl<()>,
-        new_typ: &Singleton<VarType>,
+        new_typ: &Singleton<ObjType>,
     ) -> Result<()> {
         use StaticInitialValue as SIV;
 

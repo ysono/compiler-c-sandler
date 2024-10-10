@@ -1,7 +1,6 @@
 use super::FunInstrsGenerator;
 use crate::{
-    common::types_frontend::VarType,
-    ds_n_a::singleton::Singleton,
+    common::types_frontend::{ScalarType, SubObjType},
     stage2_parse::{c_ast as c, phase3_typecheck::TypeCheckedCAst},
     stage3_tacky::tacky_ast::*,
 };
@@ -42,7 +41,7 @@ impl<'a> FunInstrsGenerator<'a> {
     pub(super) fn gen_exp_deref(
         &mut self,
         c::Dereference(sub_exp): c::Dereference<TypeCheckedCAst>,
-        pointee_type: Singleton<VarType>,
+        pointee_type: SubObjType<ScalarType>,
     ) -> Object {
         let addr = self.gen_exp_and_get_value(*sub_exp);
         Object::Pointee { addr, typ: pointee_type }
@@ -50,7 +49,7 @@ impl<'a> FunInstrsGenerator<'a> {
     pub(super) fn gen_exp_addrof(
         &mut self,
         c::AddrOf(sub_exp): c::AddrOf<TypeCheckedCAst>,
-        pointer_type: Singleton<VarType>,
+        pointer_type: SubObjType<ScalarType>,
     ) -> Value {
         match self.gen_lexp(*sub_exp) {
             Object::Direct(ident) => {

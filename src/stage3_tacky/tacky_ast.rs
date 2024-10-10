@@ -4,7 +4,7 @@ use crate::{
         identifier::{JumpLabel, SymbolIdentifier},
         primitive::Const,
         symbol_table_frontend::StaticVisibility,
-        types_frontend::{FunType, VarType},
+        types_frontend::{FunType, ScalarType, SubObjType},
     },
     ds_n_a::singleton::Singleton,
 };
@@ -21,7 +21,7 @@ pub struct Program {
 pub struct StaticVariable {
     pub ident: Rc<SymbolIdentifier>,
     pub visibility: StaticVisibility,
-    pub typ: Singleton<VarType>,
+    pub typ: SubObjType<ScalarType>,
     pub init: Const,
 }
 
@@ -198,7 +198,7 @@ mod operand {
             addr: Value,
 
             /// The type of the target pointee object (not the type of the memory location value).
-            typ: Singleton<VarType>,
+            typ: SubObjType<ScalarType>,
         },
     }
 }

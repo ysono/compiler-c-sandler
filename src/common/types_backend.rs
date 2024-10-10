@@ -1,4 +1,5 @@
-use crate::common::types_frontend::ArithmeticType;
+use crate::common::types_frontend::{ArithmeticType, ObjType};
+use std::borrow::Borrow;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum AssemblyType {
@@ -13,6 +14,16 @@ impl From<ArithmeticType> for AssemblyType {
             AT::Int | AT::UInt => Self::Longword,
             AT::Long | AT::ULong => Self::Quadword,
             AT::Double => Self::Double,
+        }
+    }
+}
+impl<Ot: Borrow<ObjType>> From<Ot> for AssemblyType {
+    fn from(obj_typ: Ot) -> Self {
+        match obj_typ.borrow() {
+            ObjType::Scalar(sca_typ) => {
+                let ari_typ = sca_typ.effective_arithmetic_type();
+                Self::from(ari_typ)
+            }
         }
     }
 }

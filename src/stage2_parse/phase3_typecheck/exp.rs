@@ -1,6 +1,6 @@
 use super::TypeChecker;
 use crate::{
-    common::types_frontend::{ArithmeticType, PointerType, VarType},
+    common::types_frontend::{ArithmeticType, PointerType, ScalarType},
     stage2_parse::{c_ast::*, phase2_resolve::ResolvedCAst},
 };
 use anyhow::{anyhow, Result};
@@ -17,9 +17,7 @@ impl TypeChecker {
     fn typecheck_rexp(&mut self, rexp: RExp<ResolvedCAst>) -> Result<TypedRExp> {
         let typed_rexp = match rexp {
             RExp::Const(konst) => {
-                let typ = self
-                    .var_type_repo
-                    .get_or_new(konst.arithmetic_type().into());
+                let typ = self.get_scalar_type(konst.arithmetic_type());
                 let exp = RExp::Const(konst);
                 TypedRExp { typ, exp }
             }
@@ -31,17 +29,17 @@ impl TypeChecker {
                     (&op, sub_exp.typ().as_ref()),
                     (
                         UnaryOperator::Complement,
-                        VarType::Arith(ArithmeticType::Double)
+                        ScalarType::Arith(ArithmeticType::Double)
                     ) | (
                         UnaryOperator::Negate | UnaryOperator::Complement,
-                        VarType::Ptr(_)
+                        ScalarType::Ptr(_)
                     )
                 ) {
                     return Err(anyhow!("Cannot apply {op:?} on {sub_exp:?}"));
                 }
 
                 let typ = match &op {
-                    UnaryOperator::Not => self.var_type_repo.get_or_new(ArithmeticType::Int.into()),
+                    UnaryOperator::Not => self.get_scalar_type(ArithmeticType::Int),
                     UnaryOperator::Complement | UnaryOperator::Negate => sub_exp.typ().clone(),
                 };
                 let exp = RExp::Unary(Unary { op, sub_exp });
@@ -76,10 +74,10 @@ impl TypeChecker {
                     .params
                     .iter()
                     .zip(args.into_iter())
-                    .map(|(param_typ, arg_exp)| self.cast_by_assignment(param_typ, arg_exp))
+                    .map(|(param_typ, arg_exp)| self.cast_by_assignment(param_typ.clone(), arg_exp))
                     .collect::<Result<Vec<_>>>()?;
 
-                let typ = fun_typ.ret.clone();
+                let typ = Self::extract_scalar_type(fun_typ.ret.clone());
                 let exp = RExp::FunctionCall(FunctionCall { ident, args });
                 TypedRExp { typ, exp }
             }
@@ -88,7 +86,7 @@ impl TypeChecker {
                 let lhs = self.typecheck_lexp(lhs)?;
                 let typ = lhs.typ.clone();
 
-                let rhs = self.cast_by_assignment(&typ, *rhs)?;
+                let rhs = self.cast_by_assignment(typ.as_owner().clone(), *rhs)?;
 
                 let exp = RExp::Assignment(Assignment {
                     lhs: Box::new(lhs),
@@ -100,10 +98,8 @@ impl TypeChecker {
                 let sub_exp = extract_lexp(*sub_exp)?;
                 let sub_exp = Box::new(self.typecheck_lexp(sub_exp)?);
 
-                let pointee_type = sub_exp.typ.clone();
-                let typ = self
-                    .var_type_repo
-                    .get_or_new(PointerType { pointee_type }.into());
+                let pointee_type = sub_exp.typ.as_owner().clone();
+                let typ = self.get_scalar_type(PointerType { pointee_type });
 
                 let exp = RExp::AddrOf(AddrOf(sub_exp));
                 TypedRExp { typ, exp }
@@ -115,6 +111,7 @@ impl TypeChecker {
         let typed_lexp = match lexp {
             LExp::Var(ident) => {
                 let typ = self.symbol_table.get_var_type(&ident)?.clone();
+                let typ = Self::extract_scalar_type(typ);
                 let exp = LExp::Var(ident);
                 TypedLExp { typ, exp }
             }
@@ -122,9 +119,10 @@ impl TypeChecker {
                 let sub_exp = Box::new(self.typecheck_exp(*sub_exp)?);
 
                 let typ = match sub_exp.typ().as_ref() {
-                    VarType::Ptr(PointerType { pointee_type }) => pointee_type.clone(),
+                    ScalarType::Ptr(PointerType { pointee_type }) => pointee_type.clone(),
                     _ => return Err(anyhow!("Cannot dereference {sub_exp:?}")),
                 };
+                let typ = Self::extract_scalar_type(typ);
 
                 let exp = LExp::Dereference(Dereference(sub_exp));
                 TypedLExp { typ, exp }

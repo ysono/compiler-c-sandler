@@ -1,7 +1,7 @@
 use crate::{
     common::{primitive::Const, types_frontend::ArithmeticType},
     stage2_parse::{c_ast as c, phase3_typecheck::TypeCheckedCAst},
-    test::utils::{compile_typechecked_c_prog, decompose_var_type, fail, ProtoType},
+    test::utils::{compile_typechecked_c_prog, decompose_obj_type, fail, ProtoType},
 };
 use anyhow::Result;
 
@@ -25,7 +25,7 @@ fn return_const() -> Result<()> {
             typ,
         })))] => {
             assert_eq!(
-                decompose_var_type(&typ),
+                decompose_obj_type(typ.as_owner()),
                 ProtoType {
                     items_baseward: vec![],
                     base_type: ArithmeticType::Int,

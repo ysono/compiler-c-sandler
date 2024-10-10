@@ -16,7 +16,7 @@ use crate::{
     common::{
         identifier::SymbolIdentifier,
         symbol_table_frontend::SymbolTable,
-        types_frontend::{FunType, VarType},
+        types_frontend::{FunType, ObjType},
     },
     ds_n_a::singleton::{Singleton, SingletonRepository},
     stage2_parse::{c_ast::*, phase2_resolve::ResolvedCAst},
@@ -37,16 +37,16 @@ impl CAstVariant for TypeCheckedCAst {
 }
 
 pub struct TypeChecker {
-    var_type_repo: SingletonRepository<VarType>,
+    obj_type_repo: SingletonRepository<ObjType>,
 
     symbol_table: SymbolTable,
 
     curr_fun_type: Option<Singleton<FunType>>,
 }
 impl TypeChecker {
-    pub fn new(var_type_repo: SingletonRepository<VarType>) -> Self {
+    pub fn new(obj_type_repo: SingletonRepository<ObjType>) -> Self {
         Self {
-            var_type_repo,
+            obj_type_repo,
             symbol_table: Default::default(),
             curr_fun_type: Default::default(),
         }

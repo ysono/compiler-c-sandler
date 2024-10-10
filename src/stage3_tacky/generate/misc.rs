@@ -2,9 +2,8 @@ use super::FunInstrsGenerator;
 use crate::{
     common::{
         types_backend::OperandByteLen,
-        types_frontend::{ArithmeticType, VarType},
+        types_frontend::{ArithmeticType, ScalarType, SubObjType},
     },
-    ds_n_a::singleton::Singleton,
     stage2_parse::{c_ast as c, phase3_typecheck::TypeCheckedCAst},
     stage3_tacky::tacky_ast::*,
 };
@@ -15,7 +14,8 @@ impl<'a> FunInstrsGenerator<'a> {
 
     pub(super) fn gen_exp_cast(
         &mut self,
-        c::Cast { typ: dst_typ, sub_exp }: c::Cast<TypeCheckedCAst>,
+        c::Cast { typ: _, sub_exp }: c::Cast<TypeCheckedCAst>,
+        dst_typ: SubObjType<ScalarType>,
     ) -> Value {
         let dst_ari_typ = dst_typ.effective_arithmetic_type();
         let src_ari_typ = sub_exp.typ().effective_arithmetic_type();
@@ -76,7 +76,7 @@ impl<'a> FunInstrsGenerator<'a> {
     pub(super) fn gen_exp_fun_call(
         &mut self,
         c::FunctionCall { ident, args }: c::FunctionCall<TypeCheckedCAst>,
-        out_typ: Singleton<VarType>,
+        out_typ: SubObjType<ScalarType>,
     ) -> Value {
         let result = self.register_new_value(out_typ);
 
