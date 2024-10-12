@@ -5,9 +5,9 @@ use crate::{
         primitive::Const,
         symbol_table_frontend::{InitializerItem, StaticVisibility},
         types_backend::ByteLen,
-        types_frontend::{ObjType, ScalarFunType, SubObjType},
+        types_frontend::{ObjType, ScalarFunType, ScalarType, SubObjType},
     },
-    ds_n_a::singleton::Singleton,
+    ds_n_a::{phantom_marker::PhantomMarker, singleton::Singleton},
 };
 use derive_more::From;
 use std::rc::Rc;
@@ -200,16 +200,27 @@ mod operand {
         Constant(Const),
 
         /// A value that's contained in an abstract memory location.
-        /// The memory location may be identified by
-        ///     an identifier declared in the C src code, or
-        ///     an identifier that's dynamically generated during the Tacky stage.
-        Variable(Rc<SymbolIdentifier>),
+        /// The memory location may be identified by either
+        ///     a variable identifier that's declared in the C src code, or
+        ///     an anonymous identifier that's dynamically generated during the Tacky stage.
+        /// The memory location can have any storage duration: automatic or static.
+        Variable(Rc<SymbolIdentifier>, PhantomMarker<SubObjType<ScalarType>>),
+    }
+    #[cfg(test)]
+    impl PartialEq for Value {
+        fn eq(&self, other: &Self) -> bool {
+            match (self, other) {
+                (Self::Constant(l_konst), Self::Constant(r_konst)) => l_konst == r_konst,
+                (Self::Variable(l_ident, _), Self::Variable(r_ident, _)) => l_ident == r_ident,
+                _ => false,
+            }
+        }
     }
 
     /// The "object" concept comprises a memory location that contains a "value"; and is mutable.
     pub(in crate::stage3_tacky) enum Object<LTyp> {
         /// An object whose memory location is identified directly.
-        Direct(Rc<SymbolIdentifier>),
+        Direct(Rc<SymbolIdentifier>, PhantomMarker<SubObjType<LTyp>>),
 
         /// An object whose memory location is contained in a separate value.
         Pointee {

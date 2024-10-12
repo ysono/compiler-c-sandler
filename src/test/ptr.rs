@@ -1,7 +1,7 @@
 use crate::{
     common::primitive::Const,
     stage3_tacky::tacky_ast as t,
-    test::utils::{assert_value_eq, compile_tacky_prog, expect_tacky_implicit_return_instr, fail},
+    test::utils::{compile_tacky_prog, expect_tacky_implicit_return_instr, fail},
     utils::noop,
 };
 use anyhow::Result;
@@ -107,7 +107,7 @@ fn ptr_plus_integer() -> Result<()> {
     let instrs = compile_tacky_instrs(pp)?;
     match &instrs[..] {
         [t::Instruction::AddPtr(t::AddPtr { idx, scale, .. })] => {
-            assert_value_eq(idx, &t::Value::Constant(Const::Long(7)));
+            assert_eq!(idx, &t::Value::Constant(Const::Long(7)));
             assert_eq!(scale.as_int(), 4);
         }
         _ => fail!(),
@@ -208,7 +208,7 @@ fn ptr_minus_ptr() -> Result<()> {
                 rhs,
                 ..
             })] => {
-                assert_value_eq(rhs, &t::Value::Constant(Const::ULong(expected_scale)));
+                assert_eq!(rhs, &t::Value::Constant(Const::ULong(expected_scale)));
             }
             _ => fail!(),
         }
@@ -296,7 +296,7 @@ fn subscript() -> Result<()> {
     fn assert_addptr(instr: &t::Instruction, exp_idx: i64, exp_scale: u64) {
         match instr {
             t::Instruction::AddPtr(t::AddPtr { idx, scale, .. }) => {
-                assert_value_eq(idx, &t::Value::Constant(Const::Long(exp_idx)));
+                assert_eq!(idx, &t::Value::Constant(Const::Long(exp_idx)));
                 assert_eq!(scale.as_int(), exp_scale);
             }
             _ => fail!(),

@@ -5,6 +5,7 @@ use crate::{
         symbol_table_frontend::{Symbol, VarAttrs},
         types_frontend::{ScalarType, SubObjType},
     },
+    ds_n_a::phantom_marker::PhantomMarker,
     stage2_parse::c_ast as c,
     stage3_tacky::tacky_ast::*,
 };
@@ -36,7 +37,7 @@ impl<'a> FunInstrsGenerator<'a> {
         c::TypedLExp { exp, typ }: c::TypedLExp<LTyp>,
     ) -> Object<LTyp> {
         match exp {
-            c::LExp::Var(ident) => Object::Direct(ident),
+            c::LExp::Var(ident) => Object::Direct(ident, PhantomMarker::new(&typ)),
             c::LExp::Dereference(c_deref) => self.gen_exp_deref(c_deref, typ),
             c::LExp::Subscript(c_subscr) => self.gen_exp_subscript(c_subscr, typ),
         }
@@ -49,7 +50,7 @@ impl<'a> FunInstrsGenerator<'a> {
         match self.gen_exp(typed_exp) {
             ExpResult::Value(val) => val,
             ExpResult::Object(obj) => match obj {
-                Object::Direct(ident) => Value::Variable(ident),
+                Object::Direct(ident, sca_typ_marker) => Value::Variable(ident, sca_typ_marker),
                 Object::Pointee { addr, typ } => {
                     let dst = self.register_new_value(typ);
                     self.instrs
@@ -62,15 +63,19 @@ impl<'a> FunInstrsGenerator<'a> {
 
     /* Helpers */
 
-    pub(super) fn register_new_value(&mut self, typ: SubObjType<ScalarType>) -> Value {
+    pub(super) fn register_new_value(&mut self, sca_typ: SubObjType<ScalarType>) -> Value {
         let ident = Rc::new(SymbolIdentifier::new_generated());
+
+        let val = Value::Variable(Rc::clone(&ident), PhantomMarker::new(&sca_typ));
+
         self.symbol_table.as_mut().insert(
-            Rc::clone(&ident),
+            ident,
             Symbol::Var {
-                typ: typ.into_owner(),
+                typ: sca_typ.into_owner(),
                 attrs: VarAttrs::AutomaticStorageDuration,
             },
         );
-        Value::Variable(ident)
+
+        val
     }
 }

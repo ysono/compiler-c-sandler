@@ -29,11 +29,11 @@ impl InstrsGenerator {
                 let asm_type = AssemblyType::from(ari_type);
                 (ari_type, asm_type)
             }
-            t::Value::Variable(ident) => {
+            t::Value::Variable(ident, _sca_typ_marker) => {
                 let obj_type = self.frontend_symtab.get_var_type(ident).unwrap();
                 let sca_type = match obj_type.as_ref() {
                     ObjType::Scalar(s) => s,
-                    ObjType::Array(_) => todo!(),
+                    ObjType::Array(_) => unreachable!(),
                 };
                 let ari_type = sca_type.effective_arithmetic_type();
                 let asm_type = AssemblyType::from(ari_type);
@@ -54,7 +54,7 @@ impl InstrsGenerator {
                     self.get_or_new_static_constant_operand(None, konst)
                 }
             },
-            t::Value::Variable(ident) => PreFinalOperand::Pseudo(ident),
+            t::Value::Variable(ident, _sca_typ_marker) => PreFinalOperand::Pseudo(ident),
         }
     }
 
