@@ -2,11 +2,12 @@
 //! + Translate each Tacky operand, which exists in an abstract location, into a semi-concrete location.
 //! + Declare new intermediary operands (which are, at this time, static constants only).
 
+mod instr_addr;
 mod instr_ary;
 mod instr_cast;
 mod instr_cmp;
+mod instr_copy;
 mod instr_fun;
-mod instr_misc;
 mod operand;
 
 use crate::{
@@ -80,8 +81,8 @@ impl InstrsGenerator {
             t::Instruction::GetAddress(t_getaddr) => self.gen_getaddr_instrs(t_getaddr),
             t::Instruction::Load(t_load) => self.gen_load_instrs(t_load),
             t::Instruction::Store(t_store) => self.gen_store_instrs(t_store),
-            t::Instruction::AddPtr(_) => todo!(),
-            t::Instruction::CopyToOffset(_) => todo!(),
+            t::Instruction::AddPtr(t_addptr) => self.gen_addptr_instrs(t_addptr),
+            t::Instruction::CopyToOffset(t_cto) => self.gen_copytooffset_instrs(t_cto),
             t::Instruction::Jump(lbl) => vec![Instruction::Jmp(lbl)],
             t::Instruction::JumpIf(t_jumpif) => self.gen_jumpif_instrs(t_jumpif),
             t::Instruction::Label(lbl) => vec![Instruction::Label(lbl)],

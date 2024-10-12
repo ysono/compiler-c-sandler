@@ -22,7 +22,7 @@ impl InstrsGenerator {
         &mut self,
         t::GetAddress { src_obj, dst_addr }: t::GetAddress,
     ) -> Vec<Instruction<GeneratedAsmAst>> {
-        let src = Self::object_to_operand(src_obj);
+        let src = self.object_to_operand(src_obj);
         let dst = self.value_to_operand(dst_addr);
         vec![Instruction::Lea { src, dst }]
     }
@@ -69,5 +69,17 @@ impl InstrsGenerator {
                 dst: Operand::Memory(reg, MemoryOffset::new(0)).into(),
             },
         ]
+    }
+    pub(super) fn gen_copytooffset_instrs(
+        &mut self,
+        t::CopyToOffset { src, dst_obj, offset }: t::CopyToOffset,
+    ) -> Vec<Instruction<GeneratedAsmAst>> {
+        let (src, _, asm_type) = self.value_to_operand_and_type(src);
+
+        vec![Instruction::Mov {
+            asm_type,
+            src,
+            dst: PreFinalOperand::PseudoMem { obj: dst_obj, offset },
+        }]
     }
 }

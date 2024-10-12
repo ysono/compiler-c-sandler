@@ -6,13 +6,15 @@ pub(crate) mod var_to_stack_pos; // `pub` for rustdoc.
 use self::var_to_stack_pos::VarToStackPos;
 use crate::{
     common::{
+        identifier::SymbolIdentifier,
         symbol_table_backend::{AsmObj, BackendSymbolTable, ObjLocation},
-        types_backend::ScalarAssemblyType,
+        types_backend::{ByteLen, ScalarAssemblyType},
     },
     ds_n_a::immutable_owned::ImmutableOwned,
     stage4_asm_gen::{asm_ast::*, phase1_generate::GeneratedAsmAst, phase3_fix::OperandFixer},
 };
 use std::collections::VecDeque;
+use std::rc::Rc;
 
 #[derive(Debug)]
 pub struct FinalizedAsmAst(());
@@ -130,15 +132,30 @@ impl InstrsFinalizer {
             PreFinalOperand::O(o) => o,
             PreFinalOperand::PseudoRegOrMem(ident) => {
                 // Unconditionally on mem, for now.
-                let AsmObj { asm_type, loc } = self.backend_symtab.objs().get(&ident).unwrap();
-                match loc {
-                    ObjLocation::Stack => {
-                        let offset = self.var_to_stack_pos.resolve_stack_pos(ident, asm_type);
-                        Operand::Memory(Register::BP, offset)
-                    }
-                    ObjLocation::StaticReadWrite => Operand::ReadWriteData(ident),
-                    ObjLocation::StaticReadonly => Operand::ReadonlyData(ident),
+                self.derive_mem_operand(ident, ByteLen::new(0))
+            }
+            PreFinalOperand::PseudoMem { obj, offset } => self.derive_mem_operand(obj, offset),
+        }
+    }
+    fn derive_mem_operand(&mut self, ident: Rc<SymbolIdentifier>, offset: ByteLen) -> Operand {
+        let AsmObj { asm_type, loc } = self.backend_symtab.objs().get(&ident).unwrap();
+        match loc {
+            ObjLocation::Stack => {
+                let mut stack_pos = self.var_to_stack_pos.resolve_stack_pos(ident, asm_type);
+                *stack_pos.as_mut() += offset.as_int() as i64;
+                Operand::Memory(Register::BP, stack_pos)
+            }
+            ObjLocation::StaticReadWrite => {
+                if cfg!(debug_assertions) && offset.as_int() != 0 {
+                    unimplemented!("`foo+4(%rip)` will be impl'd in ch18.")
                 }
+                Operand::ReadWriteData(ident)
+            }
+            ObjLocation::StaticReadonly => {
+                if cfg!(debug_assertions) && offset.as_int() != 0 {
+                    unimplemented!("`foo+4(%rip)` will be impl'd in ch18.")
+                }
+                Operand::ReadonlyData(ident)
             }
         }
     }

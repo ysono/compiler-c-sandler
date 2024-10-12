@@ -3,7 +3,7 @@ use crate::common::{
     identifier::{JumpLabel, SymbolIdentifier},
     primitive::Const,
     symbol_table_frontend::{InitializerItem, StaticVisibility},
-    types_backend::{Alignment, ScalarAssemblyType},
+    types_backend::{Alignment, ByteLen, ScalarAssemblyType},
 };
 use derive_more::{AsMut, Constructor, From};
 use std::fmt::Debug;
@@ -139,12 +139,17 @@ mod operand {
     pub enum PreFinalOperand {
         O(Operand),
         PseudoRegOrMem(Rc<SymbolIdentifier>),
+        PseudoMem {
+            obj: Rc<SymbolIdentifier>,
+            offset: ByteLen, // Non-negative; hence not `MemoryOffset` type.
+        },
     }
     impl PreFinalOperand {
         pub fn is_on_mem(&self) -> bool {
             match self {
                 Self::O(o) => o.is_on_mem(),
                 Self::PseudoRegOrMem(_) => true, // Unconditionally on mem, for now.
+                Self::PseudoMem { .. } => true,
             }
         }
     }
@@ -154,6 +159,11 @@ mod operand {
         ImmediateValue(i64),
         Register(Register),
         Memory(Register, MemoryOffset),
+        IndexedMemory {
+            base: Register,
+            idx: Register,
+            scale: MemoryIndexScale,
+        },
         ReadWriteData(Rc<SymbolIdentifier>),
         ReadonlyData(Rc<SymbolIdentifier>),
     }
@@ -161,7 +171,10 @@ mod operand {
         pub fn is_on_mem(&self) -> bool {
             match self {
                 Self::ImmediateValue(_) | Self::Register(_) => false,
-                Self::Memory(..) | Self::ReadWriteData(_) | Self::ReadonlyData(_) => true,
+                Self::Memory(..)
+                | Self::IndexedMemory { .. }
+                | Self::ReadWriteData(_)
+                | Self::ReadonlyData(_) => true,
             }
         }
     }
@@ -216,6 +229,27 @@ mod operand {
     impl MemoryOffset {
         pub fn as_int(&self) -> i64 {
             self.0
+        }
+    }
+
+    #[derive(Clone, Copy, Debug)]
+    pub enum MemoryIndexScale {
+        B1 = 1,
+        B2 = 2,
+        B4 = 4,
+        B8 = 8,
+    }
+    impl TryFrom<ByteLen> for MemoryIndexScale {
+        type Error = ByteLen;
+        fn try_from(bytelen: ByteLen) -> Result<Self, Self::Error> {
+            let b_int: u64 = bytelen.as_int();
+            match b_int {
+                b if b == Self::B1 as u64 => Ok(Self::B1),
+                b if b == Self::B2 as u64 => Ok(Self::B2),
+                b if b == Self::B4 as u64 => Ok(Self::B4),
+                b if b == Self::B8 as u64 => Ok(Self::B8),
+                _ => Err(bytelen),
+            }
         }
     }
 }

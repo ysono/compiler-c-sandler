@@ -25,10 +25,10 @@ impl InstrsGenerator {
         let params = fun_typ.params.iter().zip(param_idents);
         let mut asm_instrs = params
             .map(|(param_type, param_ident)| {
-                let asm_type = ScalarAssemblyType::from(param_type.effective_arithmetic_type());
+                let asm_type = ScalarAssemblyType::from(param_type.as_ref());
                 let arg_reg = arg_reg_resolver.next_reg(asm_type);
 
-                let dst = Self::object_to_operand(param_ident);
+                let dst = self.object_to_operand(param_ident);
 
                 let src = match arg_reg {
                     Some(reg) => Operand::Register(reg).into(),
