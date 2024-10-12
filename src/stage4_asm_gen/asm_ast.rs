@@ -3,7 +3,7 @@ use crate::common::{
     identifier::{JumpLabel, SymbolIdentifier},
     primitive::Const,
     symbol_table_frontend::{InitializerItem, StaticVisibility},
-    types_backend::{Alignment, AssemblyType},
+    types_backend::{Alignment, ScalarAssemblyType},
 };
 use derive_more::{AsMut, Constructor, From};
 use std::fmt::Debug;
@@ -46,7 +46,7 @@ pub struct Function<A: AsmAstVariant> {
 #[derive(Debug)]
 pub enum Instruction<A: AsmAstVariant> {
     Mov {
-        asm_type: AssemblyType,
+        asm_type: ScalarAssemblyType,
         src: A::Operand,
         dst: A::Operand,
     },
@@ -63,30 +63,30 @@ pub enum Instruction<A: AsmAstVariant> {
         dst: A::Operand,
     },
     Cvttsd2si {
-        dst_asm_type: AssemblyType,
+        dst_asm_type: ScalarAssemblyType,
         src: A::Operand,
         dst: A::Operand,
     },
     Cvtsi2sd {
-        src_asm_type: AssemblyType,
+        src_asm_type: ScalarAssemblyType,
         src: A::Operand,
         dst: A::Operand,
     },
-    Unary(UnaryOperator, AssemblyType, A::Operand),
+    Unary(UnaryOperator, ScalarAssemblyType, A::Operand),
     Binary {
         op: BinaryOperator,
-        asm_type: AssemblyType,
+        asm_type: ScalarAssemblyType,
         arg: A::Operand, // Semantic RHS. Asm operand #1 in AT&A syntax.
         tgt: A::Operand, // Semantic LHS, as well as output. Asm operand #2.
     },
     Cmp {
-        asm_type: AssemblyType,
+        asm_type: ScalarAssemblyType,
         arg: A::Operand, // Semantic RHS. Asm operand #1 in AT&A syntax.
         tgt: A::Operand, // Semantic LHS, non-modified. Asm operand #2.
     },
-    Idiv(AssemblyType, A::Operand),
-    Div(AssemblyType, A::Operand),
-    Cdq(AssemblyType),
+    Idiv(ScalarAssemblyType, A::Operand),
+    Div(ScalarAssemblyType, A::Operand),
+    Cdq(ScalarAssemblyType),
     Jmp(Rc<JumpLabel>),
     JmpCC(ConditionCode, Rc<JumpLabel>),
     SetCC(ConditionCode, A::Operand),

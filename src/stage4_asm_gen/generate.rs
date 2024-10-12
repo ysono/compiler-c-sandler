@@ -4,7 +4,7 @@ use crate::{
         primitive::Const,
         symbol_table_backend::{AsmObj, BackendSymbolTable, ObjLocation},
         symbol_table_frontend::SymbolTable,
-        types_backend::{Alignment, AssemblyType},
+        types_backend::{Alignment, ScalarAssemblyType},
     },
     ds_n_a::immutable_owned::ImmutableOwned,
     stage3_tacky::tacky_ast as t,
@@ -108,7 +108,7 @@ impl AsmCodeGenerator {
                 backend_symtab.objs_mut().insert(
                     Rc::clone(&ident),
                     AsmObj {
-                        asm_type: AssemblyType::from(init.arithmetic_type()),
+                        asm_type: ScalarAssemblyType::from(init.arithmetic_type()).into(),
                         loc: ObjLocation::StaticReadonly,
                     },
                 );

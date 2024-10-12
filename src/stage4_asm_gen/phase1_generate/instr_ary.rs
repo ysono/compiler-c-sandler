@@ -2,7 +2,7 @@ use super::{GeneratedAsmAst, InstrsGenerator};
 use crate::{
     common::{
         primitive::Const,
-        types_backend::{Alignment, AssemblyType},
+        types_backend::{Alignment, ScalarAssemblyType},
     },
     stage3_tacky::tacky_ast as t,
     stage4_asm_gen::asm_ast::*,
@@ -30,14 +30,14 @@ impl InstrsGenerator {
 
         let asm_instr_1 = Instruction::Mov { asm_type, src, dst: dst.clone() };
         let asm_instr_2 = match asm_type {
-            AssemblyType::Longword | AssemblyType::Quadword => {
+            ScalarAssemblyType::Longword | ScalarAssemblyType::Quadword => {
                 let asm_op = match t_op {
                     t::NumericUnaryOperator::Complement => UnaryOperator::BitwiseComplement,
                     t::NumericUnaryOperator::Negate => UnaryOperator::TwosComplement,
                 };
                 Instruction::Unary(asm_op, asm_type, dst)
             }
-            AssemblyType::Double => {
+            ScalarAssemblyType::Double => {
                 let asm_op = match t_op {
                     t::NumericUnaryOperator::Complement => {
                         unreachable!("Invalid operation {t_op:?} {asm_type:?}")
@@ -113,10 +113,10 @@ impl InstrsGenerator {
     ) -> Vec<Instruction<GeneratedAsmAst>> {
         let (_, asm_type) = self.value_to_type(&t_binary.lhs);
         match asm_type {
-            AssemblyType::Longword | AssemblyType::Quadword => {
+            ScalarAssemblyType::Longword | ScalarAssemblyType::Quadword => {
                 self.do_gen_integer_divrem_instrs(t_op, t_binary)
             }
-            AssemblyType::Double => {
+            ScalarAssemblyType::Double => {
                 let asm_op = match t_op {
                     t::DivRemBinaryOperator::Div => BinaryOperator::DivDouble,
                     t::DivRemBinaryOperator::Rem => {

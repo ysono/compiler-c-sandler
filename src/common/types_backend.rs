@@ -1,31 +1,37 @@
 use crate::common::types_frontend::{ArithmeticType, ObjType};
-use derive_more::{Add, AddAssign, Constructor};
+use derive_more::{Add, AddAssign, Constructor, From};
 use std::{borrow::Borrow, ops::Mul};
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(From, Debug)]
 pub enum AssemblyType {
-    Longword, // 32-bit. Aka doubleword.
-    Quadword, // 64-bit
-    Double,
-}
-impl From<ArithmeticType> for AssemblyType {
-    fn from(ari_type: ArithmeticType) -> Self {
-        use ArithmeticType as AT;
-        match ari_type {
-            AT::Int | AT::UInt => Self::Longword,
-            AT::Long | AT::ULong => Self::Quadword,
-            AT::Double => Self::Double,
-        }
-    }
+    Scalar(ScalarAssemblyType),
 }
 impl<Ot: Borrow<ObjType>> From<Ot> for AssemblyType {
     fn from(obj_typ: Ot) -> Self {
         match obj_typ.borrow() {
             ObjType::Scalar(sca_typ) => {
                 let ari_typ = sca_typ.effective_arithmetic_type();
-                Self::from(ari_typ)
+                let sca_asm_typ = ScalarAssemblyType::from(ari_typ);
+                Self::Scalar(sca_asm_typ)
             }
             ObjType::Array(_) => todo!(),
+        }
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum ScalarAssemblyType {
+    Longword, // 32-bit. Aka doubleword.
+    Quadword, // 64-bit
+    Double,
+}
+impl From<ArithmeticType> for ScalarAssemblyType {
+    fn from(ari_type: ArithmeticType) -> Self {
+        use ArithmeticType as AT;
+        match ari_type {
+            AT::Int | AT::UInt => Self::Longword,
+            AT::Long | AT::ULong => Self::Quadword,
+            AT::Double => Self::Double,
         }
     }
 }
@@ -41,12 +47,12 @@ impl Alignment {
     ///   according to System V x64 ABI.
     /// On any individual item, the actual declared alignment may be a multiple of this basic amount,
     ///   eg b/c an instruction accessing it requires the operand to be aligned a certain amount.
-    pub fn default_of<T: Into<AssemblyType>>(t: T) -> Self {
+    pub fn default_of<T: Into<ScalarAssemblyType>>(t: T) -> Self {
         let asm_type = t.into();
         match asm_type {
-            AssemblyType::Longword => Self::B4,
-            AssemblyType::Quadword => Self::B8,
-            AssemblyType::Double => Self::B8,
+            ScalarAssemblyType::Longword => Self::B4,
+            ScalarAssemblyType::Quadword => Self::B8,
+            ScalarAssemblyType::Double => Self::B8,
         }
     }
 
@@ -54,7 +60,7 @@ impl Alignment {
         match obj_typ {
             ObjType::Scalar(sca_typ) => {
                 let ari_typ = sca_typ.effective_arithmetic_type();
-                let asm_typ = AssemblyType::from(ari_typ);
+                let asm_typ = ScalarAssemblyType::from(ari_typ);
                 Self::default_of(asm_typ)
             }
             ObjType::Array(_) => todo!(),
@@ -68,13 +74,13 @@ pub enum OperandByteLen {
     B4 = 4,
     B8 = 8,
 }
-impl<T: Into<AssemblyType>> From<T> for OperandByteLen {
+impl<T: Into<ScalarAssemblyType>> From<T> for OperandByteLen {
     fn from(t: T) -> Self {
         let asm_type = t.into();
         match asm_type {
-            AssemblyType::Longword => Self::B4,
-            AssemblyType::Quadword => Self::B8,
-            AssemblyType::Double => Self::B8,
+            ScalarAssemblyType::Longword => Self::B4,
+            ScalarAssemblyType::Quadword => Self::B8,
+            ScalarAssemblyType::Double => Self::B8,
         }
     }
 }

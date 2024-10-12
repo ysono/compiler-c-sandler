@@ -7,7 +7,7 @@ use self::var_to_stack_pos::VarToStackPos;
 use crate::{
     common::{
         symbol_table_backend::{AsmObj, BackendSymbolTable, ObjLocation},
-        types_backend::AssemblyType,
+        types_backend::ScalarAssemblyType,
     },
     ds_n_a::immutable_owned::ImmutableOwned,
     stage4_asm_gen::{asm_ast::*, phase1_generate::GeneratedAsmAst, phase3_fix::OperandFixer},
@@ -132,7 +132,7 @@ impl InstrsFinalizer {
                 let AsmObj { asm_type, loc } = self.backend_symtab.objs().get(&ident).unwrap();
                 match loc {
                     ObjLocation::Stack => {
-                        let offset = self.var_to_stack_pos.resolve_stack_pos(ident, *asm_type);
+                        let offset = self.var_to_stack_pos.resolve_stack_pos(ident, asm_type);
                         Operand::Memory(Register::BP, offset)
                     }
                     ObjLocation::StaticReadWrite => Operand::ReadWriteData(ident),
@@ -153,7 +153,7 @@ impl InstrsFinalizer {
 
             instrs.push_front(Instruction::Binary {
                 op: BinaryOperator::Sub,
-                asm_type: AssemblyType::Quadword,
+                asm_type: ScalarAssemblyType::Quadword,
                 tgt: Operand::Register(Register::SP),
                 arg: Operand::ImmediateValue(stack_frame_bytelen),
             });
