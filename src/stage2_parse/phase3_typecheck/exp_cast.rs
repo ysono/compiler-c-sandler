@@ -17,6 +17,8 @@ use std::cmp::Ordering;
 impl TypeChecker {
     /* Common type */
 
+    /// Given an expression that requires its two sub-expressions to have the same type,
+    ///     cast these sub-expressions to their "common type".
     pub(super) fn cast_to_common_type(
         mut exp1: TypedExp<ScalarType>,
         mut exp2: TypedExp<ScalarType>,
@@ -114,6 +116,7 @@ impl TypeChecker {
 
     /* Casting "as if by assignment" */
 
+    /// Cast unidirectionally and implicitly, in various assignment-like contexts.
     pub(super) fn cast_by_assignment(
         &mut self,
         to: Singleton<ObjType>,

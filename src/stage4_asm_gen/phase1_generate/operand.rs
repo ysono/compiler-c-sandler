@@ -35,7 +35,7 @@ impl InstrsGenerator {
                     ObjType::Scalar(s) => s,
                     ObjType::Array(_) => unreachable!(),
                 };
-                let ari_type = sca_type.effective_arithmetic_type();
+                let ari_type = sca_type.as_arithmetic_type();
                 let asm_type = ScalarAssemblyType::from(ari_type);
                 (ari_type, asm_type)
             }

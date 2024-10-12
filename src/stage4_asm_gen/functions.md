@@ -47,7 +47,7 @@ Chronologically ordered events:
         Hence, we always omit saving caller-saved registers before calling another function.
     1. The current function possibly pads one 8-byte item.
     1. The current function initializes outgoing args.
-        + Each outgoing on-stack arg is placed by `pushq` which pushes one 8-byte item.
+        + Each outgoing on-stack arg is 8-byte aligned.
         + RSP points to "e", and is guaranteed to be 16-byte aligned, possibly using the aforementioned padding.
     1. The `call` asm instruction is executed.
         + Just before each `call` instruction, the RSP is required to be 16-byte aligned.

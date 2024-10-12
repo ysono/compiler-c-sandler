@@ -31,14 +31,14 @@ impl ObjType {
     ///     b/c that's all that our use cases need and it's cheaper to represent.
     pub fn single_type(&self) -> ArithmeticType {
         match self {
-            Self::Scalar(s) => s.effective_arithmetic_type(),
+            Self::Scalar(s) => s.as_arithmetic_type(),
             Self::Array(a) => *a.single_type(),
         }
     }
 
     pub fn bytelen(&self) -> ByteLen {
         match self {
-            Self::Scalar(s) => ByteLen::from(s.effective_arithmetic_type()),
+            Self::Scalar(s) => ByteLen::from(s.as_arithmetic_type()),
             Self::Array(a) => *a.bytelen(),
         }
     }
@@ -50,7 +50,7 @@ pub enum ScalarType {
     Ptr(PointerType),
 }
 impl ScalarType {
-    pub fn effective_arithmetic_type(&self) -> ArithmeticType {
+    pub fn as_arithmetic_type(&self) -> ArithmeticType {
         match self {
             Self::Arith(a) => *a,
             Self::Ptr(_) => ArithmeticType::ULong,

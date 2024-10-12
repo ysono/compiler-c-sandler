@@ -17,8 +17,8 @@ impl<'a> FunInstrsGenerator<'a> {
         c::Cast { typ: _, sub_exp }: c::Cast<TypeCheckedCAst>,
         dst_typ: SubObjType<ScalarType>,
     ) -> Value {
-        let dst_ari_typ = dst_typ.effective_arithmetic_type();
-        let src_ari_typ = sub_exp.typ().effective_arithmetic_type();
+        let dst_ari_typ = dst_typ.as_arithmetic_type();
+        let src_ari_typ = sub_exp.typ().as_arithmetic_type();
 
         let src = self.gen_exp_and_get_value(*sub_exp);
 

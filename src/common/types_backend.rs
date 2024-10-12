@@ -34,7 +34,7 @@ impl From<ArithmeticType> for ScalarAssemblyType {
 }
 impl<St: Borrow<ScalarType>> From<St> for ScalarAssemblyType {
     fn from(sca_typ: St) -> Self {
-        let ari_typ = sca_typ.borrow().effective_arithmetic_type();
+        let ari_typ = sca_typ.borrow().as_arithmetic_type();
         Self::from(ari_typ)
     }
 }

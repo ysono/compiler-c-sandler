@@ -23,3 +23,7 @@ cd "${tester_dir_mem}"
 export RUST_LOG=off
 ./test_compiler "${soln_dir}/target/release/compiler_driver" --chapter 1 --stage lex
 ```
+
+### The stages:
+
+![](./doc/stages.drawio.svg)
