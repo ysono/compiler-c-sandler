@@ -108,6 +108,9 @@ impl<T: Into<ScalarAssemblyType>> From<T> for OperandByteLen {
     }
 }
 
+/// The amount of a blob, in the unit of bytes.
+///
+/// We avoid the overloaded terminology "size".
 #[derive(Constructor, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Add, AddAssign, Debug)]
 pub struct ByteLen(u64);
 impl<T: Into<OperandByteLen>> From<T> for ByteLen {

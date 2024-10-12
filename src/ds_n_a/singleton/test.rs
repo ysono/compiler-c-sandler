@@ -1,6 +1,8 @@
 use super::*;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
+/// LinkedList node.
+///
 /// Using the default `impl` for `Hash` and `PartialEq`.
 #[derive(Hash, PartialEq, Eq, Debug)]
 enum LLNode {

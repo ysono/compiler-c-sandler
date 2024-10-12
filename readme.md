@@ -1,5 +1,7 @@
 This project follows ["Writing a C Compiler" by Nora Sandler](https://nostarch.com/writing-c-compiler), in building a compiler for a subset of the C language.
 
+![](./doc/stages.drawio.svg)
+
 ### Development cheatsheet:
 
 ```sh

@@ -1,3 +1,5 @@
+//! Lexing; and parsing of some values.
+
 use crate::{
     common::{identifier::RawIdentifier, primitive::Const},
     stage1_lex::tokens::*,
@@ -131,6 +133,9 @@ impl<R: Read + BufRead> Lexer<R> {
                 .map(|b| b.to_ascii_lowercase()),
         );
 
+        /* Note, each literal we parse is zero-or-positive.
+        Nonetheless, we are able to represent the full range of i64 and u64 values.
+        Eg the value -(1<<63) is representable by two AST nodes: negate( Const::ULong(9223372036854775808) ). */
         let konst = match &markers[..] {
             b"ul" | b"lu" => digits.parse::<u64>().map(Const::ULong)?,
             b"l" => digits.parse::<i64>().map(Const::Long)?,

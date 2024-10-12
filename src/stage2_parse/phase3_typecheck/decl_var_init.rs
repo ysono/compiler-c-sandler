@@ -233,6 +233,7 @@ mod test {
         )?;
         assert_eq!(&out_items, &[out_zero(4 * 7 * 17)]);
         Ok(())
+        /* Note, our parser grammer forbids an empty initializer, so this scenario is unrealistic. */
     }
 
     #[test]
