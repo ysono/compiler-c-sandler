@@ -41,35 +41,15 @@ impl InstrsFinalizer {
         Function<FinalizedAsmAst>,
         ImmutableOwned<BackendSymbolTable>,
     ) {
-        let instrs = self.finalize_instrs(instrs.into_iter());
+        let instrs = self.convert_instrs(instrs.into_iter());
+        let instrs = OperandFixer::fix_invalid_operands(instrs);
+        let instrs = instrs.collect::<VecDeque<_>>();
+
+        let instrs = Self::finalize_instrs(instrs, self.var_to_stack_pos);
+
         let fun = Function { ident, visibility, instrs };
 
         (fun, self.backend_symtab)
-    }
-
-    /// See documentation at [`crate::stage4_asm_gen`].
-    fn finalize_instrs(
-        &mut self,
-        in_instrs: impl Iterator<Item = Instruction<GeneratedAsmAst>>,
-    ) -> VecDeque<Instruction<FinalizedAsmAst>> {
-        let instrs = self.convert_instrs(in_instrs);
-        let instrs = OperandFixer::fix_invalid_operands(instrs);
-        let mut out_instrs = instrs.collect::<VecDeque<_>>();
-
-        /* We must read `last_used_stack_pos` strictly after the iterator of `Instruction`s has been completely traversed. */
-        let mut stack_frame_bytelen = self.var_to_stack_pos.last_used_stack_pos().as_int() * -1;
-        stack_frame_bytelen = ((stack_frame_bytelen + 15) / 16) * 16;
-
-        if stack_frame_bytelen > 0 {
-            out_instrs.push_front(Instruction::Binary {
-                op: BinaryOperator::Sub,
-                asm_type: AssemblyType::Quadword,
-                tgt: Operand::Register(Register::SP),
-                arg: Operand::ImmediateValue(stack_frame_bytelen),
-            });
-        }
-
-        out_instrs
     }
 
     fn convert_instrs<'a>(
@@ -152,7 +132,7 @@ impl InstrsFinalizer {
                 let AsmObj { asm_type, loc } = self.backend_symtab.objs().get(&ident).unwrap();
                 match loc {
                     ObjLocation::Stack => {
-                        let offset = self.var_to_stack_pos.var_to_stack_pos(ident, *asm_type);
+                        let offset = self.var_to_stack_pos.resolve_stack_pos(ident, *asm_type);
                         Operand::Memory(Register::BP, offset)
                     }
                     ObjLocation::StaticReadWrite => Operand::ReadWriteData(ident),
@@ -160,5 +140,25 @@ impl InstrsFinalizer {
                 }
             }
         }
+    }
+
+    /// See documentation at [`crate::stage4_asm_gen`].
+    fn finalize_instrs(
+        mut instrs: VecDeque<Instruction<FinalizedAsmAst>>,
+        var_to_stack_pos: VarToStackPos,
+    ) -> VecDeque<Instruction<FinalizedAsmAst>> {
+        let last_used_stack_pos = var_to_stack_pos.last_used_stack_pos().as_int();
+        if last_used_stack_pos < 0 {
+            let stack_frame_bytelen = (((last_used_stack_pos * -1) + 15) / 16) * 16;
+
+            instrs.push_front(Instruction::Binary {
+                op: BinaryOperator::Sub,
+                asm_type: AssemblyType::Quadword,
+                tgt: Operand::Register(Register::SP),
+                arg: Operand::ImmediateValue(stack_frame_bytelen),
+            });
+        }
+
+        instrs
     }
 }
