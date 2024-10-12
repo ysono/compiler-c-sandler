@@ -2,7 +2,7 @@ use super::{GeneratedAsmAst, InstrsGenerator};
 use crate::{
     common::{
         identifier::SymbolIdentifier,
-        types_backend::{AssemblyType, OperandByteLen},
+        types_backend::{OperandByteLen, ScalarAssemblyType},
         types_frontend::ScalarFunType,
     },
     ds_n_a::singleton::Singleton,
@@ -25,7 +25,7 @@ impl InstrsGenerator {
         let params = fun_typ.params.iter().zip(param_idents);
         let mut asm_instrs = params
             .map(|(param_type, param_ident)| {
-                let asm_type = AssemblyType::from(param_type.effective_arithmetic_type());
+                let asm_type = ScalarAssemblyType::from(param_type.effective_arithmetic_type());
                 let arg_reg = arg_reg_resolver.next_reg(asm_type);
 
                 let dst = Self::object_to_operand(param_ident);
@@ -107,7 +107,7 @@ impl InstrsGenerator {
         if stack_padding_bytelen != 0 {
             asm_instrs.push(Instruction::Binary {
                 op: BinaryOperator::Sub,
-                asm_type: AssemblyType::Quadword,
+                asm_type: ScalarAssemblyType::Quadword,
                 tgt: Operand::Register(Register::SP).into(),
                 arg: Operand::ImmediateValue(stack_padding_bytelen).into(),
             });
@@ -124,7 +124,7 @@ impl InstrsGenerator {
         if stack_pop_bytelen != 0 {
             asm_instrs.push(Instruction::Binary {
                 op: BinaryOperator::Add,
-                asm_type: AssemblyType::Quadword,
+                asm_type: ScalarAssemblyType::Quadword,
                 tgt: Operand::Register(Register::SP).into(),
                 arg: Operand::ImmediateValue(stack_pop_bytelen).into(),
             });
@@ -193,14 +193,14 @@ impl Default for ArgRegResolver {
     }
 }
 impl ArgRegResolver {
-    fn next_reg(&mut self, asm_type: AssemblyType) -> Option<Register> {
+    fn next_reg(&mut self, asm_type: ScalarAssemblyType) -> Option<Register> {
         match asm_type {
-            AssemblyType::Longword | AssemblyType::Quadword => {
+            ScalarAssemblyType::Longword | ScalarAssemblyType::Quadword => {
                 let ret = INT_ARG_REGS.get(self.int_args_count).cloned();
                 self.int_args_count += 1;
                 ret
             }
-            AssemblyType::Double => {
+            ScalarAssemblyType::Double => {
                 let ret = FLOAT_ARG_REGS.get(self.float_args_count).cloned();
                 self.float_args_count += 1;
                 ret
@@ -209,9 +209,9 @@ impl ArgRegResolver {
     }
 }
 
-fn derive_return_register(asm_type: AssemblyType) -> Register {
+fn derive_return_register(asm_type: ScalarAssemblyType) -> Register {
     match asm_type {
-        AssemblyType::Longword | AssemblyType::Quadword => Register::AX,
-        AssemblyType::Double => Register::XMM0,
+        ScalarAssemblyType::Longword | ScalarAssemblyType::Quadword => Register::AX,
+        ScalarAssemblyType::Double => Register::XMM0,
     }
 }

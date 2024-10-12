@@ -1,6 +1,6 @@
 use super::{GeneratedAsmAst, InstrsGenerator};
 use crate::{
-    common::{types_backend::AssemblyType, types_frontend::ArithmeticType},
+    common::{types_backend::ScalarAssemblyType, types_frontend::ArithmeticType},
     stage3_tacky::tacky_ast as t,
     stage4_asm_gen::asm_ast::*,
 };
@@ -79,10 +79,10 @@ impl InstrsGenerator {
 
     fn gen_cmp_vs_zero(
         src: PreFinalOperand,
-        src_asm_type: AssemblyType,
+        src_asm_type: ScalarAssemblyType,
     ) -> Vec<Instruction<GeneratedAsmAst>> {
         match src_asm_type {
-            AssemblyType::Longword | AssemblyType::Quadword => {
+            ScalarAssemblyType::Longword | ScalarAssemblyType::Quadword => {
                 vec![Instruction::Cmp {
                     asm_type: src_asm_type,
                     tgt: src,
@@ -91,7 +91,7 @@ impl InstrsGenerator {
                     operand #2 (ie `tgt`) must eventually _not_ be an immediate value. */
                 }]
             }
-            AssemblyType::Double => {
+            ScalarAssemblyType::Double => {
                 let reg = || Operand::Register(Register::XMM0).into();
                 vec![
                     Instruction::Binary {
@@ -115,7 +115,7 @@ impl InstrsGenerator {
     fn gen_setcc(
         cc: ConditionCode,
         dst: PreFinalOperand,
-        dst_asm_type: AssemblyType, // This is expected to be Longword.
+        dst_asm_type: ScalarAssemblyType, // This is expected to be Longword.
     ) -> Vec<Instruction<GeneratedAsmAst>> {
         vec![
             Instruction::Mov {

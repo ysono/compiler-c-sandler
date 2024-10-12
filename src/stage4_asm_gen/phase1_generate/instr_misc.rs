@@ -1,6 +1,7 @@
 use super::{GeneratedAsmAst, InstrsGenerator};
 use crate::{
-    common::types_backend::AssemblyType, stage3_tacky::tacky_ast as t, stage4_asm_gen::asm_ast::*,
+    common::types_backend::ScalarAssemblyType, stage3_tacky::tacky_ast as t,
+    stage4_asm_gen::asm_ast::*,
 };
 
 impl InstrsGenerator {
@@ -36,7 +37,7 @@ impl InstrsGenerator {
 
         vec![
             Instruction::Mov {
-                asm_type: AssemblyType::Quadword,
+                asm_type: ScalarAssemblyType::Quadword,
                 src: src_addr,
                 dst: Operand::Register(reg).into(),
             },
@@ -58,7 +59,7 @@ impl InstrsGenerator {
 
         vec![
             Instruction::Mov {
-                asm_type: AssemblyType::Quadword,
+                asm_type: ScalarAssemblyType::Quadword,
                 src: dst_addr,
                 dst: Operand::Register(reg).into(),
             },

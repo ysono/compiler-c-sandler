@@ -28,15 +28,17 @@ impl VarToStackPos {
     pub fn resolve_stack_pos(
         &mut self,
         ident: Rc<SymbolIdentifier>,
-        asm_type: AssemblyType,
+        asm_typ: &AssemblyType,
     ) -> MemoryOffset {
         let pos = self.var_to_stack_pos.entry(ident).or_insert_with(|| {
+            let AssemblyType::Scalar(sca_asm_typ) = asm_typ;
+
             let pos = self.last_used_stack_pos.as_mut();
 
-            let alloc = OperandByteLen::from(asm_type) as i64;
+            let alloc = OperandByteLen::from(*sca_asm_typ) as i64;
             *pos -= alloc;
 
-            let align = Alignment::default_of(asm_type) as i64;
+            let align = Alignment::default_of(*sca_asm_typ) as i64;
             *pos = ((*pos - (align - 1)) / align) * align;
 
             self.last_used_stack_pos

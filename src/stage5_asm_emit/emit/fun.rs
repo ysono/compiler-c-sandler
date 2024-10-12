@@ -3,7 +3,7 @@ use crate::{
     common::{
         identifier::SymbolIdentifier,
         symbol_table_backend::AsmFun,
-        types_backend::{AssemblyType, OperandByteLen},
+        types_backend::{OperandByteLen, ScalarAssemblyType},
     },
     stage4_asm_gen::{asm_ast::*, FinalizedAsmAst},
 };
@@ -51,7 +51,7 @@ impl<W: Write> AsmCodeEmitter<W> {
             }
             Instruction::Cvttsd2si { dst_asm_type, src, dst } => {
                 let instr_sfx = Self::get_instr_sfx_wordlen(dst_asm_type);
-                let src_bytelen = OperandByteLen::from(AssemblyType::Double);
+                let src_bytelen = OperandByteLen::from(ScalarAssemblyType::Double);
                 let dst_bytelen = OperandByteLen::from(dst_asm_type);
 
                 self.write_instr_two_args(
@@ -63,7 +63,7 @@ impl<W: Write> AsmCodeEmitter<W> {
             Instruction::Cvtsi2sd { src_asm_type, src, dst } => {
                 let instr_sfx = Self::get_instr_sfx_wordlen(src_asm_type);
                 let src_bytelen = OperandByteLen::from(src_asm_type);
-                let dst_bytelen = OperandByteLen::from(AssemblyType::Double);
+                let dst_bytelen = OperandByteLen::from(ScalarAssemblyType::Double);
 
                 self.write_instr_two_args(
                     ("cvtsi2sd", instr_sfx),
@@ -86,7 +86,7 @@ impl<W: Write> AsmCodeEmitter<W> {
                 let regular_instr_sfx = Self::get_instr_sfx_wordlen(asm_type);
                 let (instr, instr_sfx);
                 match asm_type {
-                    AssemblyType::Longword | AssemblyType::Quadword => {
+                    ScalarAssemblyType::Longword | ScalarAssemblyType::Quadword => {
                         instr = match op {
                             BinaryOperator::Add => "add",
                             BinaryOperator::Sub => "sub",
@@ -100,7 +100,7 @@ impl<W: Write> AsmCodeEmitter<W> {
                         };
                         instr_sfx = regular_instr_sfx;
                     }
-                    AssemblyType::Double => {
+                    ScalarAssemblyType::Double => {
                         (instr, instr_sfx) = match op {
                             BinaryOperator::Add => ("add", regular_instr_sfx),
                             BinaryOperator::Sub => ("sub", regular_instr_sfx),
@@ -119,8 +119,8 @@ impl<W: Write> AsmCodeEmitter<W> {
             }
             Instruction::Cmp { asm_type, arg, tgt } => {
                 let instr = match asm_type {
-                    AssemblyType::Longword | AssemblyType::Quadword => "cmp",
-                    AssemblyType::Double => "comi",
+                    ScalarAssemblyType::Longword | ScalarAssemblyType::Quadword => "cmp",
+                    ScalarAssemblyType::Double => "comi",
                 };
                 let instr_sfx = Self::get_instr_sfx_wordlen(asm_type);
                 let bytelen = OperandByteLen::from(asm_type);
@@ -141,9 +141,9 @@ impl<W: Write> AsmCodeEmitter<W> {
             }
             Instruction::Cdq(asm_type) => {
                 let instr = match asm_type {
-                    AssemblyType::Longword => "cdq",
-                    AssemblyType::Quadword => "cqo",
-                    AssemblyType::Double => unreachable!("Invalid instr cdq {asm_type:?}"),
+                    ScalarAssemblyType::Longword => "cdq",
+                    ScalarAssemblyType::Quadword => "cqo",
+                    ScalarAssemblyType::Double => unreachable!("Invalid instr cdq {asm_type:?}"),
                 };
 
                 writeln!(&mut self.w, "{TAB}{instr}")?;
@@ -184,11 +184,11 @@ impl<W: Write> AsmCodeEmitter<W> {
         Ok(())
     }
 
-    fn get_instr_sfx_wordlen(asm_type: AssemblyType) -> &'static str {
+    fn get_instr_sfx_wordlen(asm_type: ScalarAssemblyType) -> &'static str {
         match asm_type {
-            AssemblyType::Longword => "l",
-            AssemblyType::Quadword => "q",
-            AssemblyType::Double => "sd",
+            ScalarAssemblyType::Longword => "l",
+            ScalarAssemblyType::Quadword => "q",
+            ScalarAssemblyType::Double => "sd",
         }
     }
     fn get_instr_sfx_condition(cc: ConditionCode) -> &'static str {

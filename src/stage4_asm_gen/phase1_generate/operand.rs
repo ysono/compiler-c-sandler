@@ -3,7 +3,7 @@ use crate::{
     common::{
         identifier::SymbolIdentifier,
         primitive::Const,
-        types_backend::{Alignment, AssemblyType},
+        types_backend::{Alignment, ScalarAssemblyType},
         types_frontend::{ArithmeticType, ObjType},
     },
     stage3_tacky::tacky_ast as t,
@@ -17,16 +17,16 @@ impl InstrsGenerator {
     pub(super) fn value_to_operand_and_type(
         &mut self,
         t_val: t::Value,
-    ) -> (PreFinalOperand, ArithmeticType, AssemblyType) {
+    ) -> (PreFinalOperand, ArithmeticType, ScalarAssemblyType) {
         let (ari_type, asm_type) = self.value_to_type(&t_val);
         let operand = self.value_to_operand(t_val);
         (operand, ari_type, asm_type)
     }
-    pub(super) fn value_to_type(&self, t_val: &t::Value) -> (ArithmeticType, AssemblyType) {
+    pub(super) fn value_to_type(&self, t_val: &t::Value) -> (ArithmeticType, ScalarAssemblyType) {
         match t_val {
             t::Value::Constant(konst) => {
                 let ari_type = konst.arithmetic_type();
-                let asm_type = AssemblyType::from(ari_type);
+                let asm_type = ScalarAssemblyType::from(ari_type);
                 (ari_type, asm_type)
             }
             t::Value::Variable(ident, _sca_typ_marker) => {
@@ -36,7 +36,7 @@ impl InstrsGenerator {
                     ObjType::Array(_) => unreachable!(),
                 };
                 let ari_type = sca_type.effective_arithmetic_type();
-                let asm_type = AssemblyType::from(ari_type);
+                let asm_type = ScalarAssemblyType::from(ari_type);
                 (ari_type, asm_type)
             }
         }
