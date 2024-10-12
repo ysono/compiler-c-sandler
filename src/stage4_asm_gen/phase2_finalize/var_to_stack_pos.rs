@@ -1,7 +1,7 @@
 use crate::{
     common::{
         identifier::SymbolIdentifier,
-        types_backend::{Alignment, AssemblyType, OperandByteLen},
+        types_backend::{Alignment, AssemblyType, ByteArrayAssemblyType, OperandByteLen},
     },
     stage4_asm_gen::asm_ast::MemoryOffset,
 };
@@ -31,14 +31,22 @@ impl VarToStackPos {
         asm_typ: &AssemblyType,
     ) -> MemoryOffset {
         let pos = self.var_to_stack_pos.entry(ident).or_insert_with(|| {
-            let AssemblyType::Scalar(sca_asm_typ) = asm_typ;
+            let (alloc, align);
+            match asm_typ {
+                AssemblyType::Scalar(sca_asm_typ) => {
+                    alloc = OperandByteLen::from(*sca_asm_typ) as i64;
+                    align = Alignment::default_of_scalar(*sca_asm_typ) as i64;
+                }
+                AssemblyType::ByteArray(ByteArrayAssemblyType(bytelen, alignment)) => {
+                    alloc = bytelen.as_int() as i64;
+                    align = *alignment as i64;
+                }
+            }
 
             let pos = self.last_used_stack_pos.as_mut();
 
-            let alloc = OperandByteLen::from(*sca_asm_typ) as i64;
             *pos -= alloc;
 
-            let align = Alignment::default_of(*sca_asm_typ) as i64;
             *pos = ((*pos - (align - 1)) / align) * align;
 
             self.last_used_stack_pos

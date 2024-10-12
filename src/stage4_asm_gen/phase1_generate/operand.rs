@@ -3,7 +3,7 @@ use crate::{
     common::{
         identifier::SymbolIdentifier,
         primitive::Const,
-        types_backend::{Alignment, ScalarAssemblyType},
+        types_backend::{Alignment, ByteLen, ScalarAssemblyType},
         types_frontend::{ArithmeticType, ObjType},
     },
     stage3_tacky::tacky_ast as t,
@@ -58,8 +58,14 @@ impl InstrsGenerator {
         }
     }
 
-    pub(super) fn object_to_operand(ident: Rc<SymbolIdentifier>) -> PreFinalOperand {
-        PreFinalOperand::PseudoRegOrMem(ident)
+    pub(super) fn object_to_operand(&self, ident: Rc<SymbolIdentifier>) -> PreFinalOperand {
+        match self.frontend_symtab.get_var_type(&ident).unwrap().as_ref() {
+            ObjType::Scalar(_) => PreFinalOperand::PseudoRegOrMem(ident),
+            ObjType::Array(_) => PreFinalOperand::PseudoMem {
+                obj: ident,
+                offset: ByteLen::new(0),
+            },
+        }
     }
 
     /* Asm static constant */
@@ -69,8 +75,8 @@ impl InstrsGenerator {
         custom_alignment: Option<Alignment>,
         konst: Const,
     ) -> PreFinalOperand {
-        let alignment =
-            custom_alignment.unwrap_or_else(|| Alignment::default_of(konst.arithmetic_type()));
+        let alignment = custom_alignment
+            .unwrap_or_else(|| Alignment::default_of_scalar(konst.arithmetic_type()));
         let ident = self
             .static_constants
             .entry((alignment, konst))

@@ -258,6 +258,7 @@ impl<W: Write> AsmCodeEmitter<W> {
                 let reg_str = Self::get_reg_str(reg, OperandByteLen::B8);
                 write!(&mut self.w, "{offset}({reg_str})")?;
             }
+            Operand::IndexedMemory { .. } => todo!(),
             Operand::ReadWriteData(ident) => {
                 self.write_symbol_name(&ident, LabelLocality::OF_STATIC_VAR)?;
                 write!(&mut self.w, "(%rip)")?;
