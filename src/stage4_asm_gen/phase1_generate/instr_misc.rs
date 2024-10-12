@@ -42,7 +42,7 @@ impl InstrsGenerator {
             },
             Instruction::Mov {
                 asm_type: dst_asm_type,
-                src: Operand::Memory(reg, MemoryOffset(0)).into(),
+                src: Operand::Memory(reg, MemoryOffset::new(0)).into(),
                 dst,
             },
         ]
@@ -65,7 +65,7 @@ impl InstrsGenerator {
             Instruction::Mov {
                 asm_type: src_asm_type,
                 src,
-                dst: Operand::Memory(reg, MemoryOffset(0)).into(),
+                dst: Operand::Memory(reg, MemoryOffset::new(0)).into(),
             },
         ]
     }

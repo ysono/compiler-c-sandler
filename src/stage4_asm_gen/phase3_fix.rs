@@ -156,7 +156,7 @@ impl OperandFixer {
                         Instruction::Mov {
                             asm_type: AssemblyType::Double,
                             src: operand,
-                            dst: Operand::Memory(Register::SP, MemoryOffset(0))
+                            dst: Operand::Memory(Register::SP, MemoryOffset::new(0))
                         }
                     ]
                 } else if Self::is_imm_outside_i32(AssemblyType::Quadword, &operand)  {

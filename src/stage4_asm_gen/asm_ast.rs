@@ -5,7 +5,7 @@ use crate::common::{
     symbol_table_frontend::{InitializerItem, StaticVisibility},
     types_backend::{Alignment, AssemblyType},
 };
-use derive_more::{Deref, DerefMut, From};
+use derive_more::{AsMut, Constructor, From};
 use std::fmt::Debug;
 use std::rc::Rc;
 
@@ -211,6 +211,11 @@ mod operand {
     }
 
     /// Offset from an address value stored in a register (eg RBP).
-    #[derive(Clone, Copy, Deref, DerefMut, Debug)]
-    pub struct MemoryOffset(pub(in crate::stage4_asm_gen) i64);
+    #[derive(Constructor, Clone, Copy, AsMut, Debug)]
+    pub struct MemoryOffset(i64);
+    impl MemoryOffset {
+        pub fn as_int(&self) -> i64 {
+            self.0
+        }
+    }
 }

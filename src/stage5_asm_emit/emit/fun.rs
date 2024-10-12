@@ -254,7 +254,7 @@ impl<W: Write> AsmCodeEmitter<W> {
                 write!(&mut self.w, "{reg_str}")?;
             }
             Operand::Memory(reg, offset) => {
-                let offset = *offset;
+                let offset = offset.as_int();
                 let reg_str = Self::get_reg_str(reg, OperandByteLen::B8);
                 write!(&mut self.w, "{offset}({reg_str})")?;
             }

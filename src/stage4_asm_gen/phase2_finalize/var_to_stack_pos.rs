@@ -18,7 +18,7 @@ pub struct VarToStackPos {
 impl Default for VarToStackPos {
     fn default() -> Self {
         Self {
-            last_used_stack_pos: MemoryOffset(0),
+            last_used_stack_pos: MemoryOffset::new(0),
             var_to_stack_pos: HashMap::new(),
         }
     }
@@ -30,15 +30,14 @@ impl VarToStackPos {
         asm_type: AssemblyType,
     ) -> MemoryOffset {
         let pos = self.var_to_stack_pos.entry(ident).or_insert_with(|| {
-            let mut pos = self.last_used_stack_pos.0;
+            let pos = self.last_used_stack_pos.as_mut();
 
             let alloc = OperandByteLen::from(asm_type) as i64;
-            pos -= alloc;
+            *pos -= alloc;
 
             let align = Alignment::default_of(asm_type) as i64;
-            pos = ((pos - (align - 1)) / align) * align;
+            *pos = ((*pos - (align - 1)) / align) * align;
 
-            self.last_used_stack_pos.0 = pos;
             self.last_used_stack_pos
         });
         *pos

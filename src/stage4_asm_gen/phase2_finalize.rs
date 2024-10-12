@@ -57,7 +57,7 @@ impl InstrsFinalizer {
         let mut out_instrs = instrs.collect::<VecDeque<_>>();
 
         /* We must read `last_used_stack_pos` strictly after the iterator of `Instruction`s has been completely traversed. */
-        let mut stack_frame_bytelen = self.var_to_stack_pos.last_used_stack_pos().0 * -1;
+        let mut stack_frame_bytelen = self.var_to_stack_pos.last_used_stack_pos().as_int() * -1;
         stack_frame_bytelen = ((stack_frame_bytelen + 15) / 16) * 16;
 
         if stack_frame_bytelen > 0 {
