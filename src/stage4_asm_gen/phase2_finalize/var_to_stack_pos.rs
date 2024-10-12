@@ -5,13 +5,10 @@ use crate::{
     },
     stage4_asm_gen::asm_ast::MemoryOffset,
 };
-use getset::Getters;
 use std::collections::HashMap;
 use std::rc::Rc;
 
-#[derive(Getters)]
 pub struct VarToStackPos {
-    #[getset(get = "pub")]
     last_used_stack_pos: MemoryOffset,
     var_to_stack_pos: HashMap<Rc<SymbolIdentifier>, MemoryOffset>,
 }
@@ -24,7 +21,11 @@ impl Default for VarToStackPos {
     }
 }
 impl VarToStackPos {
-    pub fn var_to_stack_pos(
+    pub fn last_used_stack_pos(self) -> MemoryOffset {
+        self.last_used_stack_pos
+    }
+
+    pub fn resolve_stack_pos(
         &mut self,
         ident: Rc<SymbolIdentifier>,
         asm_type: AssemblyType,

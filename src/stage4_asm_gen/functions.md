@@ -37,7 +37,7 @@ Chronologically ordered events:
         + Emitted by [`crate::stage4_asm_gen::phase1_generate::InstrsGenerator::gen_fun_instrs()`].
     1. Uses local variables within the allocated stack frame.
         + Emitted by [`crate::stage4_asm_gen::phase1_generate::InstrsGenerator::gen_instructions()`].
-    + The copied incoming args and the local variables are translated from abstract memory locations to concrete locations by [`crate::stage4_asm_gen::phase2_finalize::var_to_stack_pos::VarToStackPos::var_to_stack_pos()`].
+    + The copied incoming args and the local variables are translated from abstract memory locations to concrete locations by [`crate::stage4_asm_gen::phase2_finalize::var_to_stack_pos::VarToStackPos::resolve_stack_pos()`].
 1. Whenever the current function calls another function,
     1. The current function must save any caller-saved registers that the current function will need to read after the callee returns.
         But, whenever we use these registers within the function's local logic (rather than as an interface between functions), we always immediately save them to memory locations.
