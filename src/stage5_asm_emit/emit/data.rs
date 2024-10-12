@@ -21,33 +21,19 @@ impl<W: Write> AsmCodeEmitter<W> {
             inits,
         }: StaticVariable,
     ) -> Result<(), io::Error> {
-        let init = match inits.first() {
-            Some(InitializerItem::Single(konst)) => *konst,
-            Some(InitializerItem::Zero(bytelen)) => match bytelen.as_int() {
-                4 => Const::Int(0),
-                8 => Const::Long(0),
-                _ => todo!(),
-            },
-            _ => todo!(),
+        let locality = LabelLocality::OF_STATIC_VAR;
+        let section = match &inits[..] {
+            [] | [InitializerItem::Zero(_)] => ".bss",
+            _ => ".data",
         };
-        let section = match init {
-            Const::Int(0) | Const::Long(0) | Const::UInt(0) | Const::ULong(0) => ".bss",
-            Const::Int(_) | Const::Long(_) | Const::UInt(_) | Const::ULong(_) => ".data",
-            Const::Double(_) => ".data", // Even if val==0.0, we don't write to `.bss`.
-        };
-        self.write_static_datum(
-            &ident,
-            visibility,
-            LabelLocality::OF_STATIC_VAR,
-            section,
-            alignment,
-            init,
-        )
+        self.write_static_datum(&ident, visibility, locality, section, alignment, &inits)
     }
     pub(super) fn write_static_const(
         &mut self,
         StaticConstant { ident, alignment, init }: StaticConstant,
     ) -> Result<(), io::Error> {
+        let visibility = StaticVisibility::NonGlobal;
+        let locality = LabelLocality::OF_STATIC_CONST;
         let section = if cfg!(target_os = "macos") {
             match alignment {
                 Alignment::B4 => ".literal4",
@@ -57,19 +43,14 @@ impl<W: Write> AsmCodeEmitter<W> {
         } else {
             ".section .rodata"
         };
-        self.write_static_datum(
-            &ident,
-            StaticVisibility::NonGlobal,
-            LabelLocality::OF_STATIC_CONST,
-            section,
-            alignment,
-            init,
-        )?;
+        let inits = &[InitializerItem::Single(init)];
+        self.write_static_datum(&ident, visibility, locality, section, alignment, inits)?;
         if cfg!(target_os = "macos") {
             self.write_fillin_data(init, alignment)?;
         }
         Ok(())
     }
+
     fn write_static_datum(
         &mut self,
         ident: &SymbolIdentifier,
@@ -77,27 +58,32 @@ impl<W: Write> AsmCodeEmitter<W> {
         locality: LabelLocality,
         section: &'static str,
         alignment: Alignment,
-        init: Const,
+        inits: &[InitializerItem<Const>],
     ) -> Result<(), io::Error> {
         self.write_symbol_visibility(ident, visibility, locality)?;
         writeln!(&mut self.w, "{TAB}{section}")?;
         writeln!(&mut self.w, "{TAB}.balign {}", alignment as u8)?;
         self.write_symbol_decl(ident, locality)?;
-        if section == ".bss" {
-            let bytelen = OperandByteLen::from(init.arithmetic_type()) as u8;
-            writeln!(&mut self.w, "{TAB}.zero {bytelen}")?;
-        } else {
-            /* Supported formats include:
-                + hexadecimal floating-point: `.double 0x2.8p+3` (LLVM supports it; GAS doesn't)
-                + decimal floating-point: `.double 20.0`, `2e3`
-                + decimal
-            We choose to emit as decimal. */
+        for init in inits {
             match init {
-                Const::Int(i) => writeln!(&mut self.w, "{TAB}.long {i}")?,
-                Const::UInt(i) => writeln!(&mut self.w, "{TAB}.long {i}")?,
-                Const::Long(i) => writeln!(&mut self.w, "{TAB}.quad {i}")?,
-                Const::ULong(i) => writeln!(&mut self.w, "{TAB}.quad {i}")?,
-                Const::Double(f) => writeln!(&mut self.w, "{TAB}.quad {}", f.to_bits())?,
+                InitializerItem::Zero(bytelen) => {
+                    let bytelen = bytelen.as_int();
+                    writeln!(&mut self.w, "{TAB}.zero {bytelen}")?;
+                }
+                InitializerItem::Single(konst) => {
+                    /* Supported formats include:
+                        + hexadecimal floating-point: `.double 0x2.8p+3` (LLVM supports it; GAS doesn't)
+                        + decimal floating-point: `.double 20.0`, `2e3`
+                        + decimal
+                    We choose to emit as decimal. */
+                    match konst {
+                        Const::Int(i) => writeln!(&mut self.w, "{TAB}.long {i}")?,
+                        Const::UInt(i) => writeln!(&mut self.w, "{TAB}.long {i}")?,
+                        Const::Long(i) => writeln!(&mut self.w, "{TAB}.quad {i}")?,
+                        Const::ULong(i) => writeln!(&mut self.w, "{TAB}.quad {i}")?,
+                        Const::Double(f) => writeln!(&mut self.w, "{TAB}.quad {}", f.to_bits())?,
+                    }
+                }
             }
         }
         Ok(())
