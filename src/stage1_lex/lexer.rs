@@ -131,6 +131,8 @@ impl<R: Read + BufRead> Lexer<R> {
                 .map(|b| b.to_ascii_lowercase()),
         );
 
+        /* Note, each literal we parse is zero-or-positive.
+        As a consequence, we're unable to parse a signed long literal valued -(1<<63). */
         let konst = match &markers[..] {
             b"ul" | b"lu" => digits.parse::<u64>().map(Const::ULong)?,
             b"l" => digits.parse::<i64>().map(Const::Long)?,

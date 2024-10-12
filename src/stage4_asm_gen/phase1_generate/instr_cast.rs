@@ -85,8 +85,11 @@ impl InstrsGenerator {
             ScalarAssemblyType::Quadword => {
                 let i64_ceil_as_u64 = (i64::MAX as u64) + 1;
                 let i64_ceil_as_f64 = i64_ceil_as_u64 as f64;
-                let i64_ceil_as_f64 =
-                    self.get_or_new_static_constant_operand(None, Const::Double(i64_ceil_as_f64));
+                let i64_ceil_as_f64 = {
+                    self.get_or_new_static_constant_operand(None, Const::Double(i64_ceil_as_f64))
+                    /* `Double(i64_ceil_as_f64)` is equivalent to `Double(-0.0)`,
+                    AS LONG AS `Const impl PartialEq` compares `f64`s by their bits, not by rust's default comparison logic. */
+                };
 
                 let [lbl_out_of_range, lbl_end] =
                     JumpLabel::create(UniqueId::new(), "f64_u64", ["oor", "end"]);
