@@ -54,12 +54,12 @@ impl InstrsGenerator {
                     self.get_or_new_static_constant_operand(None, konst)
                 }
             },
-            t::Value::Variable(ident, _sca_typ_marker) => PreFinalOperand::Pseudo(ident),
+            t::Value::Variable(ident, _sca_typ_marker) => PreFinalOperand::PseudoRegOrMem(ident),
         }
     }
 
     pub(super) fn object_to_operand(ident: Rc<SymbolIdentifier>) -> PreFinalOperand {
-        PreFinalOperand::Pseudo(ident)
+        PreFinalOperand::PseudoRegOrMem(ident)
     }
 
     /* Asm static constant */

@@ -128,7 +128,8 @@ impl InstrsFinalizer {
     fn convert_operand(&mut self, pfo: PreFinalOperand) -> Operand {
         match pfo {
             PreFinalOperand::O(o) => o,
-            PreFinalOperand::Pseudo(ident) => {
+            PreFinalOperand::PseudoRegOrMem(ident) => {
+                // Unconditionally on mem, for now.
                 let AsmObj { asm_type, loc } = self.backend_symtab.objs().get(&ident).unwrap();
                 match loc {
                     ObjLocation::Stack => {
