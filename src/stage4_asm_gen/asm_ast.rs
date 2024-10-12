@@ -138,13 +138,13 @@ mod operand {
     #[derive(From, Clone, Debug)]
     pub enum PreFinalOperand {
         O(Operand),
-        Pseudo(Rc<SymbolIdentifier>),
+        PseudoRegOrMem(Rc<SymbolIdentifier>),
     }
     impl PreFinalOperand {
         pub fn is_on_mem(&self) -> bool {
             match self {
                 Self::O(o) => o.is_on_mem(),
-                Self::Pseudo(_) => true,
+                Self::PseudoRegOrMem(_) => true, // Unconditionally on mem, for now.
             }
         }
     }
