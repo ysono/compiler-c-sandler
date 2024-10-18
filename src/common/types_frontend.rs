@@ -136,11 +136,15 @@ pub type ScalarFunType = FunType<SubObjType<ScalarType>>;
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::test::utils::{TestDeclaratorItem as Dec, TypeBuilder};
+    use crate::{
+        ds_n_a::singleton::SingletonRepository,
+        test::utils::{TestDeclaratorItem as Dec, TypeBuilder},
+    };
 
     #[test]
     fn obj_type_properties() {
-        let mut typ_bld = TypeBuilder::default();
+        let mut obj_typ_repo = SingletonRepository::<ObjType>::default();
+        let mut typ_bld = TypeBuilder::new(&mut obj_typ_repo);
 
         let mut get_properties = |items_outward: &[Dec], base_typ: ArithmeticType| {
             let obj_typ = typ_bld.build_obj_type(items_outward, base_typ);

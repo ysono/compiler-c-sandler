@@ -1,19 +1,17 @@
 use crate::{
     common::types_frontend::ArithmeticType,
     stage2_parse::c_ast as c,
-    test::utils::{
-        compile_parsed_c_prog, decompose_obj_type, fail, ProtoType, TestDeclaratorItem as Dec,
-    },
+    test::utils::{self, fail, ProtoType, TestDeclaratorItem as Dec},
 };
 use anyhow::Result;
 
 fn do_test(pp: &'static str, expected_type: ProtoType) -> Result<()> {
-    let c_prog = compile_parsed_c_prog(pp)?;
+    let c_prog = utils::compile_until_parser(pp)?;
     let typ = match &c_prog.decls[0] {
         c::Declaration::Var(c::VariableDeclaration { typ, .. }) => typ,
         _ => fail!("{c_prog:?}"),
     };
-    assert_eq!(decompose_obj_type(typ), expected_type);
+    assert_eq!(typ.as_ref(), expected_type);
     Ok(())
 }
 

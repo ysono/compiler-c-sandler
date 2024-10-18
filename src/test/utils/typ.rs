@@ -4,23 +4,24 @@ use crate::{
     },
     ds_n_a::singleton::{Singleton, SingletonRepository},
 };
+use derive_more::Constructor;
 
-#[derive(PartialEq, Eq, Debug)]
+#[derive(Debug)]
 pub struct ProtoType {
     pub items_baseward: Vec<TestDeclaratorItem>,
     pub base_type: ArithmeticType,
 }
-#[derive(PartialEq, Eq, Debug)]
+#[derive(Debug)]
 pub enum TestDeclaratorItem {
     Ptr,
     Arr(u64), // Elem count.
 }
 
-#[derive(Default)]
-pub struct TypeBuilder {
-    obj_typ_repo: SingletonRepository<ObjType>,
+#[derive(Constructor)]
+pub struct TypeBuilder<'a> {
+    obj_typ_repo: &'a mut SingletonRepository<ObjType>,
 }
-impl TypeBuilder {
+impl<'a> TypeBuilder<'a> {
     pub fn build_obj_type(
         &mut self,
         in_items_outward: &[TestDeclaratorItem],
@@ -47,27 +48,32 @@ impl TypeBuilder {
     }
 }
 
-/// This decomposition enables [`ObjType`]s to be compared easily.
-///
-/// For two [`Singleton`]s to compare as equal, they must be produced by the same [`SingletonRepository`].
-/// But the repository used by the compiler is private.
-pub fn decompose_obj_type(obj_typ: &ObjType) -> ProtoType {
-    let mut items_baseward = vec![];
-    let base_type = do_decompose_obj_type(obj_typ, &mut items_baseward);
-    ProtoType { items_baseward, base_type }
-}
-fn do_decompose_obj_type(obj_typ: &ObjType, items: &mut Vec<TestDeclaratorItem>) -> ArithmeticType {
-    match obj_typ {
-        ObjType::Scalar(s) => match s {
-            ScalarType::Arith(a) => *a,
-            ScalarType::Ptr(PointerType { pointee_type }) => {
-                items.push(TestDeclaratorItem::Ptr);
-                do_decompose_obj_type(pointee_type, items)
+/// To assert the content of an instance of [`Singleton<ObjType>`] that's constructed by the compiler's private [`SingletonRepository`],
+/// compare that [`Singleton<ObjType>`] against a locally-constructed [`ProtoType`].
+impl PartialEq<ProtoType> for &ObjType {
+    fn eq(&self, proto_typ: &ProtoType) -> bool {
+        let mut obj_typ: &ObjType = *self;
+
+        let mut proto_items_sfx = proto_typ.items_baseward.iter();
+
+        loop {
+            match (obj_typ, proto_items_sfx.next()) {
+                (ObjType::Scalar(ScalarType::Arith(a)), None) => {
+                    return *a == proto_typ.base_type;
+                }
+                (
+                    ObjType::Scalar(ScalarType::Ptr(PointerType { pointee_type })),
+                    Some(TestDeclaratorItem::Ptr),
+                ) => {
+                    obj_typ = pointee_type;
+                }
+                (ObjType::Array(arr_typ), Some(TestDeclaratorItem::Arr(elem_count)))
+                    if arr_typ.elem_count().as_int() == *elem_count =>
+                {
+                    obj_typ = arr_typ.elem_type();
+                }
+                _ => return false,
             }
-        },
-        ObjType::Array(arr_typ) => {
-            items.push(TestDeclaratorItem::Arr(arr_typ.elem_count().as_int()));
-            do_decompose_obj_type(arr_typ.elem_type(), items)
         }
     }
 }

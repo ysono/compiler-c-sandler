@@ -1,12 +1,12 @@
 use crate::{
     common::{primitive::Const, types_frontend::ArithmeticType},
     stage2_parse::{c_ast as c, phase3_typecheck::TypeCheckedCAst},
-    test::utils::{compile_typechecked_c_prog, decompose_obj_type, fail, ProtoType},
+    test::utils::{self, fail, ProtoType},
 };
 use anyhow::Result;
 
 fn get_block_items(pp: &'static str) -> Result<Vec<c::BlockItem<TypeCheckedCAst>>> {
-    let mut c_prog = compile_typechecked_c_prog(pp)?;
+    let (mut c_prog, _) = utils::compile_until_typechecker(pp)?;
     let fun = c_prog.decls.pop().unwrap();
     Ok(fun.body.items)
 }
@@ -25,7 +25,7 @@ fn return_const() -> Result<()> {
             typ,
         })))] => {
             assert_eq!(
-                decompose_obj_type(typ.as_owner()),
+                typ.as_owner().as_ref(),
                 ProtoType {
                     items_baseward: vec![],
                     base_type: ArithmeticType::Int,

@@ -137,32 +137,16 @@ mod test {
     use InitializerItem as OutItem;
     use VariableInitializer as InNode;
 
-    fn in_sing_constexpr_int(int: i32) -> InNode<ResolvedCAst> {
+    fn in_single_constexpr_int(int: i32) -> InNode<ResolvedCAst> {
         let exp = Expression::R(RExp::Const(Const::Int(int)));
         InNode::Single(exp)
     }
-    fn in_sing_constexpr_dbl(dbl: f64) -> InNode<ResolvedCAst> {
+    fn in_single_constexpr_dbl(dbl: f64) -> InNode<ResolvedCAst> {
         let exp = Expression::R(RExp::Const(Const::Double(dbl)));
         InNode::Single(exp)
     }
 
-    fn out_sing_constexpr_int(int: i32) -> OutItem<Const> {
-        OutItem::Single(Const::Int(int))
-    }
-    fn out_sing_constexpr_dbl(dbl: f64) -> OutItem<Const> {
-        OutItem::Single(Const::Double(dbl))
-    }
-    fn out_zero<Sngl>(bytelen: u64) -> OutItem<Sngl> {
-        OutItem::Zero(ByteLen::new(bytelen))
-    }
-
-    fn match_out_rtexpr_zero(item: &OutItem<TypedExp<ScalarType>>, expected_bytelen: u64) -> bool {
-        match item {
-            OutItem::Zero(actual_bytelen) => actual_bytelen.as_int() == expected_bytelen,
-            _ => false,
-        }
-    }
-    fn match_out_rtexpr_sing_leafexpr_int(
+    fn match_out_rt_single_const_int(
         item: &OutItem<TypedExp<ScalarType>>,
         expected_int: i32,
     ) -> bool {
@@ -177,53 +161,75 @@ mod test {
             _ => false,
         }
     }
+    fn match_out_rt_zero(item: &OutItem<TypedExp<ScalarType>>, expected_bytelen: u64) -> bool {
+        match item {
+            OutItem::Zero(actual_bytelen) => actual_bytelen.as_int() == expected_bytelen,
+            _ => false,
+        }
+    }
 
-    fn do_typecheck_static(
+    fn new_typechecker(
         (typ_decls, base_typ): (&[Dec], ArithmeticType),
-        init: InNode<ResolvedCAst>,
-    ) -> Result<Vec<OutItem<Const>>> {
-        let mut typ_bld = TypeBuilder::default();
-        let typ = typ_bld.build_obj_type(&typ_decls, base_typ);
-
+    ) -> (TypeChecker, Singleton<ObjType>) {
         let obj_type_repo = SingletonRepository::default();
         let mut tc = TypeChecker::new(obj_type_repo);
+
+        let mut typ_bld = TypeBuilder::new(&mut tc.obj_type_repo);
+        let typ = typ_bld.build_obj_type(&typ_decls, base_typ);
+
+        (tc, typ)
+    }
+    fn do_typecheck_static(
+        typ: (&[Dec], ArithmeticType),
+        init: InNode<ResolvedCAst>,
+    ) -> Result<Vec<OutItem<Const>>> {
+        let (mut tc, typ) = new_typechecker(typ);
         tc.typecheck_initializer_static(&typ, init)
     }
     fn do_typecheck_runtime(
-        (typ_decls, base_typ): (&[Dec], ArithmeticType),
+        typ: (&[Dec], ArithmeticType),
         init: InNode<ResolvedCAst>,
     ) -> Result<Vec<OutItem<TypedExp<ScalarType>>>> {
-        let mut typ_bld = TypeBuilder::default();
-        let typ = typ_bld.build_obj_type(&typ_decls, base_typ);
-
-        let obj_type_repo = SingletonRepository::default();
-        let mut tc = TypeChecker::new(obj_type_repo);
+        let (mut tc, typ) = new_typechecker(typ);
         tc.typecheck_initializer_runtime(&typ, init)
     }
+
+    /* ScalarType <- single initializer */
 
     #[test]
     fn static_single_nonzero() -> Result<()> {
         let out_items =
-            do_typecheck_static((&[], ArithmeticType::UInt), in_sing_constexpr_dbl(41.0))?;
+            do_typecheck_static((&[], ArithmeticType::UInt), in_single_constexpr_dbl(41.0))?;
         assert_eq!(&out_items, &[OutItem::Single(Const::UInt(41))]);
         Ok(())
     }
 
     #[test]
     fn static_single_zero_integ() -> Result<()> {
-        let out_items =
-            do_typecheck_static((&[], ArithmeticType::UInt), in_sing_constexpr_dbl(0.0))?;
-        assert_eq!(&out_items, &[out_zero(4)]);
+        {
+            let out_items =
+                do_typecheck_static((&[], ArithmeticType::UInt), in_single_constexpr_dbl(0.0))?;
+            assert_eq!(&out_items, &[OutItem::Zero(ByteLen::new(4))]);
+        }
+        {
+            let out_items = do_typecheck_static(
+                (&[Dec::Ptr], ArithmeticType::Double),
+                in_single_constexpr_int(0),
+            )?;
+            assert_eq!(&out_items, &[OutItem::Zero(ByteLen::new(8))]);
+        }
         Ok(())
     }
 
     #[test]
     fn static_single_zero_dbl() -> Result<()> {
         let out_items =
-            do_typecheck_static((&[], ArithmeticType::Double), in_sing_constexpr_dbl(0.0))?;
+            do_typecheck_static((&[], ArithmeticType::Double), in_single_constexpr_dbl(0.0))?;
         assert_eq!(&out_items, &[OutItem::Single(Const::Double(0.0))]); // Not Zero item.
         Ok(())
     }
+
+    /* ArrayType <- compound initializer */
 
     #[test]
     fn static_compound_empty() -> Result<()> {
@@ -231,7 +237,7 @@ mod test {
             (&[Dec::Arr(17), Dec::Arr(7)], ArithmeticType::Int),
             InNode::Compound(vec![]),
         )?;
-        assert_eq!(&out_items, &[out_zero(4 * 7 * 17)]);
+        assert_eq!(&out_items, &[OutItem::Zero(ByteLen::new(4 * 7 * 17))]);
         Ok(())
         /* Note, our parser grammer forbids an empty initializer, so this scenario is unrealistic. */
     }
@@ -241,25 +247,25 @@ mod test {
         let out_items = do_typecheck_static(
             (&[Dec::Arr(17), Dec::Arr(7)], ArithmeticType::Int),
             InNode::Compound(vec![
-                InNode::Compound(vec![in_sing_constexpr_int(10)]),
-                InNode::Compound(vec![in_sing_constexpr_int(0)]),
+                InNode::Compound(vec![in_single_constexpr_int(10)]),
+                InNode::Compound(vec![in_single_constexpr_int(0)]),
                 InNode::Compound(vec![]),
                 InNode::Compound(vec![
-                    in_sing_constexpr_int(0),
-                    in_sing_constexpr_int(20),
-                    in_sing_constexpr_int(21),
+                    in_single_constexpr_int(0),
+                    in_single_constexpr_int(20),
+                    in_single_constexpr_int(21),
                 ]),
-                InNode::Compound(vec![in_sing_constexpr_int(0), in_sing_constexpr_int(0)]),
+                InNode::Compound(vec![in_single_constexpr_int(0), in_single_constexpr_int(0)]),
             ]),
         )?;
         assert_eq!(
             &out_items,
             &[
-                out_sing_constexpr_int(10),
-                out_zero(4 * ((7 - 1) + 7 * 2 + 1)), // arr[0][1:], arr[1:3][:], arr[3][:1]
-                out_sing_constexpr_int(20),
-                out_sing_constexpr_int(21),
-                out_zero(4 * ((7 - 3) + 7 * (17 - 4))), // arr[3][3:], arr[4:][:]
+                OutItem::Single(Const::Int(10)),
+                OutItem::Zero(ByteLen::new(4 * ((7 - 1) + 7 * 2 + 1))), // arr[0][1:], arr[1:3][:], arr[3][:1]
+                OutItem::Single(Const::Int(20)),
+                OutItem::Single(Const::Int(21)),
+                OutItem::Zero(ByteLen::new(4 * ((7 - 3) + 7 * (17 - 4)))), // arr[3][3:], arr[4:][:]
             ]
         );
         Ok(())
@@ -270,32 +276,32 @@ mod test {
         let out_items = do_typecheck_static(
             (&[Dec::Arr(17), Dec::Arr(7)], ArithmeticType::Double),
             InNode::Compound(vec![
-                InNode::Compound(vec![in_sing_constexpr_dbl(10.0)]),
+                InNode::Compound(vec![in_single_constexpr_dbl(10.0)]),
                 InNode::Compound(vec![]),
                 InNode::Compound(vec![
-                    in_sing_constexpr_dbl(20.0),
-                    in_sing_constexpr_dbl(21.0),
+                    in_single_constexpr_dbl(20.0),
+                    in_single_constexpr_dbl(21.0),
                 ]),
-                InNode::Compound(vec![in_sing_constexpr_dbl(0.0)]),
+                InNode::Compound(vec![in_single_constexpr_dbl(0.0)]),
                 InNode::Compound(vec![
-                    in_sing_constexpr_dbl(-0.0),
-                    in_sing_constexpr_dbl(0.0),
+                    in_single_constexpr_dbl(-0.0),
+                    in_single_constexpr_dbl(0.0),
                 ]),
             ]),
         )?;
         assert_eq!(
             &out_items,
             &[
-                out_sing_constexpr_dbl(10.0),
-                out_zero(8 * ((7 - 1) + 7)), // arr[0][1:], arr[1][:]
-                out_sing_constexpr_dbl(20.0),
-                out_sing_constexpr_dbl(21.0),
-                out_zero(8 * (7 - 2)),                  // arr[2][2:]
-                out_sing_constexpr_dbl(0.0),            // Not combined with neighboring Zero items.
-                out_zero(8 * (7 - 1)),                  // arr[3][1:]
-                out_sing_constexpr_dbl(-0.0),           // Not combined with neighboring Zero items.
-                out_sing_constexpr_dbl(0.0),            // Not combined with neighboring Zero items.
-                out_zero(8 * ((7 - 2) + 7 * (17 - 5))), // arr[4][2:], arr[5:][:]
+                OutItem::Single(Const::Double(10.0)),
+                OutItem::Zero(ByteLen::new(8 * ((7 - 1) + 7))), // arr[0][1:], arr[1][:]
+                OutItem::Single(Const::Double(20.0)),
+                OutItem::Single(Const::Double(21.0)),
+                OutItem::Zero(ByteLen::new(8 * (7 - 2))), // arr[2][2:]
+                OutItem::Single(Const::Double(0.0)), // Not combined with neighboring Zero items.
+                OutItem::Zero(ByteLen::new(8 * (7 - 1))), // arr[3][1:]
+                OutItem::Single(Const::Double(-0.0)), // Not combined with neighboring Zero items.
+                OutItem::Single(Const::Double(0.0)), // Not combined with neighboring Zero items.
+                OutItem::Zero(ByteLen::new(8 * ((7 - 2) + 7 * (17 - 5)))), // arr[4][2:], arr[5:][:]
             ]
         );
         Ok(())
@@ -306,24 +312,24 @@ mod test {
         let out_items = do_typecheck_runtime(
             (&[Dec::Arr(17), Dec::Arr(7)], ArithmeticType::Int),
             InNode::Compound(vec![
-                InNode::Compound(vec![in_sing_constexpr_int(10)]),
+                InNode::Compound(vec![in_single_constexpr_int(10)]),
                 InNode::Compound(vec![]),
                 InNode::Compound(vec![
-                    in_sing_constexpr_int(0),
-                    in_sing_constexpr_int(20),
-                    in_sing_constexpr_int(21),
+                    in_single_constexpr_int(0),
+                    in_single_constexpr_int(20),
+                    in_single_constexpr_int(21),
                 ]),
             ]),
         )?;
 
         assert_eq!(out_items.len(), 6);
 
-        assert!(match_out_rtexpr_sing_leafexpr_int(&out_items[0], 10));
-        assert!(match_out_rtexpr_zero(&out_items[1], 4 * ((7 - 1) + 7))); // arr[0][1:], arr[1][:]
-        assert!(match_out_rtexpr_sing_leafexpr_int(&out_items[2], 0)); // Not combined with neighboring Zero items.
-        assert!(match_out_rtexpr_sing_leafexpr_int(&out_items[3], 20));
-        assert!(match_out_rtexpr_sing_leafexpr_int(&out_items[4], 21));
-        assert!(match_out_rtexpr_zero(
+        assert!(match_out_rt_single_const_int(&out_items[0], 10));
+        assert!(match_out_rt_zero(&out_items[1], 4 * ((7 - 1) + 7))); // arr[0][1:], arr[1][:]
+        assert!(match_out_rt_single_const_int(&out_items[2], 0)); // Not combined with neighboring Zero items.
+        assert!(match_out_rt_single_const_int(&out_items[3], 20));
+        assert!(match_out_rt_single_const_int(&out_items[4], 21));
+        assert!(match_out_rt_zero(
             &out_items[5],
             4 * ((7 - 3) + 7 * (17 - 3))
         )); // arr[2][3:], arr[3:][:]

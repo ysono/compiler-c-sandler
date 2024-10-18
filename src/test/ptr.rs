@@ -1,14 +1,14 @@
 use crate::{
     common::primitive::Const,
     stage3_tacky::tacky_ast as t,
-    test::utils::{compile_tacky_prog, expect_tacky_implicit_return_instr, fail},
+    test::utils::{self, fail},
     utils::noop,
 };
 use anyhow::Result;
 
 fn compile_tacky_instrs(pp: &'static str) -> Result<Vec<t::Instruction>> {
-    let t_prog = compile_tacky_prog(pp)?;
-    let mut t_prog = expect_tacky_implicit_return_instr(t_prog);
+    let (t_prog, _) = utils::compile_until_tacky(pp)?;
+    let mut t_prog = utils::expect_tacky_implicit_return_instr(t_prog);
     let instrs = t_prog.funs.pop().unwrap().instrs;
     Ok(instrs)
 }
