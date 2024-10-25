@@ -1,6 +1,9 @@
 use super::FunInstrsGenerator;
 use crate::{
-    common::{primitive::Const, symbol_table_frontend::InitializerItem, types_backend::ByteLen},
+    common::{
+        identifier::SymbolIdentifier, primitive::Const, symbol_table_frontend::InitializerItem,
+        types_backend::ByteLen, types_frontend::ScalarType,
+    },
     stage2_parse::{c_ast as c, phase3_typecheck::TypeCheckedCAst},
     stage3_tacky::tacky_ast::*,
 };
@@ -13,38 +16,75 @@ impl<'a> FunInstrsGenerator<'a> {
     ) {
         let single_type = typ.single_type();
         let single_bytelen = ByteLen::from(single_type);
-        let single_zero = Const::new_zero_bits(single_type);
-        let new_cto = |src: Value, offset: ByteLen| {
-            Instruction::CopyToOffset(CopyToOffset {
-                src,
-                dst_obj: Rc::clone(&ident),
-                offset,
-            })
-        };
 
         /* Begin instructions */
 
-        let mut offset = ByteLen::new(0);
+        let mut cur_offset = ByteLen::new(0);
         for item in init {
             match item {
-                InitializerItem::Single(exp) => {
-                    let val = self.gen_exp_and_get_value(exp);
-
-                    self.instrs.push(new_cto(val, offset));
-                    offset += single_bytelen;
+                InitializerItem::Single(typed_exp) => {
+                    self.gen_var_init_single(&ident, single_bytelen, &mut cur_offset, typed_exp);
                 }
                 InitializerItem::String { .. } => todo!(),
                 InitializerItem::Pointer(_) => todo!(),
-                InitializerItem::Zero(bytelen) => {
-                    let final_offset = offset + bytelen;
-                    while offset < final_offset {
-                        self.instrs
-                            .push(new_cto(Value::Constant(single_zero), offset));
-                        offset += single_bytelen;
-                    }
-                    debug_assert_eq!(offset, final_offset);
+                InitializerItem::Zero(zeros_bytelen) => {
+                    self.gen_var_init_zero(&ident, &mut cur_offset, zeros_bytelen);
                 }
             }
         }
     }
+
+    fn gen_var_init_single(
+        &mut self,
+        ident: &Rc<SymbolIdentifier>,
+        single_bytelen: ByteLen,
+        cur_offset: &mut ByteLen,
+        typed_exp: c::TypedExp<ScalarType>,
+    ) {
+        let val = self.gen_exp_and_get_value(typed_exp);
+
+        self.instrs.push(new_cto(val, ident, *cur_offset));
+
+        *cur_offset += single_bytelen;
+    }
+
+    fn gen_var_init_zero(
+        &mut self,
+        ident: &Rc<SymbolIdentifier>,
+        cur_offset: &mut ByteLen,
+        zeros_bytelen: ByteLen,
+    ) {
+        let mut rem_bytelen = zeros_bytelen.as_int();
+
+        while rem_bytelen >= 8 {
+            let val = Value::Constant(Const::ULong(0));
+            self.instrs.push(new_cto(val, ident, *cur_offset));
+
+            *cur_offset += ByteLen::new(8);
+            rem_bytelen -= 8;
+        }
+        if rem_bytelen >= 4 {
+            let val = Value::Constant(Const::UInt(0));
+            self.instrs.push(new_cto(val, ident, *cur_offset));
+
+            *cur_offset += ByteLen::new(4);
+            rem_bytelen -= 4;
+        }
+        while rem_bytelen >= 1 {
+            let val = Value::Constant(Const::UChar(0));
+            self.instrs.push(new_cto(val, ident, *cur_offset));
+
+            *cur_offset += ByteLen::new(1);
+            rem_bytelen -= 1;
+        }
+    }
+}
+
+/// Note, [`Instruction::CopyToOffset`] is compatible with any alignment at the destination.
+fn new_cto(src: Value, ident: &Rc<SymbolIdentifier>, offset: ByteLen) -> Instruction {
+    Instruction::CopyToOffset(CopyToOffset {
+        src,
+        dst_obj: Rc::clone(ident),
+        offset,
+    })
 }
