@@ -2,7 +2,7 @@ use super::TypeChecker;
 use crate::{
     common::{
         primitive::Const,
-        symbol_table_frontend::{InitializerItem, StaticInitialValue},
+        symbol_table_frontend::{InitializerItem, StaticInitializer},
         types_backend::ByteLen,
         types_frontend::{ObjType, ScalarType},
     },
@@ -12,10 +12,10 @@ use crate::{
 use anyhow::{anyhow, Result};
 
 impl TypeChecker {
-    pub(super) fn generate_zero_static_initial_value(typ: &ObjType) -> StaticInitialValue {
+    pub(super) fn generate_zero_static_initializer(typ: &ObjType) -> StaticInitializer {
         let bytelen = typ.bytelen();
         let item = InitializerItem::Zero(bytelen);
-        StaticInitialValue::Initial(vec![item])
+        StaticInitializer::Concrete(vec![item])
     }
 
     pub(super) fn typecheck_initializer_static(

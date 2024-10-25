@@ -32,22 +32,26 @@ impl<W: Write> AsmCodeEmitter<W> {
     fn write_static_readwrite(
         &mut self,
         ident: &SymbolIdentifier,
-        StaticReadWriteAsmObjAttrs { visibility, alignment, inits }: &StaticReadWriteAsmObjAttrs,
+        StaticReadWriteAsmObjAttrs {
+            visibility,
+            alignment,
+            initializer,
+        }: &StaticReadWriteAsmObjAttrs,
     ) -> Result<(), io::Error> {
-        if let Some(inits) = inits {
+        if let Some(items) = initializer {
             let locality = LabelLocality::OF_STATIC_RW_OBJ;
-            let section = match &inits[..] {
+            let section = match &items[..] {
                 [] | [InitializerItem::Zero(_)] => ".bss",
                 _ => ".data",
             };
-            self.write_static_datum(ident, *visibility, locality, section, *alignment, inits)?;
+            self.write_static_datum(ident, *visibility, locality, section, *alignment, items)?;
         }
         Ok(())
     }
     fn write_static_readonly(
         &mut self,
         ident: &SymbolIdentifier,
-        StaticReadonlyAsmObjAttrs { alignment, init }: &StaticReadonlyAsmObjAttrs,
+        StaticReadonlyAsmObjAttrs { alignment, initializer }: &StaticReadonlyAsmObjAttrs,
     ) -> Result<(), io::Error> {
         let visibility = StaticVisibility::NonGlobal;
         let locality = LabelLocality::OF_STATIC_RO_OBJ;
@@ -60,10 +64,10 @@ impl<W: Write> AsmCodeEmitter<W> {
         } else {
             ".section .rodata"
         };
-        let inits = &[InitializerItem::Single(*init)];
-        self.write_static_datum(ident, visibility, locality, section, *alignment, inits)?;
+        let items = &[InitializerItem::Single(*initializer)];
+        self.write_static_datum(ident, visibility, locality, section, *alignment, items)?;
         if cfg!(target_os = "macos") {
-            self.write_fillin_data(*init, *alignment)?;
+            self.write_fillin_data(*initializer, *alignment)?;
         }
         Ok(())
     }

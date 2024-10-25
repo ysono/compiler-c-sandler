@@ -2,7 +2,7 @@ use crate::common::{
     identifier::SymbolIdentifier,
     primitive::Const,
     symbol_table_frontend::{
-        InitializerItem, ObjAttrs, StaticInitialValue, StaticVisibility, Symbol, SymbolTable,
+        InitializerItem, ObjAttrs, StaticInitializer, StaticVisibility, Symbol, SymbolTable,
     },
     types_backend::{Alignment, AssemblyType, ScalarAssemblyType},
 };
@@ -26,12 +26,12 @@ pub enum AsmObjAttrs {
 pub struct StaticReadWriteAsmObjAttrs {
     pub visibility: StaticVisibility,
     pub alignment: Alignment,
-    pub inits: Option<Vec<InitializerItem<Const>>>,
+    pub initializer: Option<Vec<InitializerItem<Const>>>,
 }
 #[derive(Debug)]
 pub struct StaticReadonlyAsmObjAttrs {
     pub alignment: Alignment,
-    pub init: Const,
+    pub initializer: Const,
 }
 
 #[derive(Debug)]
@@ -64,7 +64,8 @@ impl BackendSymbolTable {
                     Rc::clone(&ident),
                     AsmObj {
                         asm_type: ScalarAssemblyType::from(konst.arithmetic_type()).into(),
-                        asm_attrs: StaticReadonlyAsmObjAttrs { alignment, init: konst }.into(),
+                        asm_attrs: StaticReadonlyAsmObjAttrs { alignment, initializer: konst }
+                            .into(),
                     },
                 );
 
@@ -82,18 +83,23 @@ impl BackendSymbolTable {
                     let asm_type = AssemblyType::from(typ.as_ref());
                     let asm_attrs = match attrs {
                         ObjAttrs::AutomaticStorageDuration => AsmObjAttrs::Stack,
-                        ObjAttrs::StaticReadWrite { visibility, initial_value } => {
+                        ObjAttrs::StaticReadWrite { visibility, initializer } => {
                             let alignment = Alignment::default_of_obj_type(&typ);
-                            let inits = match initial_value {
-                                StaticInitialValue::Initial(inits) => Some(inits),
-                                StaticInitialValue::Tentative => {
+                            let initializer = match initializer {
+                                StaticInitializer::Concrete(inits) => Some(inits),
+                                StaticInitializer::Tentative => {
                                     let bytelen = typ.bytelen();
                                     let init = InitializerItem::Zero(bytelen);
                                     Some(vec![init])
                                 }
-                                StaticInitialValue::NoInitializer => None,
+                                StaticInitializer::NoInitializer => None,
                             };
-                            StaticReadWriteAsmObjAttrs { visibility, alignment, inits }.into()
+                            StaticReadWriteAsmObjAttrs {
+                                visibility,
+                                alignment,
+                                initializer,
+                            }
+                            .into()
                         } /* I wonder whether, if type==Double, we should be locating it on a readonly section. */
                     };
                     self.ident_to_obj

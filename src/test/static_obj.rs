@@ -39,22 +39,22 @@ fn static_double_objs() -> Result<()> {
     {
         let mut static_ro_objs = static_ro_objs.into_iter();
         {
-            let (ident, ROAttrs { alignment, init }) = static_ro_objs.next().unwrap();
+            let (ident, ROAttrs { alignment, initializer }) = static_ro_objs.next().unwrap();
             assert!(is_ident_generated(&ident));
             assert_eq!(alignment, Alignment::B8);
-            assert_eq!(init, Const::Double(3.14));
+            assert_eq!(initializer, Const::Double(3.14));
         }
         {
-            let (ident, ROAttrs { alignment, init }) = static_ro_objs.next().unwrap();
+            let (ident, ROAttrs { alignment, initializer }) = static_ro_objs.next().unwrap();
             assert!(is_ident_generated(&ident));
             assert_eq!(alignment, Alignment::B16);
-            assert_eq!(init, Const::Double(-0.0));
+            assert_eq!(initializer, Const::Double(-0.0));
         }
         {
-            let (ident, ROAttrs { alignment, init }) = static_ro_objs.next().unwrap();
+            let (ident, ROAttrs { alignment, initializer }) = static_ro_objs.next().unwrap();
             assert!(is_ident_generated(&ident));
             assert_eq!(alignment, Alignment::B8);
-            assert_eq!(init, Const::Double((1u64 << 63) as f64),);
+            assert_eq!(initializer, Const::Double((1u64 << 63) as f64),);
         }
         assert!(static_ro_objs.next().is_none());
     }

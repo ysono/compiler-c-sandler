@@ -29,12 +29,12 @@ pub enum ObjAttrs {
     AutomaticStorageDuration,
     StaticReadWrite {
         visibility: StaticVisibility,
-        initial_value: StaticInitialValue,
+        initializer: StaticInitializer,
     },
 }
 #[derive(Debug)]
-pub enum StaticInitialValue {
-    Initial(Vec<InitializerItem<Const>>),
+pub enum StaticInitializer {
+    Concrete(Vec<InitializerItem<Const>>),
     Tentative,
     NoInitializer,
 }

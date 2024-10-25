@@ -2,7 +2,7 @@ use super::{TypeCheckedCAst, TypeChecker};
 use crate::{
     common::{
         identifier::SymbolIdentifier,
-        symbol_table_frontend::{ObjAttrs, StaticInitialValue, StaticVisibility, Symbol},
+        symbol_table_frontend::{ObjAttrs, StaticInitializer, StaticVisibility, Symbol},
         types_frontend::ObjType,
     },
     ds_n_a::singleton::Singleton,
@@ -27,7 +27,7 @@ impl TypeChecker {
 
         let (decl_summary, run_time_init) = match decl_summary {
             Decl::AutoStorDur(run_time_init) => (Decl::AutoStorDur(()), run_time_init),
-            Decl::StaticStorDur(viz, siv) => (Decl::StaticStorDur(viz, siv), None),
+            Decl::StaticStorDur(viz, si) => (Decl::StaticStorDur(viz, si), None),
         };
 
         self.insert_var_decl(Rc::clone(&ident), decl_summary, &typ)?;
@@ -47,27 +47,27 @@ impl TypeChecker {
         new_init: Option<VariableInitializer<ResolvedCAst>>,
         new_typ: &Singleton<ObjType>,
     ) -> Result<Decl<Option<VariableInitializer<ResolvedCAst>>>> {
-        use StaticInitialValue as SIV;
+        use StaticInitializer as SI;
         use StorageClassSpecifier as SCS;
         use VarDeclScope as DS;
 
-        let mut siv = |init: VariableInitializer<ResolvedCAst>| {
+        let mut si = |init: VariableInitializer<ResolvedCAst>| {
             self.typecheck_initializer_static(new_typ, init)
-                .map(StaticInitialValue::Initial)
+                .map(StaticInitializer::Concrete)
         };
-        let siv_zero = || Self::generate_zero_static_initial_value(new_typ);
+        let si_zero = || Self::generate_zero_static_initializer(new_typ);
 
         #[rustfmt::skip]
         let new_decl_summary = match (new_scope, new_sc, new_init) {
-            (DS::File, None, Some(init))              => Decl::StaticStorDur(LViz::Global.into(), siv(init)?),
-            (DS::File, None, None)                    => Decl::StaticStorDur(LViz::Global.into(), SIV::Tentative),
-            (DS::File, Some(SCS::Static), Some(init)) => Decl::StaticStorDur(LViz::TranslUnit.into(), siv(init)?),
-            (DS::File, Some(SCS::Static), None)       => Decl::StaticStorDur(LViz::TranslUnit.into(), SIV::Tentative),
-            (DS::File, Some(SCS::Extern), Some(init)) => Decl::StaticStorDur(LViz::PrevOrGlobal.into(), siv(init)?),
-            (DS::File, Some(SCS::Extern), None)       => Decl::StaticStorDur(LViz::PrevOrGlobal.into(), SIV::NoInitializer),
+            (DS::File, None, Some(init))              => Decl::StaticStorDur(LViz::Global.into(), si(init)?),
+            (DS::File, None, None)                    => Decl::StaticStorDur(LViz::Global.into(), SI::Tentative),
+            (DS::File, Some(SCS::Static), Some(init)) => Decl::StaticStorDur(LViz::TranslUnit.into(), si(init)?),
+            (DS::File, Some(SCS::Static), None)       => Decl::StaticStorDur(LViz::TranslUnit.into(), SI::Tentative),
+            (DS::File, Some(SCS::Extern), Some(init)) => Decl::StaticStorDur(LViz::PrevOrGlobal.into(), si(init)?),
+            (DS::File, Some(SCS::Extern), None)       => Decl::StaticStorDur(LViz::PrevOrGlobal.into(), SI::NoInitializer),
             (DS::Block, None, init)                    => Decl::AutoStorDur(init),
-            (DS::Block, Some(SCS::Static), Some(init)) => Decl::StaticStorDur(Viz::Local, siv(init)?),
-            (DS::Block, Some(SCS::Static), None)       => Decl::StaticStorDur(Viz::Local, siv_zero()),
+            (DS::Block, Some(SCS::Static), Some(init)) => Decl::StaticStorDur(Viz::Local, si(init)?),
+            (DS::Block, Some(SCS::Static), None)       => Decl::StaticStorDur(Viz::Local, si_zero()),
             (DS::Block, Some(SCS::Extern), Some(_)) => return Err(anyhow!(
                 "At scope=block, type=var w/ `extern` cannot have an initializer.")),
             (DS::Block, Some(SCS::Extern), None) => {
@@ -75,7 +75,7 @@ impl TypeChecker {
                 For explanation, see the book page 218 and https://gcc.gnu.org/bugzilla/show_bug.cgi?id=90472#c3
                 The only case we don't handle correctly causes the compiler to exhibit undefined behavior, according to the C standard;
                     hence our overall resolution of this identifier's declaration is conformant to the C standard. */
-                Decl::StaticStorDur(LViz::PrevOrGlobal.into(), SIV::NoInitializer)
+                Decl::StaticStorDur(LViz::PrevOrGlobal.into(), SI::NoInitializer)
             }
             (DS::Paren, None, init) => Decl::AutoStorDur(init),
             (DS::Paren, Some(_), _) => return Err(anyhow!(
@@ -89,7 +89,7 @@ impl TypeChecker {
         new_decl_summary: Decl<()>,
         new_typ: &Singleton<ObjType>,
     ) -> Result<()> {
-        use StaticInitialValue as SIV;
+        use StaticInitializer as SI;
 
         let entry = self.symbol_table.as_mut().entry(ident);
         match (entry, new_decl_summary) {
@@ -97,12 +97,12 @@ impl TypeChecker {
                 let typ = new_typ.clone();
                 let attrs = match new_decl_summary {
                     Decl::AutoStorDur(()) => ObjAttrs::AutomaticStorageDuration,
-                    Decl::StaticStorDur(viz, initial_value) => {
+                    Decl::StaticStorDur(viz, initializer) => {
                         let visibility = match viz {
                             Viz::Lkg(LViz::Global | LViz::PrevOrGlobal) => StaticVisibility::Global,
                             Viz::Lkg(LViz::TranslUnit) | Viz::Local => StaticVisibility::NonGlobal,
                         };
-                        ObjAttrs::StaticReadWrite { visibility, initial_value }
+                        ObjAttrs::StaticReadWrite { visibility, initializer }
                     }
                 };
                 entry.insert(Symbol::Obj { typ, attrs });
@@ -111,7 +111,7 @@ impl TypeChecker {
             (Entry::Occupied(_), Decl::AutoStorDur(()) | Decl::StaticStorDur(Viz::Local, _)) => {
                 Err(anyhow!("Cannot declare same ident 2+ times."))
             }
-            (Entry::Occupied(mut entry), Decl::StaticStorDur(Viz::Lkg(new_viz), new_init_val)) => {
+            (Entry::Occupied(mut entry), Decl::StaticStorDur(Viz::Lkg(new_viz), new_init)) => {
                 let prev_symbol = entry.get_mut();
                 let inner = || match prev_symbol {
                     Symbol::Obj { typ, attrs } => {
@@ -120,7 +120,7 @@ impl TypeChecker {
                         }
                         match attrs {
                             #[rustfmt::skip]
-                            ObjAttrs::StaticReadWrite { visibility, initial_value } => {
+                            ObjAttrs::StaticReadWrite { visibility, initializer } => {
                                 match (visibility, new_viz) {
                                     (_, LViz::PrevOrGlobal) => noop!(),
                                     (StaticVisibility::NonGlobal, LViz::TranslUnit) => noop!(),
@@ -128,13 +128,13 @@ impl TypeChecker {
                                     (StaticVisibility::Global, LViz::Global) => noop!(),
                                     (StaticVisibility::Global, LViz::TranslUnit) => return Err(anyhow!("Cannot declare with 2+ visibilities.")),
                                 }
-                                match (&initial_value, &new_init_val) {
-                                    (SIV::NoInitializer, SIV::NoInitializer) => noop!(),
-                                    (SIV::NoInitializer, SIV::Tentative | SIV::Initial(_)) => { *initial_value = new_init_val; }
-                                    (SIV::Tentative, SIV::NoInitializer | SIV::Tentative) => noop!(),
-                                    (SIV::Tentative, SIV::Initial(_)) => { *initial_value = new_init_val; }
-                                    (SIV::Initial(_), SIV::NoInitializer | SIV::Tentative) => noop!(),
-                                    (SIV::Initial(_), SIV::Initial(_)) => return Err(anyhow!("Cannot initialize 2+ times.")),
+                                match (&initializer, &new_init) {
+                                    (SI::NoInitializer, SI::NoInitializer) => noop!(),
+                                    (SI::NoInitializer, SI::Tentative | SI::Concrete(_)) => { *initializer = new_init; }
+                                    (SI::Tentative, SI::NoInitializer | SI::Tentative) => noop!(),
+                                    (SI::Tentative, SI::Concrete(_)) => { *initializer = new_init; }
+                                    (SI::Concrete(_), SI::NoInitializer | SI::Tentative) => noop!(),
+                                    (SI::Concrete(_), SI::Concrete(_)) => return Err(anyhow!("Cannot initialize 2+ times.")),
                                 }
                             }
                             ObjAttrs::AutomaticStorageDuration => {
@@ -160,7 +160,7 @@ pub(super) enum VarDeclScope {
 
 enum Decl<AutoInit> {
     AutoStorDur(AutoInit),
-    StaticStorDur(Viz, StaticInitialValue),
+    StaticStorDur(Viz, StaticInitializer),
 }
 #[derive(From)]
 enum Viz {
