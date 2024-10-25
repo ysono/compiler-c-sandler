@@ -137,7 +137,7 @@ impl TypeChecker {
         let typed_lexp = match lexp {
             LExp::String(_) => todo!(),
             LExp::Var(ident) => {
-                let typ = self.symbol_table.get_var_type(&ident)?.clone();
+                let typ = self.symbol_table.get_obj_type(&ident)?.clone();
                 let typ = OwningRef::new(typ);
                 let exp = LExp::Var(ident);
                 TypedLExp { typ, exp }

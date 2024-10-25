@@ -2,7 +2,7 @@ use super::{TypeCheckedCAst, TypeChecker};
 use crate::{
     common::{
         identifier::SymbolIdentifier,
-        symbol_table_frontend::{StaticInitialValue, StaticVisibility, Symbol, VarAttrs},
+        symbol_table_frontend::{ObjAttrs, StaticInitialValue, StaticVisibility, Symbol},
         types_frontend::ObjType,
     },
     ds_n_a::singleton::Singleton,
@@ -96,16 +96,16 @@ impl TypeChecker {
             (Entry::Vacant(entry), new_decl_summary) => {
                 let typ = new_typ.clone();
                 let attrs = match new_decl_summary {
-                    Decl::AutoStorDur(()) => VarAttrs::AutomaticStorageDuration,
+                    Decl::AutoStorDur(()) => ObjAttrs::AutomaticStorageDuration,
                     Decl::StaticStorDur(viz, initial_value) => {
                         let visibility = match viz {
                             Viz::Lkg(LViz::Global | LViz::PrevOrGlobal) => StaticVisibility::Global,
                             Viz::Lkg(LViz::TranslUnit) | Viz::Local => StaticVisibility::NonGlobal,
                         };
-                        VarAttrs::StaticStorageDuration { visibility, initial_value }
+                        ObjAttrs::StaticReadWrite { visibility, initial_value }
                     }
                 };
-                entry.insert(Symbol::Var { typ, attrs });
+                entry.insert(Symbol::Obj { typ, attrs });
                 Ok(())
             }
             (Entry::Occupied(_), Decl::AutoStorDur(()) | Decl::StaticStorDur(Viz::Local, _)) => {
@@ -114,13 +114,13 @@ impl TypeChecker {
             (Entry::Occupied(mut entry), Decl::StaticStorDur(Viz::Lkg(new_viz), new_init_val)) => {
                 let prev_symbol = entry.get_mut();
                 let inner = || match prev_symbol {
-                    Symbol::Var { typ, attrs } => {
+                    Symbol::Obj { typ, attrs } => {
                         if typ != new_typ {
                             return Err(anyhow!("Cannot declare with 2+ types."));
                         }
                         match attrs {
                             #[rustfmt::skip]
-                            VarAttrs::StaticStorageDuration { visibility, initial_value } => {
+                            ObjAttrs::StaticReadWrite { visibility, initial_value } => {
                                 match (visibility, new_viz) {
                                     (_, LViz::PrevOrGlobal) => noop!(),
                                     (StaticVisibility::NonGlobal, LViz::TranslUnit) => noop!(),
@@ -137,7 +137,7 @@ impl TypeChecker {
                                     (SIV::Initial(_), SIV::Initial(_)) => return Err(anyhow!("Cannot initialize 2+ times.")),
                                 }
                             }
-                            VarAttrs::AutomaticStorageDuration => {
+                            ObjAttrs::AutomaticStorageDuration => {
                                 return Err(anyhow!("Cannot declare with 2+ storage durations."))
                             }
                         }

@@ -2,7 +2,7 @@ use crate::common::{
     identifier::SymbolIdentifier,
     primitive::Const,
     symbol_table_frontend::{
-        InitializerItem, StaticInitialValue, StaticVisibility, Symbol, SymbolTable, VarAttrs,
+        InitializerItem, ObjAttrs, StaticInitialValue, StaticVisibility, Symbol, SymbolTable,
     },
     types_backend::{Alignment, AssemblyType, ScalarAssemblyType},
 };
@@ -78,11 +78,11 @@ impl BackendSymbolTable {
         let c_table: HashMap<_, _> = c_table.into();
         for (ident, symbol) in c_table.into_iter() {
             match symbol {
-                Symbol::Var { typ, attrs } => {
+                Symbol::Obj { typ, attrs } => {
                     let asm_type = AssemblyType::from(typ.as_ref());
                     let asm_attrs = match attrs {
-                        VarAttrs::AutomaticStorageDuration => AsmObjAttrs::Stack,
-                        VarAttrs::StaticStorageDuration { visibility, initial_value } => {
+                        ObjAttrs::AutomaticStorageDuration => AsmObjAttrs::Stack,
+                        ObjAttrs::StaticReadWrite { visibility, initial_value } => {
                             let alignment = Alignment::default_of_obj_type(&typ);
                             let inits = match initial_value {
                                 StaticInitialValue::Initial(inits) => Some(inits),

@@ -2,7 +2,7 @@ use super::FunInstrsGenerator;
 use crate::{
     common::{
         identifier::SymbolIdentifier,
-        symbol_table_frontend::{Symbol, VarAttrs},
+        symbol_table_frontend::{ObjAttrs, Symbol},
         types_frontend::{ScalarType, SubObjType},
     },
     ds_n_a::phantom_marker::PhantomMarker,
@@ -71,9 +71,9 @@ impl<'a> FunInstrsGenerator<'a> {
 
         self.symbol_table.as_mut().insert(
             ident,
-            Symbol::Var {
+            Symbol::Obj {
                 typ: sca_typ.into_owner(),
-                attrs: VarAttrs::AutomaticStorageDuration,
+                attrs: ObjAttrs::AutomaticStorageDuration,
             },
         );
 

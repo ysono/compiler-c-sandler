@@ -14,9 +14,9 @@ use std::rc::Rc;
 
 #[derive(Debug)]
 pub enum Symbol {
-    Var {
+    Obj {
         typ: Singleton<ObjType>,
-        attrs: VarAttrs,
+        attrs: ObjAttrs,
     },
     Fun {
         typ: Singleton<ScalarFunType>,
@@ -25,9 +25,9 @@ pub enum Symbol {
 }
 
 #[derive(Debug)]
-pub enum VarAttrs {
+pub enum ObjAttrs {
     AutomaticStorageDuration,
-    StaticStorageDuration {
+    StaticReadWrite {
         visibility: StaticVisibility,
         initial_value: StaticInitialValue,
     },
@@ -68,10 +68,10 @@ impl SymbolTable {
             .get(ident)
             .ok_or_else(|| anyhow!("Not declared. {ident:?}"))
     }
-    pub fn get_var_type(&self, ident: &SymbolIdentifier) -> Result<&Singleton<ObjType>> {
+    pub fn get_obj_type(&self, ident: &SymbolIdentifier) -> Result<&Singleton<ObjType>> {
         let symbol = self.get(ident)?;
         match symbol {
-            Symbol::Var { typ, .. } => Ok(typ),
+            Symbol::Obj { typ, .. } => Ok(typ),
             _ => Err(anyhow!("Not variable. {ident:?} {symbol:?}")),
         }
     }

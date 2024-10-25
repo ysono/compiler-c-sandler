@@ -30,7 +30,7 @@ impl InstrsGenerator {
                 (ari_type, asm_type)
             }
             t::Value::Variable(ident, _sca_typ_marker) => {
-                let obj_type = self.frontend_symtab.get_var_type(ident).unwrap();
+                let obj_type = self.frontend_symtab.get_obj_type(ident).unwrap();
                 let sca_type = match obj_type.as_ref() {
                     ObjType::Scalar(s) => s,
                     ObjType::Array(_) => unreachable!(),
@@ -59,7 +59,7 @@ impl InstrsGenerator {
     }
 
     pub(super) fn object_to_operand(&self, ident: Rc<SymbolIdentifier>) -> PreFinalOperand {
-        match self.frontend_symtab.get_var_type(&ident).unwrap().as_ref() {
+        match self.frontend_symtab.get_obj_type(&ident).unwrap().as_ref() {
             ObjType::Scalar(_) => PreFinalOperand::PseudoRegOrMem(ident),
             ObjType::Array(_) => PreFinalOperand::PseudoMem {
                 obj: ident,
