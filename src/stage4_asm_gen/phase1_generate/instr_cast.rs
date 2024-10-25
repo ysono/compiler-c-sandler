@@ -11,7 +11,7 @@ use crate::{
 use std::rc::Rc;
 
 impl InstrsGenerator {
-    pub(super) fn gen_signextend_instrs(
+    pub(super) fn gen_signextend(
         &mut self,
         t::SrcDst { src, dst }: t::SrcDst,
     ) -> Vec<Instruction<GeneratedAsmAst>> {
@@ -19,7 +19,7 @@ impl InstrsGenerator {
         let dst = self.value_to_operand(dst);
         vec![Instruction::Movsx { src, dst }]
     }
-    pub(super) fn gen_truncate_instrs(
+    pub(super) fn gen_truncate(
         &mut self,
         t::SrcDst { src, dst }: t::SrcDst,
     ) -> Vec<Instruction<GeneratedAsmAst>> {
@@ -31,7 +31,7 @@ impl InstrsGenerator {
             dst,
         }]
     }
-    pub(super) fn gen_zeroextend_instrs(
+    pub(super) fn gen_zeroextend(
         &mut self,
         t::SrcDst { src, dst }: t::SrcDst,
     ) -> Vec<Instruction<GeneratedAsmAst>> {
@@ -39,7 +39,7 @@ impl InstrsGenerator {
         let dst = self.value_to_operand(dst);
         vec![Instruction::MovZeroExtend { src, dst }]
     }
-    pub(super) fn gen_double_to_int_instrs(
+    pub(super) fn gen_double_to_int(
         &mut self,
         t::SrcDst { src, dst }: t::SrcDst,
     ) -> Vec<Instruction<GeneratedAsmAst>> {
@@ -52,7 +52,7 @@ impl InstrsGenerator {
         We choose not to warn about this edge case.
         This design policy applies to all other logic which we implement using any `Instruction::Cvttsd2si`. */
     }
-    pub(super) fn gen_int_to_double_instrs(
+    pub(super) fn gen_int_to_double(
         &mut self,
         t::SrcDst { src, dst }: t::SrcDst,
     ) -> Vec<Instruction<GeneratedAsmAst>> {
@@ -60,7 +60,7 @@ impl InstrsGenerator {
         let dst = self.value_to_operand(dst);
         vec![Instruction::Cvtsi2sd { src_asm_type, src, dst }]
     }
-    pub(super) fn gen_double_to_uint_instrs(
+    pub(super) fn gen_double_to_uint(
         &mut self,
         t::SrcDst { src, dst }: t::SrcDst,
     ) -> Vec<Instruction<GeneratedAsmAst>> {
@@ -139,7 +139,7 @@ impl InstrsGenerator {
             ScalarAssemblyType::Double => unreachable!("double-to-uint dst {uint_asm_type:?}"),
         }
     }
-    pub(super) fn gen_uint_to_double_instrs(
+    pub(super) fn gen_uint_to_double(
         &mut self,
         t::SrcDst { src, dst }: t::SrcDst,
     ) -> Vec<Instruction<GeneratedAsmAst>> {

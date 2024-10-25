@@ -11,16 +11,13 @@ use crate::{
 impl InstrsGenerator {
     /* Tacky Unary */
 
-    pub(super) fn gen_unary_instrs(
-        &mut self,
-        t_unary: t::Unary,
-    ) -> Vec<Instruction<GeneratedAsmAst>> {
+    pub(super) fn gen_unary(&mut self, t_unary: t::Unary) -> Vec<Instruction<GeneratedAsmAst>> {
         match &t_unary.op {
-            t::UnaryOperator::Numeric(op) => self.gen_unary_numeric_instrs(*op, t_unary),
-            t::UnaryOperator::Comparison(op) => self.gen_unary_comparison_instrs(*op, t_unary),
+            t::UnaryOperator::Numeric(op) => self.gen_unary_numeric(*op, t_unary),
+            t::UnaryOperator::Comparison(op) => self.gen_unary_comparison(*op, t_unary),
         }
     }
-    fn gen_unary_numeric_instrs(
+    fn gen_unary_numeric(
         &mut self,
         t_op: t::NumericUnaryOperator,
         t::Unary { op: _, src, dst }: t::Unary,
@@ -60,19 +57,16 @@ impl InstrsGenerator {
 
     /* Tacky Binary */
 
-    pub(super) fn gen_binary_instrs(
-        &mut self,
-        t_binary: t::Binary,
-    ) -> Vec<Instruction<GeneratedAsmAst>> {
+    pub(super) fn gen_binary(&mut self, t_binary: t::Binary) -> Vec<Instruction<GeneratedAsmAst>> {
         use t::BinaryOperator as TBO;
 
         match &t_binary.op {
-            TBO::Arithmetic(t_op) => self.gen_binary_arithmetic_instrs(*t_op, t_binary),
-            TBO::DivRem(t_op) => self.gen_binary_divrem_instrs(*t_op, t_binary),
-            TBO::Comparison(t_op) => self.gen_binary_comparison_instrs(*t_op, t_binary),
+            TBO::Arithmetic(t_op) => self.gen_binary_arithmetic(*t_op, t_binary),
+            TBO::DivRem(t_op) => self.gen_binary_divrem(*t_op, t_binary),
+            TBO::Comparison(t_op) => self.gen_binary_comparison(*t_op, t_binary),
         }
     }
-    fn gen_binary_arithmetic_instrs(
+    fn gen_binary_arithmetic(
         &mut self,
         t_op: t::ArithmeticBinaryOperator,
         t_binary: t::Binary,
@@ -82,9 +76,9 @@ impl InstrsGenerator {
             t::ArithmeticBinaryOperator::Add => BinaryOperator::Add,
             t::ArithmeticBinaryOperator::Mul => BinaryOperator::Mul,
         };
-        self.do_gen_binary_arithmetic_instrs(asm_op, t_binary)
+        self.do_gen_binary_arithmetic(asm_op, t_binary)
     }
-    fn do_gen_binary_arithmetic_instrs(
+    fn do_gen_binary_arithmetic(
         &mut self,
         asm_op: BinaryOperator,
         t::Binary { op: _, lhs, rhs, dst }: t::Binary,
@@ -106,7 +100,7 @@ impl InstrsGenerator {
         };
         vec![asm_instr_1, asm_instr_2]
     }
-    fn gen_binary_divrem_instrs(
+    fn gen_binary_divrem(
         &mut self,
         t_op: t::DivRemBinaryOperator,
         t_binary: t::Binary,
@@ -114,7 +108,7 @@ impl InstrsGenerator {
         let (_, asm_type) = self.value_to_type(&t_binary.lhs);
         match asm_type {
             ScalarAssemblyType::Longword | ScalarAssemblyType::Quadword => {
-                self.do_gen_integer_divrem_instrs(t_op, t_binary)
+                self.do_gen_integer_divrem(t_op, t_binary)
             }
             ScalarAssemblyType::Double => {
                 let asm_op = match t_op {
@@ -123,11 +117,11 @@ impl InstrsGenerator {
                         unreachable!("Invalid operation {t_op:?} {t_binary:?}")
                     }
                 };
-                self.do_gen_binary_arithmetic_instrs(asm_op, t_binary)
+                self.do_gen_binary_arithmetic(asm_op, t_binary)
             }
         }
     }
-    fn do_gen_integer_divrem_instrs(
+    fn do_gen_integer_divrem(
         &mut self,
         t_op: t::DivRemBinaryOperator,
         t::Binary { op: _, lhs, rhs, dst }: t::Binary,

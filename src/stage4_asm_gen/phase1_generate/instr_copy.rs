@@ -7,7 +7,7 @@ use crate::{
 impl InstrsGenerator {
     /* Tacky Copy */
 
-    pub(super) fn gen_copy_instrs(
+    pub(super) fn gen_copy(
         &mut self,
         t::SrcDst { src, dst }: t::SrcDst,
     ) -> Vec<Instruction<GeneratedAsmAst>> {
@@ -18,7 +18,7 @@ impl InstrsGenerator {
 
     /* Tacky instructions using a memory address. */
 
-    pub(super) fn gen_getaddr_instrs(
+    pub(super) fn gen_getaddr(
         &mut self,
         t::GetAddress { src_obj, dst_addr }: t::GetAddress,
     ) -> Vec<Instruction<GeneratedAsmAst>> {
@@ -26,7 +26,7 @@ impl InstrsGenerator {
         let dst = self.value_to_operand(dst_addr);
         vec![Instruction::Lea { src, dst }]
     }
-    pub(super) fn gen_load_instrs(
+    pub(super) fn gen_load(
         &mut self,
         t::Load { src_addr, dst }: t::Load,
     ) -> Vec<Instruction<GeneratedAsmAst>> {
@@ -48,7 +48,7 @@ impl InstrsGenerator {
             },
         ]
     }
-    pub(super) fn gen_store_instrs(
+    pub(super) fn gen_store(
         &mut self,
         t::Store { src, dst_addr }: t::Store,
     ) -> Vec<Instruction<GeneratedAsmAst>> {
@@ -70,7 +70,7 @@ impl InstrsGenerator {
             },
         ]
     }
-    pub(super) fn gen_copytooffset_instrs(
+    pub(super) fn gen_copytooffset(
         &mut self,
         t::CopyToOffset { src, dst_obj, offset }: t::CopyToOffset,
     ) -> Vec<Instruction<GeneratedAsmAst>> {

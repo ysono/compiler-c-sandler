@@ -49,7 +49,7 @@ impl InstrsGenerator {
     }
 
     /// See documentation at [`crate::stage4_asm_gen`].
-    pub(super) fn gen_funcall_instrs(
+    pub(super) fn gen_funcall(
         &mut self,
         t::FunCall { ident, args, dst }: t::FunCall,
     ) -> Vec<Instruction<GeneratedAsmAst>> {
@@ -142,10 +142,7 @@ impl InstrsGenerator {
         asm_instrs
     }
 
-    pub(super) fn gen_return_instrs(
-        &mut self,
-        t_val: t::Value,
-    ) -> Vec<Instruction<GeneratedAsmAst>> {
+    pub(super) fn gen_return(&mut self, t_val: t::Value) -> Vec<Instruction<GeneratedAsmAst>> {
         let (src, _, asm_type) = self.value_to_operand_and_type(t_val);
         let ret_reg = derive_return_register(asm_type);
         let asm_instr_1 = Instruction::Mov {

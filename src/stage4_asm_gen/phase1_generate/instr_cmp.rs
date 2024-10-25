@@ -6,7 +6,7 @@ use crate::{
 };
 
 impl InstrsGenerator {
-    pub(super) fn gen_unary_comparison_instrs(
+    pub(super) fn gen_unary_comparison(
         &mut self,
         t_op: t::ComparisonUnaryOperator,
         t::Unary { op: _, src, dst }: t::Unary,
@@ -22,7 +22,7 @@ impl InstrsGenerator {
         asm_instrs
     }
 
-    pub(super) fn gen_binary_comparison_instrs(
+    pub(super) fn gen_binary_comparison(
         &mut self,
         t_op: t::ComparisonBinaryOperator,
         t::Binary { op: _, lhs, rhs, dst }: t::Binary,
@@ -61,7 +61,7 @@ impl InstrsGenerator {
         asm_instrs
     }
 
-    pub(super) fn gen_jumpif_instrs(
+    pub(super) fn gen_jumpif(
         &mut self,
         t::JumpIf { condition, jump_crit, lbl }: t::JumpIf,
     ) -> Vec<Instruction<GeneratedAsmAst>> {

@@ -5,7 +5,7 @@ use crate::{
 };
 
 impl InstrsGenerator {
-    pub(super) fn gen_addptr_instrs(
+    pub(super) fn gen_addptr(
         &mut self,
         t::AddPtr { ptr, idx, scale, dst }: t::AddPtr,
     ) -> Vec<Instruction<GeneratedAsmAst>> {

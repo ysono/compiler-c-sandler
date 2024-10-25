@@ -56,10 +56,10 @@ Chronologically ordered events:
     1. The current function pops the stack, undoing the prior preparation for the function-call.
         + RSP points to "d".
     1. The current function saves the incoming return value to the memory.
-    + Emitted by [`crate::stage4_asm_gen::phase1_generate::InstrsGenerator::gen_funcall_instrs()`].
+    + Emitted by [`crate::stage4_asm_gen::phase1_generate::InstrsGenerator::gen_funcall()`].
 1. The current function returns.
     1. The current function initializes the outgoing return value.
-        + Emitted by [`crate::stage4_asm_gen::phase1_generate::InstrsGenerator::gen_return_instrs()`].
+        + Emitted by [`crate::stage4_asm_gen::phase1_generate::InstrsGenerator::gen_return()`].
     1. The current function's epilogue restores the previous stack frame and instruction pointer.
         1. Pops the stack, s.t. RSP points to "c".
         1. Pops the previous stack frame's RBP value, and restores this value into the RBP register.
