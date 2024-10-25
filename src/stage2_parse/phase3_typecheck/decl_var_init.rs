@@ -107,12 +107,6 @@ impl TypeChecker {
                 let item = typecheck_single(typ, exp)?;
                 Self::push_initializer_item(out_items, item);
             }
-            (ObjType::Scalar(_), init @ VariableInitializer::Compound(..))
-            | (ObjType::Array(_), init @ VariableInitializer::Single(_)) => {
-                return Err(anyhow!(
-                    "Advanced compound initializers aren't supported. {typ:?} vs {init:?}"
-                ));
-            }
             (ObjType::Array(arr_typ), VariableInitializer::Compound(sub_inits)) => {
                 let elems_ct = arr_typ.elem_count().as_int();
                 let sub_inits_ct = sub_inits.len() as u64;
@@ -137,6 +131,35 @@ impl TypeChecker {
                     Self::push_initializer_item(out_items, item);
                 }
             }
+            (
+                ObjType::Array(arr_typ),
+                VariableInitializer::Single(Expression::L(LExp::String(chars))),
+            ) => match arr_typ.elem_type().as_ref() {
+                ObjType::Scalar(ScalarType::Arith(ari_typ)) if ari_typ.is_character() => {
+                    let elems_ct = arr_typ.elem_count().as_int();
+                    let chars_ct = chars.len() as u64;
+                    if elems_ct < chars_ct {
+                        return Err(anyhow!(
+                            "Too many chars in initializer. {arr_typ:?} vs {chars:?}"
+                        ));
+                    }
+
+                    let zeros_sfx_bytelen = ByteLen::new(elems_ct - chars_ct);
+                    let item = InitializerItem::String { chars, zeros_sfx_bytelen };
+                    out_items.push(item);
+                }
+                _ => {
+                    return Err(anyhow!(
+                        "Cannot initialize {arr_typ:?} using string literal."
+                    ))
+                }
+            },
+            (ObjType::Scalar(_), init @ VariableInitializer::Compound(..))
+            | (ObjType::Array(_), init @ VariableInitializer::Single(_)) => {
+                return Err(anyhow!(
+                    "Advanced compound initializers aren't supported. {typ:?} vs {init:?}"
+                ));
+            }
         }
         Ok(())
     }
@@ -147,6 +170,12 @@ impl TypeChecker {
         match (items.last_mut(), item) {
             (Some(InitializerItem::Zero(prv_bytelen)), InitializerItem::Zero(cur_bytelen)) => {
                 *prv_bytelen += cur_bytelen;
+            }
+            (
+                Some(InitializerItem::String { zeros_sfx_bytelen, .. }),
+                InitializerItem::Zero(cur_bytelen),
+            ) => {
+                *zeros_sfx_bytelen += cur_bytelen;
             }
             (_, item) => {
                 items.push(item);
