@@ -1,7 +1,6 @@
 use super::TypeChecker;
 use crate::{
     common::{
-        primitive::Const,
         types_backend::OperandByteLen,
         types_frontend::{ArithmeticType, ArrayType, ObjType, PointerType, ScalarType, SubObjType},
     },
@@ -152,27 +151,10 @@ impl TypeChecker {
         let typed_exp = Self::maybe_insert_cast_node(to, from);
         Ok(typed_exp)
     }
-    pub(super) fn cast_statically_by_assignment(
-        &mut self,
-        to: &Singleton<ObjType>,
-        from: Expression<ResolvedCAst>,
-    ) -> Result<Const> {
-        let to = Self::extract_scalar_type_ref(to)
-            .map_err(|typ| anyhow!("Cannot \"convert as if by assignment\" to {typ:?}"))?;
-
-        let in_konst = match &from {
-            Expression::R(RExp::Const(konst)) => *konst,
-            _ => return Err(anyhow!("Casting statically is supported on constexprs only. For each constexpr, only a simple const literal is supported."))
-        };
-
-        let from = self.typecheck_exp_and_convert_to_scalar(from)?;
-
-        let () = Self::can_cast_by_assignment(to, &from)?;
-
-        let out_konst = in_konst.cast_at_compile_time(to);
-        Ok(out_konst)
-    }
-    fn can_cast_by_assignment(to: &ScalarType, from: &TypedExp<ScalarType>) -> Result<()> {
+    pub(super) fn can_cast_by_assignment(
+        to: &ScalarType,
+        from: &TypedExp<ScalarType>,
+    ) -> Result<()> {
         let ok = match (to, from.typ().as_ref()) {
             (t2, t1) if t2 == t1 => Ok(()),
 

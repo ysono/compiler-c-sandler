@@ -33,10 +33,22 @@ impl TypeChecker {
     }
     fn typecheck_initializer_static_single(
         &mut self,
-        typ: &Singleton<ObjType>,
-        exp: Expression<ResolvedCAst>,
+        to: &Singleton<ObjType>,
+        from: Expression<ResolvedCAst>,
     ) -> Result<InitializerItem<Const>> {
-        let out_konst = self.cast_statically_by_assignment(typ, exp)?;
+        let to = Self::extract_scalar_type_ref(to)
+            .map_err(|typ| anyhow!("Cannot \"convert as if by assignment\" to {typ:?}"))?;
+
+        let in_konst = match &from {
+            Expression::R(RExp::Const(konst)) => *konst,
+            _ => return Err(anyhow!("Casting statically is supported on constexprs only. For each constexpr, only a simple const literal is supported."))
+        };
+
+        let from = self.typecheck_exp_and_convert_to_scalar(from)?;
+
+        let () = Self::can_cast_by_assignment(to, &from)?;
+
+        let out_konst = in_konst.cast_at_compile_time(to);
 
         if out_konst.is_zero_integer() {
             let bytelen = ByteLen::from(out_konst.arithmetic_type());
