@@ -12,18 +12,13 @@ use std::rc::Rc;
 impl<'a> FunInstrsGenerator<'a> {
     pub(super) fn gen_var_defn(
         &mut self,
-        c::VariableDefinition { ident, typ, init }: c::VariableDefinition<TypeCheckedCAst>,
+        c::VariableDefinition { ident, init }: c::VariableDefinition<TypeCheckedCAst>,
     ) {
-        let single_type = typ.single_type();
-        let single_bytelen = ByteLen::from(single_type);
-
-        /* Begin instructions */
-
         let mut cur_offset = ByteLen::new(0);
         for item in init {
             match item {
                 InitializerItem::Single(typed_exp) => {
-                    self.gen_var_init_single(&ident, single_bytelen, &mut cur_offset, typed_exp);
+                    self.gen_var_init_single(&ident, &mut cur_offset, typed_exp);
                 }
                 InitializerItem::String { .. } => todo!(),
                 InitializerItem::Pointer(_) => todo!(),
@@ -37,10 +32,11 @@ impl<'a> FunInstrsGenerator<'a> {
     fn gen_var_init_single(
         &mut self,
         ident: &Rc<SymbolIdentifier>,
-        single_bytelen: ByteLen,
         cur_offset: &mut ByteLen,
         typed_exp: c::TypedExp<ScalarType>,
     ) {
+        let single_bytelen = typed_exp.typ().bytelen();
+
         let val = self.gen_exp_and_get_value(typed_exp);
 
         self.instrs.push(new_cto(val, ident, *cur_offset));

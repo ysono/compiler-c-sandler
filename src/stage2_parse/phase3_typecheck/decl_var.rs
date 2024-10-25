@@ -35,7 +35,7 @@ impl TypeChecker {
         run_time_init
             .map(|init| {
                 let init = self.typecheck_initializer_runtime(&typ, init)?;
-                Ok(VariableDefinition { ident, typ, init })
+                Ok(VariableDefinition { ident, init })
             })
             .transpose()
     }
