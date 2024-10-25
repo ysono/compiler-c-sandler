@@ -83,12 +83,12 @@ impl<R: Read + BufRead> Lexer<R> {
                 #[rustfmt::skip]
                 let token = match mach.as_str() {
                     "return" => Keyword::Return.into(),
-                    "void"     => Type::Void.into(),
-                    "int"      => Type::Int.into(),
-                    "long"     => Type::Long.into(),
-                    "signed"   => Type::Signed.into(),
-                    "unsigned" => Type::Unsigned.into(),
-                    "double"   => Type::Double.into(),
+                    "void"     => TypeSpecifier::Void.into(),
+                    "int"      => TypeSpecifier::Int.into(),
+                    "long"     => TypeSpecifier::Long.into(),
+                    "signed"   => TypeSpecifier::Signed.into(),
+                    "unsigned" => TypeSpecifier::Unsigned.into(),
+                    "double"   => TypeSpecifier::Double.into(),
                     "static" => StorageClassSpecifier::Static.into(),
                     "extern" => StorageClassSpecifier::Extern.into(),
                     "if"     => Control::If.into(),

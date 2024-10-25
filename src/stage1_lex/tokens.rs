@@ -5,7 +5,7 @@ use derive_more::From;
 pub enum Token {
     Demarcator(Demarcator),
     Keyword(Keyword),
-    Type(Type),
+    Type(TypeSpecifier),
     StorageClassSpecifier(StorageClassSpecifier),
     Operator(Operator),
     Control(Control),
@@ -29,7 +29,7 @@ pub enum Keyword {
     Return,
 }
 #[derive(PartialEq, Eq, PartialOrd, Ord, Debug)]
-pub enum Type {
+pub enum TypeSpecifier {
     Void = 0,
     Int = 1,
     Long = 2,

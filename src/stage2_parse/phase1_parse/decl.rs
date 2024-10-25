@@ -39,6 +39,9 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
     fn parse_specifiers(
         &mut self,
     ) -> Result<Option<(ArithmeticType, Option<StorageClassSpecifier>)>> {
+        use t::TypeSpecifier as TS;
+        use ArithmeticType as AT;
+
         let mut inner = || -> Result<_> {
             let mut typs = vec![];
             let mut scss = vec![];
@@ -59,18 +62,18 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
             typs[..expected_max_len].sort();
 
             let ari_type = match &typs[..] {
-                [t::Type::Int] => ArithmeticType::Int,
-                [t::Type::Int, t::Type::Long] => ArithmeticType::Long,
-                [t::Type::Int, t::Type::Long, t::Type::Signed] => ArithmeticType::Long,
-                [t::Type::Int, t::Type::Long, t::Type::Unsigned] => ArithmeticType::ULong,
-                [t::Type::Int, t::Type::Signed] => ArithmeticType::Int,
-                [t::Type::Int, t::Type::Unsigned] => ArithmeticType::UInt,
-                [t::Type::Long] => ArithmeticType::Long,
-                [t::Type::Long, t::Type::Signed] => ArithmeticType::Long,
-                [t::Type::Long, t::Type::Unsigned] => ArithmeticType::ULong,
-                [t::Type::Signed] => ArithmeticType::Int,
-                [t::Type::Unsigned] => ArithmeticType::UInt,
-                [t::Type::Double] => ArithmeticType::Double,
+                [TS::Int] => AT::Int,
+                [TS::Int, TS::Long] => AT::Long,
+                [TS::Int, TS::Long, TS::Signed] => AT::Long,
+                [TS::Int, TS::Long, TS::Unsigned] => AT::ULong,
+                [TS::Int, TS::Signed] => AT::Int,
+                [TS::Int, TS::Unsigned] => AT::UInt,
+                [TS::Long] => AT::Long,
+                [TS::Long, TS::Signed] => AT::Long,
+                [TS::Long, TS::Unsigned] => AT::ULong,
+                [TS::Signed] => AT::Int,
+                [TS::Unsigned] => AT::UInt,
+                [TS::Double] => AT::Double,
                 actual => return Err(anyhow!("Invalid types. {actual:?}")),
                 /* Void is not supported yet. */
             };
@@ -156,7 +159,7 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
             }
 
             let params = match self.tokens.peek() {
-                Some(Ok(t::Token::Type(t::Type::Void))) => {
+                Some(Ok(t::Token::Type(t::TypeSpecifier::Void))) => {
                     self.tokens.next();
                     Vec::with_capacity(0)
                 }

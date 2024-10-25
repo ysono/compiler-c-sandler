@@ -37,7 +37,7 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
                                 })
                                 .into();
                             }
-                            BinaryOperatorInfo::ControlQuestion => {
+                            BinaryOperatorInfo::Question => {
                                 let then = self.do_parse_exp(BinaryOperatorPrecedence::min())?;
 
                                 self.expect_exact(&[t::Operator::Colon.into()])?;
@@ -195,7 +195,7 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
 
 enum BinaryOperatorInfo {
     Generic(BinaryOperator),
-    ControlQuestion,
+    Question,
     Assign,
 }
 impl<Bo: Into<BinaryOperator>> From<Bo> for BinaryOperatorInfo {
@@ -225,7 +225,7 @@ impl BinaryOperatorInfo {
             TO::Lte => Some(Self::from(COC::Lte)),
             TO::Gt => Some(Self::from(COC::Gt)),
             TO::Gte => Some(Self::from(COC::Gte)),
-            TO::Question => Some(Self::ControlQuestion),
+            TO::Question => Some(Self::Question),
             TO::Assign => Some(Self::Assign),
             _ => None,
         }
@@ -251,7 +251,7 @@ impl<B: Borrow<BinaryOperatorInfo>> From<B> for BinaryOperatorPrecedence {
                 CO::Logic(COL::And) => Self(10),
                 CO::Logic(COL::Or) => Self(5),
             },
-            BinaryOperatorInfo::ControlQuestion => Self(3),
+            BinaryOperatorInfo::Question => Self(3),
             BinaryOperatorInfo::Assign => Self(1),
         }
     }
