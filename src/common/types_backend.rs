@@ -98,13 +98,24 @@ pub enum OperandByteLen {
     B4 = 4,
     B8 = 8,
 }
-impl<T: Into<ScalarAssemblyType>> From<T> for OperandByteLen {
-    fn from(t: T) -> Self {
-        let asm_type = t.into();
+impl From<ScalarAssemblyType> for OperandByteLen {
+    fn from(asm_type: ScalarAssemblyType) -> Self {
         match asm_type {
             ScalarAssemblyType::Longword => Self::B4,
             ScalarAssemblyType::Quadword => Self::B8,
             ScalarAssemblyType::Double => Self::B8,
+        }
+    }
+}
+impl From<ArithmeticType> for OperandByteLen {
+    // TODO merge with `impl From<ScalarAssemblyType> for OperandByteLen`
+    fn from(ari_typ: ArithmeticType) -> Self {
+        match ari_typ {
+            ArithmeticType::Char | ArithmeticType::SChar | ArithmeticType::UChar => Self::B1,
+            _ => {
+                let asm_type = ScalarAssemblyType::from(ari_typ);
+                Self::from(asm_type)
+            }
         }
     }
 }
