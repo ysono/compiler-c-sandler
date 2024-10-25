@@ -14,7 +14,7 @@ pub struct Lexer<R> {
 
     r: R,
 
-    /// Buffer of `char`s. Separate from `R`'s internal buffer (of e.g. `u8`s). Allocated once.
+    /// Buffer of `char`s. Separate from `R`'s internal buffer (of e.g. `u8`s).
     chars_buf: String,
 
     /// Pending tokens.
@@ -35,8 +35,8 @@ impl<R: Read + BufRead> Lexer<R> {
             /* Read until an arbitrary char. We choose to read until '\n'.
             Doing this guarantees, for now, b/c of the limited syntax we support, that each reading collects token(s) in whole.
             We don't want to read `std::io::Bytes`: for each byte, we'd have to check `Result`. */
-            let read_len = self.r.read_line(&mut self.chars_buf)?;
-            if read_len == 0 {
+            let read_bytelen = self.r.read_line(&mut self.chars_buf)?;
+            if read_bytelen == 0 {
                 return Ok(None);
             }
 
@@ -58,72 +58,76 @@ impl<R: Read + BufRead> Lexer<R> {
                 break;
             }
 
-            let (match_len, token) = self.sfx_to_token(sfx)?;
-            sfx = &sfx[match_len..];
+            let (match_bytelen, token) = self.lex_sfx(sfx)?;
+            sfx = &sfx[match_bytelen..];
             self.next_tokens.push_back(token);
         }
 
         Ok(())
     }
 
-    fn sfx_to_token(&self, sfx: &str) -> Result<(usize, Token)> {
+    fn lex_sfx(&self, sfx: &str) -> Result<(usize, Token)> {
         let byte0 = sfx.as_bytes()[0];
         if byte0.is_ascii_alphabetic() {
-            self.alpha_sfx_to_token(sfx)
+            self.lex_alphabetic(sfx).map_err(|()| anyhow!("{sfx}"))
         } else if byte0 == b'.' || byte0.is_ascii_digit() {
-            self.dot_or_digit_sfx_to_token(sfx)
+            self.lex_dot_or_digit(sfx)
         } else {
-            self.nonalphanum_sfx_to_token(sfx)
+            self.lex_non_alphanum(sfx).map_err(|()| anyhow!("{sfx}"))
         }
     }
 
-    fn alpha_sfx_to_token(&self, sfx: &str) -> Result<(usize, Token)> {
-        if let Some(mach) = self.matchers.wordlike.find(sfx) {
-            #[rustfmt::skip]
-            let token = match mach.as_str() {
-                "return" => Keyword::Return.into(),
-                "void"     => Type::Void.into(),
-                "int"      => Type::Int.into(),
-                "long"     => Type::Long.into(),
-                "signed"   => Type::Signed.into(),
-                "unsigned" => Type::Unsigned.into(),
-                "double"   => Type::Double.into(),
-                "static" => StorageClassSpecifier::Static.into(),
-                "extern" => StorageClassSpecifier::Extern.into(),
-                "if"     => Control::If.into(),
-                "else"   => Control::Else.into(),
-                "do"       => Loop::Do.into(),
-                "while"    => Loop::While.into(),
-                "for"      => Loop::For.into(),
-                "break"    => Loop::Break.into(),
-                "continue" => Loop::Continue.into(),
-                s => RawIdentifier::new(String::from(s)).into(),
-            };
-            return Ok((mach.len(), token));
+    fn lex_alphabetic(&self, sfx: &str) -> Result<(usize, Token), ()> {
+        match self.matchers.wordlike.find(sfx) {
+            Some(mach) => {
+                #[rustfmt::skip]
+                let token = match mach.as_str() {
+                    "return" => Keyword::Return.into(),
+                    "void"     => Type::Void.into(),
+                    "int"      => Type::Int.into(),
+                    "long"     => Type::Long.into(),
+                    "signed"   => Type::Signed.into(),
+                    "unsigned" => Type::Unsigned.into(),
+                    "double"   => Type::Double.into(),
+                    "static" => StorageClassSpecifier::Static.into(),
+                    "extern" => StorageClassSpecifier::Extern.into(),
+                    "if"     => Control::If.into(),
+                    "else"   => Control::Else.into(),
+                    "do"       => Loop::Do.into(),
+                    "while"    => Loop::While.into(),
+                    "for"      => Loop::For.into(),
+                    "break"    => Loop::Break.into(),
+                    "continue" => Loop::Continue.into(),
+                    s => RawIdentifier::new(String::from(s)).into(),
+                };
+                Ok((mach.len(), token))
+            }
+            None => Err(()),
         }
-        return Err(anyhow!("{sfx}"));
     }
 
-    fn dot_or_digit_sfx_to_token(&self, sfx: &str) -> Result<(usize, Token)> {
-        if let Some(caps) = self.matchers.numeric.captures(sfx) {
-            let (whole, [head, head_dot, int_marker, float_expo]) = caps.extract();
+    fn lex_dot_or_digit(&self, sfx: &str) -> Result<(usize, Token)> {
+        match self.matchers.numeric.captures(sfx) {
+            Some(caps) => {
+                let (whole, [head, head_dot, int_marker, float_expo]) = caps.extract();
 
-            let konst = if (head != "") && (head_dot == "") && (float_expo == "") {
-                Self::parse_integer(head, int_marker)?
-            } else if (head.len() > head_dot.len()) && (int_marker == "") {
-                let literal = &whole[..(whole.len() - 1)];
-                literal.parse::<f64>().map(Const::Double)?
-            } else {
-                return Err(anyhow!("{whole}"));
-            };
+                let konst = if (head != "") && (head_dot == "") && (float_expo == "") {
+                    Self::parse_integer_literal(head, int_marker)?
+                } else if (head.len() > head_dot.len()) && (int_marker == "") {
+                    let literal = &whole[..(whole.len() - 1)];
+                    literal.parse::<f64>().map(Const::Double)?
+                } else {
+                    return Err(anyhow!("{whole}"));
+                };
 
-            let match_len = whole.len() - 1; // Un-count the tail-end `[^\w.]`.
+                let match_bytelen = whole.len() - 1; // Un-count the tail-end `[^\w.]`.
 
-            return Ok((match_len, konst.into()));
+                Ok((match_bytelen, konst.into()))
+            }
+            None => Err(anyhow!("{sfx}")),
         }
-        return Err(anyhow!("{sfx}"));
     }
-    fn parse_integer(digits: &str, int_marker: &str) -> Result<Const> {
+    fn parse_integer_literal(digits: &str, int_marker: &str) -> Result<Const> {
         let mut markers = Vec::with_capacity(2);
         markers.extend(
             int_marker
@@ -156,7 +160,7 @@ impl<R: Read + BufRead> Lexer<R> {
         Ok(konst)
     }
 
-    fn nonalphanum_sfx_to_token(&self, sfx: &str) -> Result<(usize, Token)> {
+    fn lex_non_alphanum(&self, sfx: &str) -> Result<(usize, Token), ()> {
         let sfx_bytes = sfx.as_bytes();
         match sfx_bytes[0] {
             b'(' => Ok((1, Demarcator::ParenOpen.into())),
@@ -171,37 +175,42 @@ impl<R: Read + BufRead> Lexer<R> {
             b'~' => Ok((1, Operator::Tilde.into())),
             b'?' => Ok((1, Operator::Question.into())),
             b':' => Ok((1, Operator::Colon.into())),
-            byte0 => {
-                let mut match_len = 1;
-                while (match_len < sfx_bytes.len()) && (sfx_bytes[match_len] == byte0) {
-                    match_len += 1;
-                }
-                while (match_len < sfx_bytes.len()) && (sfx_bytes[match_len] == b'=') {
-                    match_len += 1;
-                }
-                let sfx_pfx = &sfx[..match_len];
-
-                let token = match sfx_pfx {
-                    "-" => Operator::Minus.into(),
-                    "+" => Operator::Plus.into(),
-                    "/" => Operator::Slash.into(),
-                    "%" => Operator::Percent.into(),
-                    "&" => Operator::Ampersand.into(),
-                    "&&" => Operator::And.into(),
-                    "||" => Operator::Or.into(),
-                    "=" => Operator::Assign.into(),
-                    "==" => Operator::Eq.into(),
-                    "!" => Operator::Bang.into(),
-                    "!=" => Operator::Neq.into(),
-                    "<" => Operator::Lt.into(),
-                    "<=" => Operator::Lte.into(),
-                    ">" => Operator::Gt.into(),
-                    ">=" => Operator::Gte.into(),
-                    _ => return Err(anyhow!("{sfx}")),
-                };
-                return Ok((match_len, token));
-            }
+            _ => Self::lex_operator(sfx),
         }
+    }
+    fn lex_operator(sfx: &str) -> Result<(usize, Token), ()> {
+        let sfx_bytes = sfx.as_bytes();
+        let byte0 = sfx_bytes[0];
+
+        let mut match_bytelen = 1;
+        while (match_bytelen < sfx_bytes.len()) && (sfx_bytes[match_bytelen] == byte0) {
+            match_bytelen += 1;
+        }
+        while (match_bytelen < sfx_bytes.len()) && (sfx_bytes[match_bytelen] == b'=') {
+            match_bytelen += 1;
+        }
+        let sfx_pfx = &sfx[..match_bytelen];
+
+        let token = match sfx_pfx {
+            "-" => Operator::Minus.into(),
+            "+" => Operator::Plus.into(),
+            "/" => Operator::Slash.into(),
+            "%" => Operator::Percent.into(),
+            "&" => Operator::Ampersand.into(),
+            "&&" => Operator::And.into(),
+            "||" => Operator::Or.into(),
+            "=" => Operator::Assign.into(),
+            "==" => Operator::Eq.into(),
+            "!" => Operator::Bang.into(),
+            "!=" => Operator::Neq.into(),
+            "<" => Operator::Lt.into(),
+            "<=" => Operator::Lte.into(),
+            ">" => Operator::Gt.into(),
+            ">=" => Operator::Gte.into(),
+            _ => return Err(()),
+        };
+
+        return Ok((match_bytelen, token));
     }
 }
 impl<R: Read + BufRead> Iterator for Lexer<R> {
