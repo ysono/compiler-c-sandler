@@ -31,6 +31,9 @@ pub enum ObjAttrs {
         visibility: StaticVisibility,
         initializer: StaticInitializer,
     },
+    StaticReadonly {
+        initializer: InitializerItem<Const>,
+    },
 }
 #[derive(Debug)]
 pub enum StaticInitializer {

@@ -100,7 +100,8 @@ impl BackendSymbolTable {
                                 initializer,
                             }
                             .into()
-                        } /* I wonder whether, if type==Double, we should be locating it on a readonly section. */
+                        }
+                        ObjAttrs::StaticReadonly { .. } => todo!(),
                     };
                     self.ident_to_obj
                         .insert(ident, AsmObj { asm_type, asm_attrs });

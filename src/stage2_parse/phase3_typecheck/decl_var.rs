@@ -119,6 +119,9 @@ impl TypeChecker {
                             return Err(anyhow!("Cannot declare with 2+ types."));
                         }
                         match attrs {
+                            ObjAttrs::AutomaticStorageDuration => {
+                                return Err(anyhow!("Cannot declare with 2+ storage durations."))
+                            }
                             #[rustfmt::skip]
                             ObjAttrs::StaticReadWrite { visibility, initializer } => {
                                 match (visibility, new_viz) {
@@ -137,8 +140,8 @@ impl TypeChecker {
                                     (SI::Concrete(_), SI::Concrete(_)) => return Err(anyhow!("Cannot initialize 2+ times.")),
                                 }
                             }
-                            ObjAttrs::AutomaticStorageDuration => {
-                                return Err(anyhow!("Cannot declare with 2+ storage durations."))
+                            ObjAttrs::StaticReadonly { .. } => {
+                                unreachable!("Declarations of static readonly objs within C src code (using the `const` keyword) aren't supported.")
                             }
                         }
                         Ok(())
