@@ -37,6 +37,7 @@ impl<'a> FunInstrsGenerator<'a> {
         c::TypedLExp { exp, typ }: c::TypedLExp<LTyp>,
     ) -> Object<LTyp> {
         match exp {
+            c::LExp::String(_) => todo!(),
             c::LExp::Var(ident) => Object::Direct(ident, PhantomMarker::new(&typ)),
             c::LExp::Dereference(c_deref) => self.gen_exp_deref(c_deref, typ),
             c::LExp::Subscript(c_subscr) => self.gen_exp_subscript(c_subscr, typ),

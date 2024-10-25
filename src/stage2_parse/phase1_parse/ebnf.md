@@ -7,7 +7,7 @@
 <function-declaration> ::= { <specifier> }+ <declarator> ( <block> | ";" )
 
 <specifier> ::= <type-specifier> | "static" | "extern"
-<type-specifier> ::= "int" | "long" | "unsigned" | "signed" | "double"
+<type-specifier> ::= "int" | "long" | "unsigned" | "signed" | "double" | "char"
 
 <declarator> ::= "*" <declarator> | <direct-declarator>
 <direct-declarator> ::= <simple-declarator> [ <declarator-suffix> ]
@@ -41,6 +41,7 @@
 <primary-exp> ::= <const>
                 | <identifier>
                 | "(" <exp> ")"
+                | { <string> }+
                 | <identifier> "(" [ <argument-list> ] ")"
 <argument-list> ::= <exp> { "," <exp> }
 
@@ -50,9 +51,11 @@
 
 <unop> ::= "-" | "~" | "!" | "*" | "&"
 <binop> ::= "-" | "+" | "*" | "/" | "%" | "&&" | "||" | "==" | "!=" | "<" | "<=" | ">" | ">=" | "="
-<const> ::= <int> | <long> | <uint> | <ulong> | <double>
+<const> ::= <int> | <long> | <uint> | <ulong> | <double> | <char>
 <identifier> ::= ? An identifier token ?
+<string> ::= ? A string token ?
 <int> ::= ? An int token ?
+<char> ::= ? A char token ?
 <long> ::= ? An int or long token ?
 <uint> ::= ? An unsigned int token ?
 <ulong> ::= ? An unsigned int or unsigned long token ?

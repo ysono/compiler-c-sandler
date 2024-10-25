@@ -26,6 +26,7 @@ impl From<ArithmeticType> for ScalarAssemblyType {
     fn from(ari_type: ArithmeticType) -> Self {
         use ArithmeticType as AT;
         match ari_type {
+            AT::Char | AT::SChar | AT::UChar => todo!(),
             AT::Int | AT::UInt => Self::Longword,
             AT::Long | AT::ULong => Self::Quadword,
             AT::Double => Self::Double,

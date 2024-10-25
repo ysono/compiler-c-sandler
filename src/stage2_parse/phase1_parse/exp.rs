@@ -82,6 +82,16 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
 
                     self.parse_postfix_exp(primary_exp)
                 }
+                Some(Ok(t::Token::String(mut chars))) => {
+                    while let Some(Ok(t::Token::String(_))) = self.tokens.peek() {
+                        if let Some(Ok(t::Token::String(mut more_chars))) = self.tokens.next() {
+                            chars.append(&mut more_chars);
+                        }
+                    }
+                    let primary_exp = LExp::String(chars).into();
+
+                    self.parse_postfix_exp(primary_exp)
+                }
                 Some(Ok(t::Token::Identifier(ident))) => {
                     let primary_exp = match self.tokens.peek() {
                         Some(Ok(t::Token::Demarcator(t::Demarcator::ParenOpen))) => {

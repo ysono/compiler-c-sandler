@@ -174,6 +174,7 @@ pub enum RExp<C: CAstVariant> {
 /// Lvalue expression.
 #[derive(Debug)]
 pub enum LExp<C: CAstVariant> {
+    String(Vec<u8>),
     Var(C::Identifier),
     Dereference(Dereference<C>),
     Subscript(Subscript<C>),

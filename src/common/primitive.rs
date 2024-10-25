@@ -30,6 +30,9 @@ impl Const {
         }
         match typ {
             ScalarType::Arith(a) => match a {
+                ArithmeticType::Char => todo!(),
+                ArithmeticType::SChar => todo!(),
+                ArithmeticType::UChar => todo!(),
                 ArithmeticType::Int => new_const!(Const::Int, i32),
                 ArithmeticType::Long => new_const!(Const::Long, i64),
                 ArithmeticType::UInt => new_const!(Const::UInt, u32),

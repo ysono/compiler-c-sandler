@@ -62,6 +62,9 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
             typs[..expected_max_len].sort();
 
             let ari_type = match &typs[..] {
+                [TS::Char] => AT::Char,
+                [TS::Char, TS::Signed] => AT::SChar,
+                [TS::Char, TS::Unsigned] => AT::UChar,
                 [TS::Int] => AT::Int,
                 [TS::Int, TS::Long] => AT::Long,
                 [TS::Int, TS::Long, TS::Signed] => AT::Long,

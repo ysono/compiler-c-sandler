@@ -356,6 +356,7 @@ impl CAstValidator {
     }
     fn resolve_lexp(&mut self, lexp: LExp<ParsedCAst>) -> Result<LExp<ResolvedCAst>> {
         let lexp = match lexp {
+            LExp::String(chars) => LExp::String(chars),
             LExp::Var(ident) => {
                 // Does transform.
                 let ident = self.ident_resolver.get(&ident)?;

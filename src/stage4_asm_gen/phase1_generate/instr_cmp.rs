@@ -36,6 +36,7 @@ impl InstrsGenerator {
         let (dst, _, dst_asm_type) = self.value_to_operand_and_type(dst);
 
         let cc_is_lg_family = match src_ari_type {
+            AT::Char | AT::SChar | AT::UChar => todo!(),
             AT::Int | AT::Long | AT::UInt | AT::ULong => src_ari_type.is_signed(),
             AT::Double => false,
         };

@@ -121,6 +121,7 @@ impl TypeChecker {
     }
     fn typecheck_lexp(&mut self, lexp: LExp<ResolvedCAst>) -> Result<TypedLExp<ObjType>> {
         let typed_lexp = match lexp {
+            LExp::String(_) => todo!(),
             LExp::Var(ident) => {
                 let typ = self.symbol_table.get_var_type(&ident)?.clone();
                 let typ = OwningRef::new(typ);

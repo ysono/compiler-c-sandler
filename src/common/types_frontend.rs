@@ -38,7 +38,14 @@ impl ObjType {
 
     pub fn bytelen(&self) -> ByteLen {
         match self {
-            Self::Scalar(s) => ByteLen::from(s.effective_arithmetic_type()),
+            Self::Scalar(s) => {
+                match s {
+                    ScalarType::Arith(
+                        ArithmeticType::Char | ArithmeticType::SChar | ArithmeticType::UChar,
+                    ) => ByteLen::new(1), // TODO
+                    _ => ByteLen::from(s.effective_arithmetic_type()),
+                }
+            }
             Self::Array(a) => *a.bytelen(),
         }
     }
@@ -60,6 +67,9 @@ impl ScalarType {
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum ArithmeticType {
+    Char,
+    SChar,
+    UChar,
     Int,
     Long,
     UInt,
@@ -69,14 +79,20 @@ pub enum ArithmeticType {
 impl ArithmeticType {
     pub fn is_integer(&self) -> bool {
         match self {
-            Self::Int | Self::Long | Self::UInt | Self::ULong => true,
+            Self::Char
+            | Self::SChar
+            | Self::UChar
+            | Self::Int
+            | Self::Long
+            | Self::UInt
+            | Self::ULong => true,
             Self::Double => false,
         }
     }
     pub fn is_signed(&self) -> bool {
         match self {
-            Self::Int | Self::Long | Self::Double => true,
-            Self::UInt | Self::ULong => false,
+            Self::Char | Self::SChar | Self::Int | Self::Long | Self::Double => true,
+            Self::UChar | Self::UInt | Self::ULong => false,
         }
     }
 }
