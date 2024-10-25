@@ -77,6 +77,12 @@ pub enum ArithmeticType {
     Double,
 }
 impl ArithmeticType {
+    pub fn is_character(&self) -> bool {
+        match self {
+            Self::Char | Self::SChar | Self::UChar => true,
+            Self::Int | Self::Long | Self::UInt | Self::ULong | Self::Double => false,
+        }
+    }
     pub fn is_integer(&self) -> bool {
         match self {
             Self::Char

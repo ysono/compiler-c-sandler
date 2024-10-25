@@ -7,7 +7,6 @@ use crate::{
     },
     ds_n_a::singleton::Singleton,
     stage2_parse::{c_ast::*, phase2_resolve::ResolvedCAst},
-    utils::Either,
 };
 use anyhow::{anyhow, Result};
 use owning_ref::OwningRef;
@@ -20,59 +19,73 @@ impl TypeChecker {
     /// Given an expression that requires its two sub-expressions to have the same type,
     ///     cast these sub-expressions to their "common type".
     pub(super) fn cast_to_common_type(
-        mut exp1: TypedExp<ScalarType>,
-        mut exp2: TypedExp<ScalarType>,
+        &mut self,
+        exp1: TypedExp<ScalarType>,
+        exp2: TypedExp<ScalarType>,
     ) -> Result<(TypedExp<ScalarType>, TypedExp<ScalarType>)> {
-        match Self::derive_common_type(&exp1, &exp2)? {
-            Either::Left(()) => {
-                exp2 = Self::maybe_insert_cast_node(exp1.typ(), exp2);
-            }
-            Either::Right(()) => {
-                exp1 = Self::maybe_insert_cast_node(exp2.typ(), exp1);
-            }
-        }
+        let common_typ = self.derive_common_type(&exp1, &exp2)?;
+
+        let exp1 = Self::maybe_insert_cast_node(&common_typ, exp1);
+        let exp2 = Self::maybe_insert_cast_node(common_typ, exp2);
+
         Ok((exp1, exp2))
     }
     fn derive_common_type(
+        &mut self,
         exp1: &TypedExp<ScalarType>,
         exp2: &TypedExp<ScalarType>,
-    ) -> Result<Either<(), ()>> {
+    ) -> Result<SubObjType<ScalarType>> {
         match (exp1.typ().as_ref(), exp2.typ().as_ref()) {
             (ScalarType::Arith(a1), ScalarType::Arith(a2)) => {
-                Ok(Self::derive_common_arithmetic_type(*a1, *a2))
+                let ari_typ = Self::derive_common_arithmetic_type(*a1, *a2);
+                Ok(self.get_scalar_type(ari_typ))
             }
             (ScalarType::Ptr(ptr_typ), _) => {
-                Self::derive_common_pointer_type(ptr_typ, exp2).map(Either::Left)
+                Self::validate_common_pointer_type(ptr_typ, exp2)?;
+                Ok(exp1.typ().clone())
             }
             (_, ScalarType::Ptr(ptr_typ)) => {
-                Self::derive_common_pointer_type(ptr_typ, exp1).map(Either::Right)
+                Self::validate_common_pointer_type(ptr_typ, exp1)?;
+                Ok(exp2.typ().clone())
             }
         }
     }
     /// Aka "usual arithmetic conversion".
-    fn derive_common_arithmetic_type(a1: ArithmeticType, a2: ArithmeticType) -> Either<(), ()> {
+    fn derive_common_arithmetic_type(
+        mut a1: ArithmeticType,
+        mut a2: ArithmeticType,
+    ) -> ArithmeticType {
+        /* Promote any of the 3 character types to `int`. */
+        if a1.is_character() {
+            a1 = ArithmeticType::Int;
+        }
+        if a2.is_character() {
+            a2 = ArithmeticType::Int;
+        }
+
         match (a1, a2) {
-            _ if a1 == a2 => Either::Left(()),
-            (ArithmeticType::Double, _) => Either::Left(()),
-            (_, ArithmeticType::Double) => Either::Right(()),
+            _ if a1 == a2 => a1,
+            (ArithmeticType::Double, _) => a1,
+            (_, ArithmeticType::Double) => a2,
             _ => {
+                /* Then, each side is one of {Int, Long, UInt, ULong}. */
                 let bytelen1 = OperandByteLen::from(a1);
                 let bytelen2 = OperandByteLen::from(a2);
                 match bytelen1.cmp(&bytelen2) {
-                    Ordering::Greater => Either::Left(()),
-                    Ordering::Less => Either::Right(()),
+                    Ordering::Greater => a1,
+                    Ordering::Less => a2,
                     Ordering::Equal => {
                         if a1.is_signed() {
-                            Either::Right(())
+                            a2
                         } else {
-                            Either::Left(())
+                            a1
                         }
                     }
                 }
             }
         }
     }
-    fn derive_common_pointer_type(
+    fn validate_common_pointer_type(
         ptr_typ: &PointerType,
         other_exp: &TypedExp<ScalarType>,
     ) -> Result<()> {
@@ -173,6 +186,21 @@ impl TypeChecker {
             _ => Err(()),
         };
         ok.map_err(|()| anyhow!("Cannot \"convert as if by assignment\" {to:?} <- {from:?}"))
+    }
+
+    /* Promotion */
+
+    pub(super) fn promote_character_to_int(
+        &mut self,
+        in_typed_exp: TypedExp<ScalarType>,
+    ) -> TypedExp<ScalarType> {
+        if matches!(in_typed_exp.typ().as_ref(), ScalarType::Arith(a) if a.is_character()) {
+            let int_typ = self.get_scalar_type(ArithmeticType::Int);
+            let out_rexp = Self::insert_cast_node(int_typ, in_typed_exp);
+            TypedExp::R(out_rexp)
+        } else {
+            in_typed_exp
+        }
     }
 
     /* Helpers on casting */

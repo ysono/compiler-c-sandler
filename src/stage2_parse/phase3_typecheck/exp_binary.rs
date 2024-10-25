@@ -37,17 +37,17 @@ impl TypeChecker {
         use ComparisonBinaryOperator as OC;
 
         let (lhs, rhs) = match op {
-            OC::Eq | OC::Neq => Self::cast_to_common_type(lhs, rhs)?,
+            OC::Eq | OC::Neq => self.cast_to_common_type(lhs, rhs)?,
             OC::Lt | OC::Lte | OC::Gt | OC::Gte => {
                 match (lhs.typ().as_ref(), rhs.typ().as_ref()) {
                     (ScalarType::Arith(_), ScalarType::Arith(_)) => {
-                        Self::cast_to_common_type(lhs, rhs)?
+                        self.cast_to_common_type(lhs, rhs)?
                     }
                     (ScalarType::Ptr(p1), ScalarType::Ptr(p2)) if p1 == p2 => (lhs, rhs),
                     _ => return Err(anyhow!("Can't compare {lhs:?} and {rhs:?}")),
                 }
                 /* Note, gcc and clang allow comparing pointer vs constexpr-zero-integer as well.
-                If we choose to allow this, we can validate using [`Self::cast_to_common_type()`] on all scalar types. */
+                If we choose to allow this, we can validate using `cast_to_common_type()` on all scalar types. */
             }
         };
 
@@ -67,7 +67,7 @@ impl TypeChecker {
         match op {
             OA::Add => self.typecheck_arith_add(lhs, rhs),
             OA::Sub => self.typecheck_arith_sub(lhs, rhs),
-            OA::Mul | OA::Div | OA::Rem => Self::typecheck_arith_muldivrem(op, lhs, rhs),
+            OA::Mul | OA::Div | OA::Rem => self.typecheck_arith_muldivrem(op, lhs, rhs),
         }
     }
 
@@ -80,7 +80,7 @@ impl TypeChecker {
             (ScalarType::Arith(_), ScalarType::Arith(_)) => {
                 let op = ArithmeticBinaryOperator::Add;
 
-                let (lhs, rhs) = Self::cast_to_common_type(lhs, rhs)?;
+                let (lhs, rhs) = self.cast_to_common_type(lhs, rhs)?;
                 let common_typ = lhs.typ().clone();
 
                 Ok(new_binary_exp(op, lhs, rhs, common_typ))
@@ -118,7 +118,7 @@ impl TypeChecker {
             (ScalarType::Arith(_), ScalarType::Arith(_)) => {
                 let op = ArithmeticBinaryOperator::Sub;
 
-                let (lhs, rhs) = Self::cast_to_common_type(lhs, rhs)?;
+                let (lhs, rhs) = self.cast_to_common_type(lhs, rhs)?;
                 let common_typ = lhs.typ().clone();
 
                 Ok(new_binary_exp(op, lhs, rhs, common_typ))
@@ -145,13 +145,14 @@ impl TypeChecker {
     }
 
     fn typecheck_arith_muldivrem(
+        &mut self,
         op: ArithmeticBinaryOperator,
         lhs: TypedExp<ScalarType>,
         rhs: TypedExp<ScalarType>,
     ) -> Result<TypedRExp> {
         use ArithmeticBinaryOperator as OA;
 
-        let (lhs, rhs) = Self::cast_to_common_type(lhs, rhs)?;
+        let (lhs, rhs) = self.cast_to_common_type(lhs, rhs)?;
         let common_typ = lhs.typ().clone();
 
         if matches!(

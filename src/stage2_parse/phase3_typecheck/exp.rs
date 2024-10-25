@@ -27,18 +27,19 @@ impl TypeChecker {
             }
             RExp::Cast(cast) => self.cast_explicitly(cast)?,
             RExp::Unary(Unary { op, sub_exp }) => {
-                let sub_exp = Box::new(self.typecheck_exp_and_convert_to_scalar(*sub_exp)?);
+                let sub_exp = self.typecheck_exp_and_convert_to_scalar(*sub_exp)?;
 
                 let err_invalid_op = || Err(anyhow!("Cannot apply {op:?} on {sub_exp:?}"));
 
-                let out_typ;
+                let (out_typ, final_sub_exp);
                 match &op {
                     UnaryOperator::Complement => match sub_exp.typ().as_ref() {
                         ScalarType::Arith(ArithmeticType::Double) | ScalarType::Ptr(_) => {
                             return err_invalid_op();
                         }
                         ScalarType::Arith(_) => {
-                            out_typ = sub_exp.typ().clone();
+                            final_sub_exp = self.promote_character_to_int(sub_exp);
+                            out_typ = final_sub_exp.typ().clone();
                         }
                     },
                     UnaryOperator::Negate => match sub_exp.typ().as_ref() {
@@ -46,15 +47,20 @@ impl TypeChecker {
                             return err_invalid_op();
                         }
                         ScalarType::Arith(_) => {
-                            out_typ = sub_exp.typ().clone();
+                            final_sub_exp = self.promote_character_to_int(sub_exp);
+                            out_typ = final_sub_exp.typ().clone();
                         }
                     },
                     UnaryOperator::Not => {
+                        final_sub_exp = sub_exp;
                         out_typ = self.get_scalar_type(ArithmeticType::Int);
                     }
                 }
 
-                let exp = RExp::Unary(Unary { op, sub_exp });
+                let exp = RExp::Unary(Unary {
+                    op,
+                    sub_exp: Box::new(final_sub_exp),
+                });
                 TypedRExp { typ: out_typ, exp }
             }
             RExp::Binary(binary) => self.typecheck_exp_binary(binary)?,
@@ -63,7 +69,7 @@ impl TypeChecker {
                 let then = self.typecheck_exp_and_convert_to_scalar(*then)?;
                 let elze = self.typecheck_exp_and_convert_to_scalar(*elze)?;
 
-                let (then, elze) = Self::cast_to_common_type(then, elze)?;
+                let (then, elze) = self.cast_to_common_type(then, elze)?;
                 let typ = then.typ().clone();
 
                 let exp = RExp::Conditional(Conditional {
