@@ -36,16 +36,16 @@ impl<'a> FunInstrsGenerator<'a> {
             let instr = match (dst_ari_typ, src_ari_typ) {
                 (_, ArithmeticType::Double) => {
                     if dst_ari_typ.is_signed() {
-                        Instruction::DoubleToInt(srcdst)
+                        Instruction::DoubleToSInteg(srcdst)
                     } else {
-                        Instruction::DoubleToUInt(srcdst)
+                        Instruction::DoubleToUInteg(srcdst)
                     }
                 }
                 (ArithmeticType::Double, _) => {
                     if src_ari_typ.is_signed() {
-                        Instruction::IntToDouble(srcdst)
+                        Instruction::SIntegToDouble(srcdst)
                     } else {
-                        Instruction::UIntToDouble(srcdst)
+                        Instruction::UIntegToDouble(srcdst)
                     }
                 }
                 _ => {
