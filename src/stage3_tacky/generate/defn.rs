@@ -140,3 +140,130 @@ fn new_cto(src: Value, ident: &Rc<SymbolIdentifier>, offset: ByteLen) -> Instruc
         offset,
     })
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use crate::{
+        common::{
+            symbol_table_frontend::SymbolTable,
+            types_frontend::{ArithmeticType, ObjType, SubObjType},
+        },
+        ds_n_a::singleton::SingletonRepository,
+        test::utils::{fail, TypeBuilder},
+    };
+    use c::{RExp, TypedExp, TypedRExp, VariableDefinition};
+    use owning_ref::OwningRef;
+
+    fn in_single_int(i: i32, typ: SubObjType<ScalarType>) -> InitializerItem<TypedExp<ScalarType>> {
+        InitializerItem::Single(TypedExp::R(TypedRExp {
+            exp: RExp::Const(Const::Int(i)),
+            typ,
+        }))
+    }
+
+    fn emit_initializer(
+        initializer: Vec<InitializerItem<TypedExp<ScalarType>>>,
+    ) -> Vec<CopyToOffset> {
+        let mut symtab = SymbolTable::default();
+        let mut tacky_gen = FunInstrsGenerator::new(&mut symtab);
+
+        let var_defn = VariableDefinition {
+            ident: Rc::new(SymbolIdentifier::new_generated()),
+            init: initializer,
+        };
+        tacky_gen.gen_var_defn(var_defn);
+
+        tacky_gen
+            .instrs
+            .into_iter()
+            .map(|instr| match instr {
+                Instruction::CopyToOffset(cto) => cto,
+                _ => fail!(),
+            })
+            .collect()
+    }
+
+    #[test]
+    fn gen_var_defn_bytes() {
+        let mut obj_typ_repo = SingletonRepository::<ObjType>::default();
+        let mut typ_bld = TypeBuilder::new(&mut obj_typ_repo);
+
+        let int_typ_as_obj_typ = typ_bld.build_obj_type(&[], ArithmeticType::Int);
+        let int_typ_as_sca_typ =
+            OwningRef::new(int_typ_as_obj_typ.clone()).map(|obj_typ| match obj_typ {
+                ObjType::Scalar(s) => s,
+                _ => unreachable!(),
+            });
+
+        let in_items = vec![
+            InitializerItem::Zero(ByteLen::new(8 + 4 + 3)),
+            in_single_int(0x0202_0101, int_typ_as_sca_typ.clone()),
+            in_single_int(0x0404_0303, int_typ_as_sca_typ.clone()),
+            InitializerItem::String {
+                chars: "aabbccddeef".into(),
+                zeros_sfx_bytelen: ByteLen::new(((8 * 2) - "aabbccddeef".len() as u64) + (4 + 3)),
+            },
+        ]; // Note, this series of items is unrealistic as an output of the typechecker.
+
+        let instrs = emit_initializer(in_items);
+
+        let mut actual_instrs = instrs.into_iter();
+        let mut expected_offset = 0;
+        {
+            let CopyToOffset { src, dst_obj: _, offset } = actual_instrs.next().unwrap();
+            assert_eq!(offset, ByteLen::new(expected_offset));
+            assert_eq!(src, Value::Constant(Const::ULong(0x0000_0000_0000_0000)));
+            expected_offset += 8;
+        }
+        {
+            let CopyToOffset { src, dst_obj: _, offset } = actual_instrs.next().unwrap();
+            assert_eq!(offset, ByteLen::new(expected_offset));
+            assert_eq!(src, Value::Constant(Const::UInt(0x0000_0000)));
+            expected_offset += 4;
+        }
+        for _ in 0..3 {
+            let CopyToOffset { src, dst_obj: _, offset } = actual_instrs.next().unwrap();
+            assert_eq!(offset, ByteLen::new(expected_offset));
+            assert_eq!(src, Value::Constant(Const::UChar(0x00)));
+            expected_offset += 1;
+        }
+        {
+            let CopyToOffset { src, dst_obj: _, offset } = actual_instrs.next().unwrap();
+            assert_eq!(offset, ByteLen::new(expected_offset));
+            assert_eq!(src, Value::Constant(Const::Int(0x0202_0101)));
+            expected_offset += 4;
+        }
+        {
+            let CopyToOffset { src, dst_obj: _, offset } = actual_instrs.next().unwrap();
+            assert_eq!(offset, ByteLen::new(expected_offset));
+            assert_eq!(src, Value::Constant(Const::Int(0x0404_0303)));
+            expected_offset += 4;
+        }
+        {
+            let CopyToOffset { src, dst_obj: _, offset } = actual_instrs.next().unwrap();
+            assert_eq!(offset, ByteLen::new(expected_offset));
+            assert_eq!(src, Value::Constant(Const::ULong(0x6464_6363_6262_6161)));
+            expected_offset += 8;
+        }
+        {
+            let CopyToOffset { src, dst_obj: _, offset } = actual_instrs.next().unwrap();
+            assert_eq!(offset, ByteLen::new(expected_offset));
+            assert_eq!(src, Value::Constant(Const::ULong(0x0000_0000_0066_6565)));
+            expected_offset += 8;
+        }
+        {
+            let CopyToOffset { src, dst_obj: _, offset } = actual_instrs.next().unwrap();
+            assert_eq!(offset, ByteLen::new(expected_offset));
+            assert_eq!(src, Value::Constant(Const::UInt(0x0000_0000)));
+            expected_offset += 4;
+        }
+        for _ in 0..3 {
+            let CopyToOffset { src, dst_obj: _, offset } = actual_instrs.next().unwrap();
+            assert_eq!(offset, ByteLen::new(expected_offset));
+            assert_eq!(src, Value::Constant(Const::UChar(0x00)));
+            expected_offset += 1;
+        }
+        assert!(actual_instrs.next().is_none())
+    }
+}
