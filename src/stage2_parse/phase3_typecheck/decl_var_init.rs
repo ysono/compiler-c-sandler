@@ -185,6 +185,7 @@ impl TypeChecker {
 }
 
 #[cfg(test)]
+#[allow(non_snake_case)]
 mod test {
     use super::*;
     use crate::{
@@ -204,6 +205,10 @@ mod test {
         let exp = Expression::R(RExp::Const(Const::Double(dbl)));
         InNode::Single(exp)
     }
+    fn in_single_constexpr_str(chars: &'static str) -> InNode<ResolvedCAst> {
+        let exp = Expression::L(LExp::String(chars.into()));
+        InNode::Single(exp)
+    }
 
     fn match_out_rt_single_const_int(
         item: &OutItem<TypedExp<ScalarType>>,
@@ -216,6 +221,25 @@ mod test {
             })) => {
                 (*actual_int == expected_int)
                     && matches!(typ.as_ref(), ScalarType::Arith(ArithmeticType::Int))
+            }
+            _ => false,
+        }
+    }
+    fn match_out_rt_single_addrof(item: &OutItem<TypedExp<ScalarType>>) -> bool {
+        match item {
+            OutItem::Single(TypedExp::R(TypedRExp { exp: RExp::AddrOf(_), .. })) => true,
+            _ => false,
+        }
+    }
+    fn match_out_rt_string(
+        item: &OutItem<TypedExp<ScalarType>>,
+        expected_chars: &'static str,
+        expected_zeros_sfx_bytelen: u64,
+    ) -> bool {
+        match item {
+            OutItem::String { chars, zeros_sfx_bytelen } => {
+                (&chars[..] == expected_chars.as_bytes())
+                    && (zeros_sfx_bytelen.as_int() == expected_zeros_sfx_bytelen)
             }
             _ => false,
         }
@@ -393,6 +417,139 @@ mod test {
             4 * ((7 - 3) + 7 * (17 - 3))
         )); // arr[2][3:], arr[3:][:]
 
+        Ok(())
+    }
+
+    /* ScalarType <- string initializer */
+
+    #[test]
+    fn static_lhs_ptrToChar_rhs_singleString() -> Result<()> {
+        let out_items = do_typecheck_static(
+            (&[Dec::Ptr], ArithmeticType::Char),
+            in_single_constexpr_str("aabb"),
+        )?;
+
+        assert!(matches!(&out_items[..], &[OutItem::Pointer(_)]));
+        Ok(())
+    }
+
+    #[test]
+    fn runtime_lhs_ptrToChar_rhs_singleString() -> Result<()> {
+        let out_items = do_typecheck_runtime(
+            (&[Dec::Ptr], ArithmeticType::Char),
+            in_single_constexpr_str("aabb"),
+        )?;
+
+        assert_eq!(out_items.len(), 1);
+
+        assert!(match_out_rt_single_addrof(&out_items[0]));
+
+        Ok(())
+    }
+
+    /* ArrayType <- string initializer */
+
+    #[test]
+    fn lhs_arrDepth1_rhs_singleString() -> Result<()> {
+        for character_typ in [
+            ArithmeticType::Char,
+            ArithmeticType::SChar,
+            ArithmeticType::UChar,
+        ] {
+            let out_items = do_typecheck_static(
+                (&[Dec::Arr(17)], character_typ),
+                in_single_constexpr_str("aabb"),
+            )?;
+
+            assert_eq!(
+                &out_items,
+                &[OutItem::String {
+                    chars: "aabb".into(),
+                    zeros_sfx_bytelen: ByteLen::new(17 - 4)
+                },]
+            );
+        }
+        for character_typ in [
+            ArithmeticType::Char,
+            ArithmeticType::SChar,
+            ArithmeticType::UChar,
+        ] {
+            let out_items = do_typecheck_runtime(
+                (&[Dec::Arr(17)], character_typ),
+                in_single_constexpr_str("aabb"),
+            )?;
+
+            assert_eq!(out_items.len(), 1);
+
+            assert!(match_out_rt_string(&out_items[0], "aabb", 17 - 4));
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn lhs_arrDepth2_rhs_compoundStrings() -> Result<()> {
+        for character_typ in [
+            ArithmeticType::Char,
+            ArithmeticType::SChar,
+            ArithmeticType::UChar,
+        ] {
+            let out_items = do_typecheck_static(
+                (&[Dec::Arr(17), Dec::Arr(7)], character_typ),
+                InNode::Compound(vec![
+                    in_single_constexpr_str("aabb"),
+                    in_single_constexpr_str("ccddeef"),
+                    in_single_constexpr_str("gghh"),
+                ]),
+            )?;
+
+            assert_eq!(
+                &out_items,
+                &[
+                    OutItem::String {
+                        chars: "aabb".into(),
+                        zeros_sfx_bytelen: ByteLen::new(7 - 4),
+                    },
+                    OutItem::String {
+                        chars: "ccddeef".into(),
+                        zeros_sfx_bytelen: ByteLen::new(7 - 7),
+                    },
+                    OutItem::String {
+                        chars: "gghh".into(),
+                        zeros_sfx_bytelen: ByteLen::new((7 - 4) + 7 * (17 - 3)),
+                    },
+                ]
+            );
+        }
+        Ok(())
+    }
+
+    /* some type <--(invalid)-- string initializer. */
+
+    #[test]
+    fn lhs_invalidType_rhs_singleString() -> Result<()> {
+        use ArithmeticType as AT;
+
+        let mut lhs_type_ingredients = vec![];
+        for non_char_ari_typ in [AT::Int, AT::SChar, AT::UChar] {
+            lhs_type_ingredients.extend([(vec![Dec::Ptr], non_char_ari_typ)]);
+        }
+        for non_character_typ in [AT::Int] {
+            lhs_type_ingredients.extend([(vec![Dec::Arr(17)], non_character_typ)]);
+        }
+        for any_typ in [AT::Int, AT::Char, AT::SChar, AT::UChar] {
+            lhs_type_ingredients.extend([
+                (vec![], any_typ),
+                (vec![Dec::Ptr, Dec::Arr(17)], any_typ),
+                (vec![Dec::Arr(17), Dec::Ptr], any_typ),
+                (vec![Dec::Arr(17), Dec::Arr(7)], any_typ),
+            ]);
+        }
+
+        for (typ_decls, base_typ) in lhs_type_ingredients {
+            let res =
+                do_typecheck_static((&typ_decls[..], base_typ), in_single_constexpr_str("aabb"));
+            assert!(res.is_err(), "{res:?}");
+        }
         Ok(())
     }
 }
