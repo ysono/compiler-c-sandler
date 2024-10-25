@@ -11,17 +11,12 @@ mod instr_fun;
 mod operand;
 
 use crate::{
-    common::{
-        identifier::SymbolIdentifier, primitive::Const, symbol_table_frontend::SymbolTable,
-        types_backend::Alignment,
-    },
+    common::{symbol_table_backend::BackendSymbolTable, symbol_table_frontend::SymbolTable},
     ds_n_a::immutable_owned::ImmutableOwned,
     stage3_tacky::tacky_ast as t,
     stage4_asm_gen::asm_ast::*,
 };
 use derive_more::Into;
-use std::collections::HashMap;
-use std::rc::Rc;
 
 #[derive(Debug)]
 pub struct GeneratedAsmAst(());
@@ -33,14 +28,13 @@ impl AsmAstVariant for GeneratedAsmAst {
 #[derive(Into)]
 pub struct InstrsGenerator {
     frontend_symtab: ImmutableOwned<SymbolTable>,
-
-    static_constants: HashMap<(Alignment, Const), Rc<SymbolIdentifier>>,
+    backend_symtab: BackendSymbolTable,
 }
 impl InstrsGenerator {
     pub fn new(frontend_symtab: ImmutableOwned<SymbolTable>) -> Self {
         Self {
             frontend_symtab,
-            static_constants: HashMap::default(),
+            backend_symtab: BackendSymbolTable::default(),
         }
     }
 

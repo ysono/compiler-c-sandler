@@ -322,7 +322,7 @@ impl<W: Write> AsmCodeEmitter<W> {
 
     fn write_fun_call_sfx(&mut self, ident: &SymbolIdentifier) -> Result<(), io::Error> {
         if cfg!(target_os = "linux") {
-            let AsmFun { is_defined } = self.backend_symtab.funs().get(ident).unwrap();
+            let AsmFun { is_defined } = self.backend_symtab.ident_to_fun().get(ident).unwrap();
             if *is_defined == false {
                 /* This is required iff the identifier will be lazily bound by a dynamic linker.
                 It doesn't hurt to specify even if the identifier's address offset will become statically known at link-time. */

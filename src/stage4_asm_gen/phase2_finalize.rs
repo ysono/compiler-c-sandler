@@ -138,7 +138,7 @@ impl InstrsFinalizer {
         }
     }
     fn derive_mem_operand(&mut self, ident: Rc<SymbolIdentifier>, offset: ByteLen) -> Operand {
-        let AsmObj { asm_type, loc } = self.backend_symtab.objs().get(&ident).unwrap();
+        let AsmObj { asm_type, loc } = self.backend_symtab.ident_to_obj().get(&ident).unwrap();
         match loc {
             ObjLocation::Stack => {
                 let mut stack_pos = self.var_to_stack_pos.resolve_stack_pos(ident, asm_type);

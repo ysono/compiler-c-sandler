@@ -77,10 +77,11 @@ impl InstrsGenerator {
     ) -> PreFinalOperand {
         let alignment = custom_alignment
             .unwrap_or_else(|| Alignment::default_of_scalar(konst.arithmetic_type()));
+
         let ident = self
-            .static_constants
-            .entry((alignment, konst))
-            .or_insert_with(|| Rc::new(SymbolIdentifier::new_generated()));
-        Operand::ReadonlyData(Rc::clone(ident)).into()
+            .backend_symtab
+            .get_or_new_static_readonly(alignment, konst);
+
+        Operand::ReadonlyData(ident).into()
     }
 }
