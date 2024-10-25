@@ -29,25 +29,33 @@ impl TypeChecker {
             RExp::Unary(Unary { op, sub_exp }) => {
                 let sub_exp = Box::new(self.typecheck_exp_and_convert_to_scalar(*sub_exp)?);
 
-                if matches!(
-                    (&op, sub_exp.typ().as_ref()),
-                    (
-                        UnaryOperator::Complement,
-                        ScalarType::Arith(ArithmeticType::Double)
-                    ) | (
-                        UnaryOperator::Negate | UnaryOperator::Complement,
-                        ScalarType::Ptr(_)
-                    )
-                ) {
-                    return Err(anyhow!("Cannot apply {op:?} on {sub_exp:?}"));
+                let err_invalid_op = || Err(anyhow!("Cannot apply {op:?} on {sub_exp:?}"));
+
+                let out_typ;
+                match &op {
+                    UnaryOperator::Complement => match sub_exp.typ().as_ref() {
+                        ScalarType::Arith(ArithmeticType::Double) | ScalarType::Ptr(_) => {
+                            return err_invalid_op();
+                        }
+                        ScalarType::Arith(_) => {
+                            out_typ = sub_exp.typ().clone();
+                        }
+                    },
+                    UnaryOperator::Negate => match sub_exp.typ().as_ref() {
+                        ScalarType::Ptr(_) => {
+                            return err_invalid_op();
+                        }
+                        ScalarType::Arith(_) => {
+                            out_typ = sub_exp.typ().clone();
+                        }
+                    },
+                    UnaryOperator::Not => {
+                        out_typ = self.get_scalar_type(ArithmeticType::Int);
+                    }
                 }
 
-                let typ = match &op {
-                    UnaryOperator::Not => self.get_scalar_type(ArithmeticType::Int),
-                    UnaryOperator::Complement | UnaryOperator::Negate => sub_exp.typ().clone(),
-                };
                 let exp = RExp::Unary(Unary { op, sub_exp });
-                TypedRExp { typ, exp }
+                TypedRExp { typ: out_typ, exp }
             }
             RExp::Binary(binary) => self.typecheck_exp_binary(binary)?,
             RExp::Conditional(Conditional { condition, then, elze }) => {
