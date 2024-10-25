@@ -11,6 +11,7 @@ pub enum Token {
     Control(Control),
     Loop(Loop),
     Const(Const),
+    String(Vec<u8>),
     Identifier(RawIdentifier),
 }
 #[derive(PartialEq, Debug)]
@@ -31,11 +32,12 @@ pub enum Keyword {
 #[derive(PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub enum TypeSpecifier {
     Void = 0,
-    Int = 1,
-    Long = 2,
-    Signed = 3,
-    Unsigned = 4,
-    Double = 5,
+    Char = 1,
+    Int = 2,
+    Long = 3,
+    Signed = 4,
+    Unsigned = 5,
+    Double = 6,
 }
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum StorageClassSpecifier {

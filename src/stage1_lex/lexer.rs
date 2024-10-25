@@ -84,6 +84,7 @@ impl<R: Read + BufRead> Lexer<R> {
                 let token = match mach.as_str() {
                     "return" => Keyword::Return.into(),
                     "void"     => TypeSpecifier::Void.into(),
+                    "char"     => TypeSpecifier::Char.into(),
                     "int"      => TypeSpecifier::Int.into(),
                     "long"     => TypeSpecifier::Long.into(),
                     "signed"   => TypeSpecifier::Signed.into(),
@@ -175,9 +176,70 @@ impl<R: Read + BufRead> Lexer<R> {
             b'~' => Ok((1, Operator::Tilde.into())),
             b'?' => Ok((1, Operator::Question.into())),
             b':' => Ok((1, Operator::Colon.into())),
+            b'\'' => self.parse_character_literal(sfx),
+            b'"' => self.parse_string_literal(sfx),
             _ => Self::lex_operator(sfx),
         }
     }
+
+    fn parse_character_literal(&self, sfx: &str) -> Result<(usize, Token), ()> {
+        match self.matchers.character.captures(sfx) {
+            Some(caps) => {
+                let (whole, [inner]) = caps.extract();
+
+                let semantic_char = match inner.as_bytes()[..] {
+                    [raw_char_0] => raw_char_0,
+                    [_, raw_char_1] => Self::unescape_character(raw_char_1)?,
+                    _ => unreachable!(),
+                };
+
+                /* In C, each single-character literal is interpreted as a <const> with type=`int`,
+                _not_ any of {`char`, `signed char`, `unsigned char`}. */
+                let konst = Const::Int(semantic_char as i32);
+
+                Ok((whole.len(), Token::Const(konst)))
+            }
+            None => Err(()),
+        }
+    }
+    fn parse_string_literal(&self, sfx: &str) -> Result<(usize, Token), ()> {
+        match self.matchers.string.captures(sfx) {
+            Some(caps) => {
+                let (whole, [inner]) = caps.extract();
+
+                let mut semantic_chars = vec![];
+                let mut inner = inner.as_bytes().iter();
+                while let Some(raw_char_0) = inner.next() {
+                    let semantic_char = match *raw_char_0 {
+                        b'\\' => {
+                            let raw_char_1 = inner.next().unwrap();
+                            Self::unescape_character(*raw_char_1)?
+                        }
+                        raw_char_0 => raw_char_0,
+                    };
+                    semantic_chars.push(semantic_char);
+                }
+
+                Ok((whole.len(), Token::String(semantic_chars)))
+            }
+            None => Err(()),
+        }
+    }
+    fn unescape_character(raw_escaped_char: u8) -> Result<u8, ()> {
+        let semantic_char = match raw_escaped_char {
+            b'\'' | b'"' | b'?' | b'\\' => raw_escaped_char,
+            b'a' => 7,
+            b'b' => 8,
+            b'f' => 12,
+            b'n' => b'\n',
+            b'r' => b'\r',
+            b't' => b'\t',
+            b'v' => 11,
+            _ => Err(())?,
+        };
+        Ok(semantic_char)
+    }
+
     fn lex_operator(sfx: &str) -> Result<(usize, Token), ()> {
         let sfx_bytes = sfx.as_bytes();
         let byte0 = sfx_bytes[0];
@@ -223,11 +285,20 @@ impl<R: Read + BufRead> Iterator for Lexer<R> {
 struct TokenMatchers {
     wordlike: Regex,
     numeric: Regex,
+    character: Regex,
+    string: Regex,
 }
 impl TokenMatchers {
     fn new() -> Result<Self> {
         let wordlike = Regex::new(r"^[a-zA-Z_]\w*\b")?;
         let numeric = Regex::new(r"^(\d*(\.?)\d*)([lLuU]{0,2})((?:[eE][+-]?\d+)?)[^\w.]")?;
-        Ok(Self { wordlike, numeric })
+        let single_quotes = Regex::new(r#"^'([^'\\\n]|\\['"?\\abfnrtv])'"#)?;
+        let double_quotes = Regex::new(r#"^"((?:[^"\\\n]|\\['"?\\abfnrtv])*)""#)?;
+        Ok(Self {
+            wordlike,
+            numeric,
+            character: single_quotes,
+            string: double_quotes,
+        })
     }
 }
