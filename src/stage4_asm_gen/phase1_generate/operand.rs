@@ -51,7 +51,7 @@ impl InstrsGenerator {
                     /* Floating-point constant operands cannot be immediate-values.
                     Here, we specify the default alignment.
                     In the fixup phase, we can ensure that each SSE instruction accesses 16-bytes-aligned operands. */
-                    self.get_or_new_static_constant_operand(None, konst)
+                    self.get_or_new_static_readonly_operand(None, konst)
                 }
             },
             t::Value::Variable(ident, _sca_typ_marker) => PreFinalOperand::PseudoRegOrMem(ident),
@@ -68,9 +68,9 @@ impl InstrsGenerator {
         }
     }
 
-    /* Asm static constant */
+    /* Asm static readonly objs */
 
-    pub(super) fn get_or_new_static_constant_operand(
+    pub(super) fn get_or_new_static_readonly_operand(
         &mut self,
         custom_alignment: Option<Alignment>,
         konst: Const,

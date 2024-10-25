@@ -3,9 +3,9 @@ use crate::{
     common::{
         identifier::{JumpLabel, SymbolIdentifier},
         primitive::Const,
-        symbol_table_frontend::{InitializerItem, StaticVisibility},
+        symbol_table_frontend::StaticVisibility,
         types_backend::ByteLen,
-        types_frontend::{ObjType, ScalarFunType, ScalarType, SubObjType},
+        types_frontend::{ScalarFunType, ScalarType, SubObjType},
     },
     ds_n_a::{phantom_marker::PhantomMarker, singleton::Singleton},
 };
@@ -14,16 +14,7 @@ use std::rc::Rc;
 
 #[derive(Debug)]
 pub struct Program {
-    pub static_vars: Vec<StaticVariable>,
     pub funs: Vec<Function>,
-}
-
-#[derive(Debug)]
-pub struct StaticVariable {
-    pub ident: Rc<SymbolIdentifier>,
-    pub visibility: StaticVisibility,
-    pub typ: Singleton<ObjType>,
-    pub inits: Vec<InitializerItem<Const>>,
 }
 
 #[derive(Debug)]

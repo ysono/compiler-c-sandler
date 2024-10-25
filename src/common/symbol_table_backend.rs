@@ -1,9 +1,12 @@
 use crate::common::{
     identifier::SymbolIdentifier,
     primitive::Const,
-    symbol_table_frontend::{Symbol, SymbolTable, VarAttrs},
+    symbol_table_frontend::{
+        InitializerItem, StaticInitialValue, StaticVisibility, Symbol, SymbolTable, VarAttrs,
+    },
     types_backend::{Alignment, AssemblyType, ScalarAssemblyType},
 };
+use derive_more::From;
 use getset::{Getters, MutGetters};
 use std::collections::{hash_map::Entry, HashMap};
 use std::rc::Rc;
@@ -11,13 +14,24 @@ use std::rc::Rc;
 #[derive(Debug)]
 pub struct AsmObj {
     pub asm_type: AssemblyType,
-    pub loc: ObjLocation,
+    pub asm_attrs: AsmObjAttrs,
+}
+#[derive(From, Debug)]
+pub enum AsmObjAttrs {
+    Stack,
+    StaticRW(StaticReadWriteAsmObjAttrs),
+    StaticRO(StaticReadonlyAsmObjAttrs),
 }
 #[derive(Debug)]
-pub enum ObjLocation {
-    Stack,
-    StaticReadWrite,
-    StaticReadonly,
+pub struct StaticReadWriteAsmObjAttrs {
+    pub visibility: StaticVisibility,
+    pub alignment: Alignment,
+    pub inits: Option<Vec<InitializerItem<Const>>>,
+}
+#[derive(Debug)]
+pub struct StaticReadonlyAsmObjAttrs {
+    pub alignment: Alignment,
+    pub init: Const,
 }
 
 #[derive(Debug)]
@@ -49,7 +63,7 @@ impl BackendSymbolTable {
                     Rc::clone(&ident),
                     AsmObj {
                         asm_type: ScalarAssemblyType::from(konst.arithmetic_type()).into(),
-                        loc: ObjLocation::StaticReadonly,
+                        asm_attrs: StaticReadonlyAsmObjAttrs { alignment, init: konst }.into(),
                     },
                 );
 
@@ -65,12 +79,24 @@ impl BackendSymbolTable {
             match symbol {
                 Symbol::Var { typ, attrs } => {
                     let asm_type = AssemblyType::from(typ.as_ref());
-                    let loc = match attrs {
-                        VarAttrs::AutomaticStorageDuration => ObjLocation::Stack,
-                        VarAttrs::StaticStorageDuration { .. } => ObjLocation::StaticReadWrite,
-                        /* I wonder whether, if type==Double, we should be locating it on a readonly section. */
+                    let asm_attrs = match attrs {
+                        VarAttrs::AutomaticStorageDuration => AsmObjAttrs::Stack,
+                        VarAttrs::StaticStorageDuration { visibility, initial_value } => {
+                            let alignment = Alignment::default_of_obj_type(&typ);
+                            let inits = match initial_value {
+                                StaticInitialValue::Initial(inits) => Some(inits),
+                                StaticInitialValue::Tentative => {
+                                    let bytelen = typ.bytelen();
+                                    let init = InitializerItem::Zero(bytelen);
+                                    Some(vec![init])
+                                }
+                                StaticInitialValue::NoInitializer => None,
+                            };
+                            StaticReadWriteAsmObjAttrs { visibility, alignment, inits }.into()
+                        } /* I wonder whether, if type==Double, we should be locating it on a readonly section. */
                     };
-                    self.ident_to_obj.insert(ident, AsmObj { asm_type, loc });
+                    self.ident_to_obj
+                        .insert(ident, AsmObj { asm_type, asm_attrs });
                 }
                 Symbol::Fun { typ: _, attrs } => {
                     let is_defined = attrs.is_defined;

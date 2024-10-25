@@ -8,14 +8,19 @@ use crate::{
     stage4_asm_gen::{asm_ast::*, FinalizedAsmAst},
 };
 use regex::Regex;
-use std::io::{self, Write};
+use std::{
+    io::{self, Write},
+    rc::Rc,
+};
 
 const TAB: &str = "\t";
 
 pub struct AsmCodeEmitter<W> {
     label_bad_char: Regex,
 
-    backend_symtab: ImmutableOwned<BackendSymbolTable>,
+    /// We use Rc in order to work around rust's mutability checks.
+    /// Note, `Rc` alone makes the inner type immutable, but we choose to be explicit with [`ImmutableOwned`].
+    backend_symtab: Rc<ImmutableOwned<BackendSymbolTable>>,
 
     w: W,
 }
@@ -23,22 +28,16 @@ impl<W: Write> AsmCodeEmitter<W> {
     pub fn new(backend_symtab: ImmutableOwned<BackendSymbolTable>, w: W) -> Self {
         Self {
             label_bad_char: Regex::new(r"[^a-zA-Z0-9._]").unwrap(),
-            backend_symtab,
+            backend_symtab: Rc::new(backend_symtab),
             w,
         }
     }
 
     pub fn emit_program(
         mut self,
-        Program { static_vars, static_consts, funs }: Program<FinalizedAsmAst>,
+        Program { funs }: Program<FinalizedAsmAst>,
     ) -> Result<(), io::Error> {
-        for static_var in static_vars {
-            self.write_static_var(static_var)?;
-        }
-
-        for static_const in static_consts {
-            self.write_static_const(static_const)?;
-        }
+        self.write_static_objs()?;
 
         for fun in funs {
             self.write_fun(fun)?;

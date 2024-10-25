@@ -86,7 +86,7 @@ impl InstrsGenerator {
                 let i64_ceil_as_u64 = (i64::MAX as u64) + 1;
                 let i64_ceil_as_f64 = i64_ceil_as_u64 as f64;
                 let i64_ceil_as_f64 =
-                    self.get_or_new_static_constant_operand(None, Const::Double(i64_ceil_as_f64));
+                    self.get_or_new_static_readonly_operand(None, Const::Double(i64_ceil_as_f64));
 
                 let [lbl_out_of_range, lbl_end] =
                     JumpLabel::create(UniqueId::new(), "f64_u64", ["oor", "end"]);

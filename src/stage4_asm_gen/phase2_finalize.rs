@@ -7,7 +7,7 @@ use self::var_to_stack_pos::VarToStackPos;
 use crate::{
     common::{
         identifier::SymbolIdentifier,
-        symbol_table_backend::{AsmObj, BackendSymbolTable, ObjLocation},
+        symbol_table_backend::{AsmObj, AsmObjAttrs, BackendSymbolTable},
         types_backend::{ByteLen, ScalarAssemblyType},
     },
     ds_n_a::immutable_owned::ImmutableOwned,
@@ -138,20 +138,21 @@ impl InstrsFinalizer {
         }
     }
     fn derive_mem_operand(&mut self, ident: Rc<SymbolIdentifier>, offset: ByteLen) -> Operand {
-        let AsmObj { asm_type, loc } = self.backend_symtab.ident_to_obj().get(&ident).unwrap();
-        match loc {
-            ObjLocation::Stack => {
+        let AsmObj { asm_type, asm_attrs } =
+            self.backend_symtab.ident_to_obj().get(&ident).unwrap();
+        match asm_attrs {
+            AsmObjAttrs::Stack => {
                 let mut stack_pos = self.var_to_stack_pos.resolve_stack_pos(ident, asm_type);
                 *stack_pos.as_mut() += offset.as_int() as i64;
                 Operand::Memory(Register::BP, stack_pos)
             }
-            ObjLocation::StaticReadWrite => {
+            AsmObjAttrs::StaticRW { .. } => {
                 if cfg!(debug_assertions) && offset.as_int() != 0 {
                     unimplemented!("`foo+4(%rip)` will be impl'd in ch18.")
                 }
                 Operand::ReadWriteData(ident)
             }
-            ObjLocation::StaticReadonly => {
+            AsmObjAttrs::StaticRO { .. } => {
                 if cfg!(debug_assertions) && offset.as_int() != 0 {
                     unimplemented!("`foo+4(%rip)` will be impl'd in ch18.")
                 }

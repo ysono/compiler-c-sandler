@@ -265,11 +265,11 @@ impl<W: Write> AsmCodeEmitter<W> {
                 write!(&mut self.w, "({base}, {idx}, {scale})")?;
             }
             Operand::ReadWriteData(ident) => {
-                self.write_symbol_name(&ident, LabelLocality::OF_STATIC_VAR)?;
+                self.write_symbol_name(&ident, LabelLocality::OF_STATIC_RW_OBJ)?;
                 write!(&mut self.w, "(%rip)")?;
             }
             Operand::ReadonlyData(ident) => {
-                self.write_symbol_name(&ident, LabelLocality::OF_STATIC_CONST)?;
+                self.write_symbol_name(&ident, LabelLocality::OF_STATIC_RO_OBJ)?;
                 write!(&mut self.w, "(%rip)")?;
             }
         }

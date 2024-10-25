@@ -1,9 +1,8 @@
 pub use self::{operand::*, operator::*};
 use crate::common::{
     identifier::{JumpLabel, SymbolIdentifier},
-    primitive::Const,
-    symbol_table_frontend::{InitializerItem, StaticVisibility},
-    types_backend::{Alignment, ByteLen, ScalarAssemblyType},
+    symbol_table_frontend::StaticVisibility,
+    types_backend::{ByteLen, ScalarAssemblyType},
 };
 use derive_more::{AsMut, Constructor, From};
 use std::fmt::Debug;
@@ -16,24 +15,7 @@ pub trait AsmAstVariant {
 
 #[derive(Debug)]
 pub struct Program<A: AsmAstVariant> {
-    pub static_vars: Vec<StaticVariable>,
-    pub static_consts: Vec<StaticConstant>,
     pub funs: Vec<Function<A>>,
-}
-
-#[derive(Debug)]
-pub struct StaticVariable {
-    pub ident: Rc<SymbolIdentifier>,
-    pub visibility: StaticVisibility,
-    pub alignment: Alignment,
-    pub inits: Vec<InitializerItem<Const>>,
-}
-
-#[derive(Debug)]
-pub struct StaticConstant {
-    pub ident: Rc<SymbolIdentifier>,
-    pub alignment: Alignment,
-    pub init: Const,
 }
 
 #[derive(Debug)]

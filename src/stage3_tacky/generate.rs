@@ -15,9 +15,7 @@ use self::looping::LoopIdToLabels;
 use crate::{
     common::{
         primitive::Const,
-        symbol_table_frontend::{
-            InitializerItem, StaticInitialValue, Symbol, SymbolTable, VarAttrs,
-        },
+        symbol_table_frontend::{InitializerItem, SymbolTable},
         types_backend::ByteLen,
     },
     stage2_parse::{c_ast as c, phase3_typecheck::TypeCheckedCAst},
@@ -25,7 +23,6 @@ use crate::{
     utils::noop,
 };
 use derive_more::{Constructor, Into};
-use std::mem;
 use std::rc::Rc;
 
 #[derive(Constructor, Into)]
@@ -39,13 +36,7 @@ impl Tackifier {
     ) -> (Program, SymbolTable) {
         let funs = self.tackify_funs(decls);
 
-        /* Book ch10 Tacky page 235:
-        ```
-        Right now, it doesn’t matter whether we process the AST or the symbol table first. Starting in Chapter 16, it will be important that we process the AST first and the symbol table second.
-        ``` */
-        let static_vars = self.tackify_static_vars();
-
-        let prog = Program { static_vars, funs };
+        let prog = Program { funs };
 
         (prog, self.symbol_table)
     }
@@ -60,40 +51,6 @@ impl Tackifier {
                 gen.tackify_fun_defn(c_fun)
             })
             .collect()
-    }
-    fn tackify_static_vars(&mut self) -> Vec<StaticVariable> {
-        let mut static_vars = vec![];
-        for (ident, symbol) in self.symbol_table.as_mut().iter_mut() {
-            if let Symbol::Var {
-                typ,
-                attrs: VarAttrs::StaticStorageDuration { visibility, initial_value },
-            } = symbol
-            {
-                /* Here, we're moving the StaticInitialValue vector
-                    out of the frontend symtab
-                    into the tacky AST.
-                In ch16, we might decide to keep everything in the symtab. */
-                let inits = match initial_value {
-                    StaticInitialValue::Initial(inits) => {
-                        mem::replace(inits, Vec::with_capacity(0))
-                    }
-                    StaticInitialValue::Tentative => {
-                        let bytelen = typ.bytelen();
-                        let item = InitializerItem::Zero(bytelen);
-                        vec![item]
-                    }
-                    StaticInitialValue::NoInitializer => continue,
-                };
-                let static_var = StaticVariable {
-                    ident: Rc::clone(ident),
-                    visibility: *visibility,
-                    typ: typ.clone(),
-                    inits,
-                };
-                static_vars.push(static_var);
-            }
-        }
-        static_vars
     }
 }
 

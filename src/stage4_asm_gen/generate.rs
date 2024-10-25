@@ -1,8 +1,5 @@
 use crate::{
-    common::{
-        symbol_table_backend::BackendSymbolTable, symbol_table_frontend::SymbolTable,
-        types_backend::Alignment,
-    },
+    common::{symbol_table_backend::BackendSymbolTable, symbol_table_frontend::SymbolTable},
     ds_n_a::immutable_owned::ImmutableOwned,
     stage3_tacky::tacky_ast as t,
     stage4_asm_gen::{
@@ -11,7 +8,6 @@ use crate::{
         phase2_finalize::{FinalizedAsmAst, InstrsFinalizer},
     },
 };
-use std::rc::Rc;
 
 pub struct AsmCodeGenerator {
     frontend_symtab: ImmutableOwned<SymbolTable>,
@@ -24,36 +20,13 @@ impl AsmCodeGenerator {
 
     pub fn gen_program(
         self,
-        t::Program { static_vars, funs }: t::Program,
+        t::Program { funs }: t::Program,
     ) -> (Program<FinalizedAsmAst>, ImmutableOwned<BackendSymbolTable>) {
-        let static_vars = static_vars
-            .into_iter()
-            .map(Self::convert_static_var)
-            .collect::<Vec<_>>();
-
         let (funs, backend_symtab) = self.convert_funs(funs);
 
-        /* In ch16, we could consolidate Program::static_consts and intra-backend-symtab static const AsmObjs. */
-        let static_consts =
-            Self::clone_static_readonly_objs_from_backend_symtab_to_asm_ast(&backend_symtab);
-
-        let prog = Program { static_vars, static_consts, funs };
+        let prog = Program { funs };
 
         (prog, backend_symtab)
-    }
-
-    /* Tacky StaticVariable */
-
-    fn convert_static_var(
-        t::StaticVariable { ident, visibility, typ, inits }: t::StaticVariable,
-    ) -> StaticVariable {
-        let alignment = Alignment::default_of_obj_type(&typ);
-        StaticVariable {
-            ident,
-            visibility,
-            alignment,
-            inits,
-        }
     }
 
     /* Tacky Function */
@@ -90,20 +63,5 @@ impl AsmCodeGenerator {
         }
 
         (final_funs, backend_symtab)
-    }
-
-    fn clone_static_readonly_objs_from_backend_symtab_to_asm_ast(
-        backend_symtab: &BackendSymbolTable,
-    ) -> Vec<StaticConstant> {
-        backend_symtab
-            .static_readonly_to_ident()
-            .iter()
-            .map(|((align, konst), ident)| {
-                let ident = Rc::clone(ident);
-                let alignment = *align;
-                let init = *konst;
-                StaticConstant { ident, alignment, init }
-            })
-            .collect()
     }
 }

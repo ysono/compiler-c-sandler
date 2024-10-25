@@ -3,37 +3,54 @@ use crate::{
     common::{
         identifier::SymbolIdentifier,
         primitive::Const,
+        symbol_table_backend::{
+            AsmObj, AsmObjAttrs, StaticReadWriteAsmObjAttrs, StaticReadonlyAsmObjAttrs,
+        },
         symbol_table_frontend::{InitializerItem, StaticVisibility},
         types_backend::{Alignment, OperandByteLen},
     },
-    stage4_asm_gen::asm_ast::*,
     utils::noop,
 };
-use std::io::{self, Write};
+use std::{
+    io::{self, Write},
+    rc::Rc,
+};
 
 impl<W: Write> AsmCodeEmitter<W> {
-    pub(super) fn write_static_var(
-        &mut self,
-        StaticVariable {
-            ident,
-            visibility,
-            alignment,
-            inits,
-        }: StaticVariable,
-    ) -> Result<(), io::Error> {
-        let locality = LabelLocality::OF_STATIC_VAR;
-        let section = match &inits[..] {
-            [] | [InitializerItem::Zero(_)] => ".bss",
-            _ => ".data",
-        };
-        self.write_static_datum(&ident, visibility, locality, section, alignment, &inits)
+    pub(super) fn write_static_objs(&mut self) -> Result<(), io::Error> {
+        let backend_symtab = Rc::clone(&self.backend_symtab);
+        for (ident, obj) in backend_symtab.ident_to_obj().iter() {
+            let AsmObj { asm_type: _, asm_attrs } = obj;
+            match asm_attrs {
+                AsmObjAttrs::Stack => noop!(),
+                AsmObjAttrs::StaticRW(attrs) => self.write_static_readwrite(ident, attrs)?,
+                AsmObjAttrs::StaticRO(attrs) => self.write_static_readonly(ident, attrs)?,
+            }
+        }
+        Ok(())
     }
-    pub(super) fn write_static_const(
+    fn write_static_readwrite(
         &mut self,
-        StaticConstant { ident, alignment, init }: StaticConstant,
+        ident: &SymbolIdentifier,
+        StaticReadWriteAsmObjAttrs { visibility, alignment, inits }: &StaticReadWriteAsmObjAttrs,
+    ) -> Result<(), io::Error> {
+        if let Some(inits) = inits {
+            let locality = LabelLocality::OF_STATIC_RW_OBJ;
+            let section = match &inits[..] {
+                [] | [InitializerItem::Zero(_)] => ".bss",
+                _ => ".data",
+            };
+            self.write_static_datum(ident, *visibility, locality, section, *alignment, inits)?;
+        }
+        Ok(())
+    }
+    fn write_static_readonly(
+        &mut self,
+        ident: &SymbolIdentifier,
+        StaticReadonlyAsmObjAttrs { alignment, init }: &StaticReadonlyAsmObjAttrs,
     ) -> Result<(), io::Error> {
         let visibility = StaticVisibility::NonGlobal;
-        let locality = LabelLocality::OF_STATIC_CONST;
+        let locality = LabelLocality::OF_STATIC_RO_OBJ;
         let section = if cfg!(target_os = "macos") {
             match alignment {
                 Alignment::B4 => ".literal4",
@@ -43,10 +60,10 @@ impl<W: Write> AsmCodeEmitter<W> {
         } else {
             ".section .rodata"
         };
-        let inits = &[InitializerItem::Single(init)];
-        self.write_static_datum(&ident, visibility, locality, section, alignment, inits)?;
+        let inits = &[InitializerItem::Single(*init)];
+        self.write_static_datum(ident, visibility, locality, section, *alignment, inits)?;
         if cfg!(target_os = "macos") {
-            self.write_fillin_data(init, alignment)?;
+            self.write_fillin_data(*init, *alignment)?;
         }
         Ok(())
     }

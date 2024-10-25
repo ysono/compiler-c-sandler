@@ -1,6 +1,6 @@
 //! + Translate each Tacky instruction, which is abstract, into concrete x86-64 instruction(s).
 //! + Translate each Tacky operand, which exists in an abstract location, into a semi-concrete location.
-//! + Declare new operands that have static storage duration (at this time, we declare new static constants only).
+//! + Declare new operands that have static storage duration (at this time, we declare new static readonly objs only).
 
 mod instr_addr;
 mod instr_ary;

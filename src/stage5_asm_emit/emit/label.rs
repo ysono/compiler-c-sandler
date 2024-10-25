@@ -89,6 +89,6 @@ pub enum LabelLocality {
 }
 impl LabelLocality {
     pub const OF_FUN: Self = Self::InObjSymTab;
-    pub const OF_STATIC_VAR: Self = Self::InObjSymTab;
-    pub const OF_STATIC_CONST: Self = Self::Local;
+    pub const OF_STATIC_RW_OBJ: Self = Self::InObjSymTab;
+    pub const OF_STATIC_RO_OBJ: Self = Self::Local;
 }
