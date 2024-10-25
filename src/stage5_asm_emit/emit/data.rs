@@ -103,6 +103,7 @@ impl<W: Write> AsmCodeEmitter<W> {
                 }
             }
         }
+        writeln!(&mut self.w)?;
         Ok(())
     }
     fn write_fillin_data(&mut self, init: Const, alignment: Alignment) -> Result<(), io::Error> {

@@ -22,6 +22,7 @@ impl<W: Write> AsmCodeEmitter<W> {
         for instr in instrs {
             self.write_instr(instr)?;
         }
+        writeln!(&mut self.w)?;
         Ok(())
     }
     fn write_instr(&mut self, instr: Instruction<FinalizedAsmAst>) -> Result<(), io::Error> {
