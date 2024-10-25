@@ -99,6 +99,7 @@ impl<W: Write> AsmCodeEmitter<W> {
                         + decimal
                     We choose to emit as decimal. */
                     match konst {
+                        Const::Char(_) | Const::UChar(_) => todo!(),
                         Const::Int(i) => writeln!(&mut self.w, "{TAB}.long {i}")?,
                         Const::UInt(i) => writeln!(&mut self.w, "{TAB}.long {i}")?,
                         Const::Long(i) => writeln!(&mut self.w, "{TAB}.quad {i}")?,

@@ -4,6 +4,8 @@ use std::mem;
 
 #[derive(Clone, Copy, Debug)]
 pub enum Const {
+    Char(i8),
+    UChar(u8),
     Int(i32),
     Long(i64),
     UInt(u32),
@@ -20,6 +22,8 @@ impl Const {
         macro_rules! new_const {
             ( $out_konst_variant:expr, $out_prim:ty ) => {
                 match self {
+                    Const::Char(i) => $out_konst_variant(*i as $out_prim),
+                    Const::UChar(i) => $out_konst_variant(*i as $out_prim),
                     Const::Int(i) => $out_konst_variant(*i as $out_prim),
                     Const::Long(i) => $out_konst_variant(*i as $out_prim),
                     Const::UInt(i) => $out_konst_variant(*i as $out_prim),
@@ -30,9 +34,9 @@ impl Const {
         }
         match typ {
             ScalarType::Arith(a) => match a {
-                ArithmeticType::Char => todo!(),
-                ArithmeticType::SChar => todo!(),
-                ArithmeticType::UChar => todo!(),
+                ArithmeticType::Char => new_const!(Const::Char, i8),
+                ArithmeticType::SChar => new_const!(Const::Char, i8),
+                ArithmeticType::UChar => new_const!(Const::UChar, u8),
                 ArithmeticType::Int => new_const!(Const::Int, i32),
                 ArithmeticType::Long => new_const!(Const::Long, i64),
                 ArithmeticType::UInt => new_const!(Const::UInt, u32),
@@ -46,6 +50,8 @@ impl Const {
     pub fn as_bits(&self) -> i64 {
         #[allow(clippy::unnecessary_cast)]
         match self {
+            Const::Char(i) => *i as i64,
+            Const::UChar(i) => *i as i64,
             Const::Int(i) => *i as i64,
             Const::Long(i) => *i as i64,
             Const::UInt(i) => *i as i64,
@@ -56,6 +62,8 @@ impl Const {
 
     pub fn arithmetic_type(&self) -> ArithmeticType {
         match self {
+            Const::Char(_) => ArithmeticType::Char,
+            Const::UChar(_) => ArithmeticType::UChar,
             Const::Int(_) => ArithmeticType::Int,
             Const::Long(_) => ArithmeticType::Long,
             Const::UInt(_) => ArithmeticType::UInt,
@@ -67,7 +75,12 @@ impl Const {
     pub fn is_zero_integer(&self) -> bool {
         matches!(
             self,
-            Const::Int(0) | Const::Long(0) | Const::UInt(0) | Const::ULong(0)
+            Const::Char(0)
+                | Const::UChar(0)
+                | Const::Int(0)
+                | Const::Long(0)
+                | Const::UInt(0)
+                | Const::ULong(0)
         )
     }
 }
@@ -77,6 +90,8 @@ impl PartialEq<Self> for Const {
     ///     + cause two f64::NAN instances having the same bitwise repr, to equal each other.
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
+            (Self::Char(l0), Self::Char(r0)) => l0 == r0,
+            (Self::UChar(l0), Self::UChar(r0)) => l0 == r0,
             (Self::Int(l0), Self::Int(r0)) => l0 == r0,
             (Self::Long(l0), Self::Long(r0)) => l0 == r0,
             (Self::UInt(l0), Self::UInt(r0)) => l0 == r0,
@@ -91,6 +106,8 @@ impl Hash for Const {
     fn hash<H: Hasher>(&self, state: &mut H) {
         mem::discriminant(self).hash(state);
         match self {
+            Const::Char(i) => i.hash(state),
+            Const::UChar(i) => i.hash(state),
             Const::Int(i) => i.hash(state),
             Const::Long(i) => i.hash(state),
             Const::UInt(i) => i.hash(state),
