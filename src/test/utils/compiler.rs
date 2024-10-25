@@ -1,5 +1,5 @@
 use crate::{
-    common::{primitive::Const, symbol_table_frontend::SymbolTable},
+    common::{symbol_table_backend::BackendSymbolTable, symbol_table_frontend::SymbolTable},
     driver::{
         config::{Args, CompilerUntil, DriverUntil},
         files::SrcFilepath,
@@ -7,6 +7,7 @@ use crate::{
     },
     stage2_parse::{c_ast, phase1_parse::ParsedCAst, phase3_typecheck::TypeCheckedCAst},
     stage3_tacky::tacky_ast,
+    stage4_asm_gen::{asm_ast, FinalizedAsmAst},
 };
 use anyhow::{anyhow, Result};
 use std::{
@@ -44,6 +45,7 @@ pub fn compile_until_typechecker(
         actual => Err(anyhow!("{actual:#?}")),
     }
 }
+
 pub fn compile_until_tacky(pp: &str) -> Result<(tacky_ast::Program, SymbolTable)> {
     let compil_res = compile(pp, CompilerUntil::Tacky)?;
     match compil_res {
@@ -52,15 +54,12 @@ pub fn compile_until_tacky(pp: &str) -> Result<(tacky_ast::Program, SymbolTable)
     }
 }
 
-pub fn expect_tacky_implicit_return_instr(mut t_prog: tacky_ast::Program) -> tacky_ast::Program {
-    for fun in t_prog.funs.iter_mut() {
-        let last_instr = fun.instrs.pop();
-        assert!(matches!(
-            last_instr,
-            Some(tacky_ast::Instruction::Return(tacky_ast::Value::Constant(
-                Const::Int(0)
-            )))
-        ));
+pub fn compile_until_asm_gen(
+    pp: &str,
+) -> Result<(asm_ast::Program<FinalizedAsmAst>, BackendSymbolTable)> {
+    let compil_res = compile(pp, CompilerUntil::AsmGen)?;
+    match compil_res {
+        CompilationResult::AsmCode(prog, be_symtab) => Ok((prog, be_symtab)),
+        actual => Err(anyhow!("{actual:#?}")),
     }
-    t_prog
 }

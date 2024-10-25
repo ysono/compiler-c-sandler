@@ -24,6 +24,31 @@ impl SymbolIdentifier {
         Self::Generated { id: UniqueId::new(), descr: () }
     }
 }
+#[cfg(debug_assertions)]
+impl PartialOrd for SymbolIdentifier {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+#[cfg(debug_assertions)]
+impl Ord for SymbolIdentifier {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        use std::cmp::Ordering as CmpOrd;
+
+        match (self, other) {
+            (Self::Exact(l_ident), Self::Exact(r_ident)) => {
+                let l_str: &str = &l_ident.as_ref().0;
+                let r_str: &str = &r_ident.as_ref().0;
+                l_str.cmp(r_str)
+            }
+            (Self::Exact(_), Self::Generated { .. }) => CmpOrd::Less,
+            (Self::Generated { .. }, Self::Exact(_)) => CmpOrd::Greater,
+            (Self::Generated { id: l_id, .. }, Self::Generated { id: r_id, .. }) => {
+                l_id.as_int().cmp(&r_id.as_int())
+            }
+        }
+    }
+}
 
 #[derive(Debug)]
 pub struct JumpLabel {

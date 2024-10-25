@@ -40,6 +40,7 @@ pub struct AsmFun {
 }
 
 #[derive(Default, Getters, MutGetters, Debug)]
+#[cfg_attr(test, derive(derive_more::Into))]
 #[getset(get = "pub", get_mut = "pub")]
 pub struct BackendSymbolTable {
     ident_to_obj: HashMap<Rc<SymbolIdentifier>, AsmObj>,
