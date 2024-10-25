@@ -50,6 +50,7 @@ pub enum InitializerItem<Sngl> {
         chars: Vec<u8>,
         zeros_sfx_bytelen: ByteLen, // Count of 0x00 bytes following the chars.
     },
+    Pointer(Rc<SymbolIdentifier>),
     Zero(ByteLen),
 }
 

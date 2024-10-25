@@ -8,6 +8,7 @@ use crate::{
     },
     ds_n_a::singleton::Singleton,
     stage2_parse::{c_ast::*, phase2_resolve::ResolvedCAst},
+    utils::noop,
 };
 use anyhow::{anyhow, Result};
 
@@ -39,25 +40,42 @@ impl TypeChecker {
         let to = Self::extract_scalar_type_ref(to)
             .map_err(|typ| anyhow!("Cannot \"convert as if by assignment\" to {typ:?}"))?;
 
-        let in_konst = match &from {
-            Expression::R(RExp::Const(konst)) => *konst,
-            _ => return Err(anyhow!("Casting statically is supported on constexprs only. For each constexpr, only a simple const literal is supported."))
+        match &from {
+            Expression::R(RExp::Const(_)) => noop!(),
+            Expression::L(LExp::String(_)) => noop!(),
+            _ => return Err(anyhow!("Within each static initializer, each single expression must be a constexpr. For each constexpr, only a literal is supported."))
         };
 
         let from = self.typecheck_exp_and_convert_to_scalar(from)?;
 
         let () = Self::can_cast_by_assignment(to, &from)?;
 
-        let out_konst = in_konst.cast_at_compile_time(to);
+        let item = match from {
+            TypedExp::R(TypedRExp { exp, .. }) => match exp {
+                RExp::Const(in_konst) => {
+                    let out_konst = in_konst.cast_at_compile_time(to);
 
-        if out_konst.is_zero_integer() {
-            let bytelen = ByteLen::from(out_konst.arithmetic_type());
-            Ok(InitializerItem::Zero(bytelen))
-        } else {
-            /* If double, even if val==0.0, we encode a Single item.
-            This helps inform us later to write it to `.data` instead of `.bss`. */
-            Ok(InitializerItem::Single(out_konst))
-        }
+                    if out_konst.is_zero_integer() {
+                        let bytelen = ByteLen::from(out_konst.arithmetic_type());
+                        InitializerItem::Zero(bytelen)
+                    } else {
+                        /* If double, even if val==0.0, we encode a Single item.
+                        This helps inform us later to write it to `.data` instead of `.bss`. */
+                        InitializerItem::Single(out_konst)
+                    }
+                }
+                RExp::AddrOf(AddrOf(sub_exp)) => match *sub_exp {
+                    TypedLExp {
+                        exp: LExp::String(static_obj_ident),
+                        ..
+                    } => InitializerItem::Pointer(static_obj_ident),
+                    _ => unreachable!(),
+                },
+                _ => unreachable!(),
+            },
+            _ => unreachable!(),
+        };
+        Ok(item)
     }
 
     pub(super) fn typecheck_initializer_runtime(

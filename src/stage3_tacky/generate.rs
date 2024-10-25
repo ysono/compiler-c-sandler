@@ -128,6 +128,7 @@ impl<'a> FunInstrsGenerator<'a> {
                     offset += single_bytelen;
                 }
                 InitializerItem::String { .. } => todo!(),
+                InitializerItem::Pointer(_) => todo!(),
                 InitializerItem::Zero(bytelen) => {
                     let final_offset = offset + bytelen;
                     while offset < final_offset {
