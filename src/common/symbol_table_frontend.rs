@@ -46,6 +46,10 @@ pub enum StaticInitializer {
 #[cfg_attr(test, derive(PartialEq))]
 pub enum InitializerItem<Sngl> {
     Single(Sngl),
+    String {
+        chars: Vec<u8>,
+        zeros_sfx_bytelen: ByteLen, // Count of 0x00 bytes following the chars.
+    },
     Zero(ByteLen),
 }
 

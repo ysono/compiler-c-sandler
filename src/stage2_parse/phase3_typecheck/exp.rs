@@ -135,7 +135,14 @@ impl TypeChecker {
     }
     fn typecheck_lexp(&mut self, lexp: LExp<ResolvedCAst>) -> Result<TypedLExp<ObjType>> {
         let typed_lexp = match lexp {
-            LExp::String(_) => todo!(),
+            LExp::String(chars) => {
+                let (static_obj_ident, typ) = self.define_static_readonly_string(chars);
+
+                TypedLExp {
+                    typ: OwningRef::new(typ),
+                    exp: LExp::String(static_obj_ident),
+                }
+            }
             LExp::Var(ident) => {
                 let typ = self.symbol_table.get_obj_type(&ident)?.clone();
                 let typ = OwningRef::new(typ);

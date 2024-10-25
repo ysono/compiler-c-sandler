@@ -36,6 +36,7 @@ impl CAstVariant for ParsedCAst {
     type ScalarLvalueExpression = Expression<Self>;
 
     type BinaryOperator = BinaryOperator;
+    type StringExpression = Vec<u8>;
 }
 
 #[derive(Into)]

@@ -28,6 +28,7 @@ pub trait CAstVariant {
     type ScalarLvalueExpression: Debug;
 
     type BinaryOperator: Debug;
+    type StringExpression: Debug;
 }
 
 #[derive(Debug)]
@@ -174,7 +175,7 @@ pub enum RExp<C: CAstVariant> {
 /// Lvalue expression.
 #[derive(Debug)]
 pub enum LExp<C: CAstVariant> {
-    String(Vec<u8>),
+    String(C::StringExpression),
     Var(C::Identifier),
     Dereference(Dereference<C>),
     Subscript(Subscript<C>),

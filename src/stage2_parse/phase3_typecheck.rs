@@ -11,6 +11,7 @@ mod decl_var_init;
 mod exp;
 mod exp_binary;
 mod exp_cast;
+mod obj;
 
 use self::{decl_fun::FunDeclScope, decl_var::VarDeclScope};
 use crate::{
@@ -42,6 +43,7 @@ impl CAstVariant for TypeCheckedCAst {
     type ScalarLvalueExpression = TypedLExp<ScalarType>;
 
     type BinaryOperator = TypeCheckedBinaryOperator;
+    type StringExpression = Rc<SymbolIdentifier>;
 }
 
 pub struct TypeChecker {

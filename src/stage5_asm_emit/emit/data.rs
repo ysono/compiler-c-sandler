@@ -91,6 +91,7 @@ impl<W: Write> AsmCodeEmitter<W> {
                     let bytelen = bytelen.as_int();
                     writeln!(&mut self.w, "{TAB}.zero {bytelen}")?;
                 }
+                InitializerItem::String { .. } => todo!(),
                 InitializerItem::Single(konst) => {
                     /* Supported formats include:
                         + hexadecimal floating-point: `.double 0x2.8p+3` (LLVM supports it; GAS doesn't)
