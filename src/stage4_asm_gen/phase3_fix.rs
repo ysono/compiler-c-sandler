@@ -92,7 +92,7 @@ impl OperandFixer {
 
                 let (src_to_reg1, dst_to_and_from_reg2);
                 match asm_type {
-                    ScalarAssemblyType::Byte => todo!(),
+                    ScalarAssemblyType::Byte => unreachable!("Any integer narrower than 4 bytes was previously promoted to `int`."),
                     ScalarAssemblyType::Longword | ScalarAssemblyType::Quadword => {
                         src_to_reg1 =
                             (matches!(&op, BO::Add | BO::Sub | BO::And | BO::Or)

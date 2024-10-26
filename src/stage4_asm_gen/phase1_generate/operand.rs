@@ -44,10 +44,12 @@ impl InstrsGenerator {
     pub(super) fn value_to_operand(&mut self, t_val: t::Value) -> PreFinalOperand {
         match t_val {
             t::Value::Constant(konst) => match konst {
-                Const::Char(_) | Const::UChar(_) => todo!(),
-                Const::Int(_) | Const::Long(_) | Const::UInt(_) | Const::ULong(_) => {
-                    Operand::ImmediateValue(konst.as_bits()).into()
-                }
+                Const::Char(_)
+                | Const::UChar(_)
+                | Const::Int(_)
+                | Const::Long(_)
+                | Const::UInt(_)
+                | Const::ULong(_) => Operand::ImmediateValue(konst.as_bits()).into(),
                 Const::Double(_) => {
                     /* Floating-point constant operands cannot be immediate-values.
                     Here, we specify the default alignment.

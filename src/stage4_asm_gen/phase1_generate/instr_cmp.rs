@@ -36,7 +36,9 @@ impl InstrsGenerator {
         let (dst, _, dst_asm_type) = self.value_to_operand_and_type(dst);
 
         let cc_is_lg_family = match src_ari_type {
-            AT::Char | AT::SChar | AT::UChar => todo!(),
+            AT::Char | AT::SChar | AT::UChar => {
+                unreachable!("Any integer narrower than 4 bytes was previously promoted to `int`.")
+            }
             AT::Int | AT::Long | AT::UInt | AT::ULong => src_ari_type.is_signed(),
             AT::Double => false,
         };
@@ -83,8 +85,9 @@ impl InstrsGenerator {
         src_asm_type: ScalarAssemblyType,
     ) -> Vec<Instruction<GeneratedAsmAst>> {
         match src_asm_type {
-            ScalarAssemblyType::Byte => todo!(),
-            ScalarAssemblyType::Longword | ScalarAssemblyType::Quadword => {
+            ScalarAssemblyType::Byte
+            | ScalarAssemblyType::Longword
+            | ScalarAssemblyType::Quadword => {
                 vec![Instruction::Cmp {
                     asm_type: src_asm_type,
                     tgt: src,
@@ -117,8 +120,9 @@ impl InstrsGenerator {
     fn gen_setcc(
         cc: ConditionCode,
         dst: PreFinalOperand,
-        dst_asm_type: ScalarAssemblyType, // This is expected to be Longword.
+        dst_asm_type: ScalarAssemblyType,
     ) -> Vec<Instruction<GeneratedAsmAst>> {
+        debug_assert_eq!(dst_asm_type, ScalarAssemblyType::Longword);
         vec![
             Instruction::Mov {
                 asm_type: dst_asm_type,

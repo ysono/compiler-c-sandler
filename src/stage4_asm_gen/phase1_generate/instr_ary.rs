@@ -27,7 +27,9 @@ impl InstrsGenerator {
 
         let asm_instr_1 = Instruction::Mov { asm_type, src, dst: dst.clone() };
         let asm_instr_2 = match asm_type {
-            ScalarAssemblyType::Byte => todo!(),
+            ScalarAssemblyType::Byte => {
+                unreachable!("Any integer narrower than 4 bytes was previously promoted to `int`.")
+            }
             ScalarAssemblyType::Longword | ScalarAssemblyType::Quadword => {
                 let asm_op = match t_op {
                     t::NumericUnaryOperator::Complement => UnaryOperator::BitwiseComplement,
@@ -108,7 +110,9 @@ impl InstrsGenerator {
     ) -> Vec<Instruction<GeneratedAsmAst>> {
         let (_, asm_type) = self.value_to_type(&t_binary.lhs);
         match asm_type {
-            ScalarAssemblyType::Byte => todo!(),
+            ScalarAssemblyType::Byte => {
+                unreachable!("Any integer narrower than 4 bytes was previously promoted to `int`.")
+            }
             ScalarAssemblyType::Longword | ScalarAssemblyType::Quadword => {
                 self.do_gen_integer_divrem(t_op, t_binary)
             }

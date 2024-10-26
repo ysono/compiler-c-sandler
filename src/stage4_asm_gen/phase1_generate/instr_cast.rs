@@ -44,12 +44,8 @@ impl InstrsGenerator {
         t::SrcDst { src, dst }: t::SrcDst,
     ) -> Vec<Instruction<GeneratedAsmAst>> {
         let src = self.value_to_operand(src);
-        let dst = self.value_to_operand(dst);
-        vec![Instruction::Mov {
-            asm_type: ScalarAssemblyType::Longword,
-            src,
-            dst,
-        }]
+        let (dst, _, asm_type) = self.value_to_operand_and_type(dst);
+        vec![Instruction::Mov { asm_type, src, dst }]
     }
 
     /* Transformation across integer and floating-point types */
@@ -68,7 +64,18 @@ impl InstrsGenerator {
     ) -> Vec<Instruction<GeneratedAsmAst>> {
         let src = self.value_to_operand(src);
         let (dst, _, dst_asm_type) = self.value_to_operand_and_type(dst);
-        vec![Instruction::Cvttsd2si { dst_asm_type, src, dst }]
+
+        match dst_asm_type {
+            ScalarAssemblyType::Byte => Self::gen_double_to_sgn_or_unsgn_integ_simple(
+                src,
+                ScalarAssemblyType::Longword,
+                ScalarAssemblyType::Byte,
+                dst,
+            ), // f64 -> i32 -> i8
+            _ => vec![
+                Instruction::Cvttsd2si { dst_asm_type, src, dst }, // f64 -> {i64 or i32}
+            ],
+        }
     }
     pub(super) fn gen_sgn_integ_to_double(
         &mut self,
@@ -76,7 +83,19 @@ impl InstrsGenerator {
     ) -> Vec<Instruction<GeneratedAsmAst>> {
         let (src, _, src_asm_type) = self.value_to_operand_and_type(src);
         let dst = self.value_to_operand(dst);
-        vec![Instruction::Cvtsi2sd { src_asm_type, src, dst }]
+
+        match src_asm_type {
+            ScalarAssemblyType::Byte => Self::gen_sgn_or_unsgn_integ_to_double_simple(
+                src,
+                true,
+                ScalarAssemblyType::Byte,
+                ScalarAssemblyType::Longword,
+                dst,
+            ), // i8 -> i32 -> f64
+            _ => vec![
+                Instruction::Cvtsi2sd { src_asm_type, src, dst }, // {i32 or i64} -> f64
+            ],
+        }
     }
     pub(super) fn gen_double_to_unsgn_integ(
         &mut self,
@@ -85,8 +104,18 @@ impl InstrsGenerator {
         let src = self.value_to_operand(src);
         let (dst, _, uint_asm_type) = self.value_to_operand_and_type(dst);
         match uint_asm_type {
-            ScalarAssemblyType::Byte => todo!(),
-            ScalarAssemblyType::Longword => Self::gen_double_to_uint(src, dst),
+            ScalarAssemblyType::Byte => Self::gen_double_to_sgn_or_unsgn_integ_simple(
+                src,
+                ScalarAssemblyType::Longword,
+                ScalarAssemblyType::Byte,
+                dst,
+            ), // f64 -> i32 -> u8
+            ScalarAssemblyType::Longword => Self::gen_double_to_sgn_or_unsgn_integ_simple(
+                src,
+                ScalarAssemblyType::Quadword,
+                ScalarAssemblyType::Longword,
+                dst,
+            ), // f64 -> i64 -> u32
             ScalarAssemblyType::Quadword => self.gen_double_to_ulong(src, dst),
             ScalarAssemblyType::Double => unreachable!("double-to-uint dst {uint_asm_type:?}"),
         }
@@ -98,31 +127,46 @@ impl InstrsGenerator {
         let (src, _, uint_asm_type) = self.value_to_operand_and_type(src);
         let dst = self.value_to_operand(dst);
         match uint_asm_type {
-            ScalarAssemblyType::Byte => todo!(),
-            ScalarAssemblyType::Longword => Self::gen_uint_to_double(src, dst),
+            ScalarAssemblyType::Byte => Self::gen_sgn_or_unsgn_integ_to_double_simple(
+                src,
+                false,
+                ScalarAssemblyType::Byte,
+                ScalarAssemblyType::Longword,
+                dst,
+            ), // u8 -> u32 (as i32) -> f64
+            ScalarAssemblyType::Longword => Self::gen_sgn_or_unsgn_integ_to_double_simple(
+                src,
+                false,
+                ScalarAssemblyType::Longword,
+                ScalarAssemblyType::Quadword,
+                dst,
+            ), // u32 -> u64 (as i64) -> f64
             ScalarAssemblyType::Quadword => Self::gen_ulong_to_double(src, dst),
             ScalarAssemblyType::Double => unreachable!("uint-to-double src {uint_asm_type:?}"),
         }
     }
 
-    fn gen_double_to_uint(
+    fn gen_double_to_sgn_or_unsgn_integ_simple(
         src: PreFinalOperand,
+        intermediary_asm_type: ScalarAssemblyType,
+        dst_asm_type: ScalarAssemblyType,
         dst: PreFinalOperand,
     ) -> Vec<Instruction<GeneratedAsmAst>> {
         let gp_reg = || Operand::Register(Register::AX).into();
         vec![
             Instruction::Cvttsd2si {
-                dst_asm_type: ScalarAssemblyType::Quadword,
+                dst_asm_type: intermediary_asm_type,
                 src,
                 dst: gp_reg(),
-            }, // f64 to i64
+            },
             Instruction::Mov {
-                asm_type: ScalarAssemblyType::Longword,
+                asm_type: dst_asm_type,
                 src: gp_reg(),
                 dst,
-            }, // i64 to u32
+            },
         ]
     }
+
     fn gen_double_to_ulong(
         &mut self,
         src: PreFinalOperand,
@@ -182,25 +226,39 @@ impl InstrsGenerator {
         See https://norasandler.com/book/#errata for explanation. */
     }
 
-    fn gen_uint_to_double(
+    fn gen_sgn_or_unsgn_integ_to_double_simple(
         src: PreFinalOperand,
+        src_is_signed: bool,
+        src_asm_type: ScalarAssemblyType,
+        intermediary_asm_type: ScalarAssemblyType,
         dst: PreFinalOperand,
     ) -> Vec<Instruction<GeneratedAsmAst>> {
         let gp_reg = || Operand::Register(Register::AX).into();
-        vec![
-            Instruction::MovZeroExtend {
-                src_asm_type: ScalarAssemblyType::Longword,
-                dst_asm_type: ScalarAssemblyType::Quadword,
+
+        let instr1 = if src_is_signed {
+            Instruction::Movsx {
+                src_asm_type,
+                dst_asm_type: intermediary_asm_type,
                 src,
                 dst: gp_reg(),
-            }, // u32 to u64
-            Instruction::Cvtsi2sd {
-                src_asm_type: ScalarAssemblyType::Quadword,
-                src: gp_reg(),
-                dst,
-            }, // (u64 as i64) to f64
-        ]
+            }
+        } else {
+            Instruction::MovZeroExtend {
+                src_asm_type,
+                dst_asm_type: intermediary_asm_type,
+                src,
+                dst: gp_reg(),
+            }
+        };
+        let instr2 = Instruction::Cvtsi2sd {
+            src_asm_type: intermediary_asm_type,
+            src: gp_reg(),
+            dst,
+        };
+
+        vec![instr1, instr2]
     }
+
     fn gen_ulong_to_double(
         src: PreFinalOperand,
         dst: PreFinalOperand,
