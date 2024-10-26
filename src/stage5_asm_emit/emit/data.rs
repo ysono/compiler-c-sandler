@@ -57,6 +57,7 @@ impl<W: Write> AsmCodeEmitter<W> {
         let locality = LabelLocality::OF_STATIC_RO_OBJ;
         let section = if cfg!(target_os = "macos") {
             match alignment {
+                Alignment::B1 => todo!(),
                 Alignment::B4 => ".literal4",
                 Alignment::B8 => ".literal8",
                 Alignment::B16 => ".literal16",

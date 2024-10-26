@@ -75,6 +75,7 @@ impl InstrsGenerator {
         let src = self.value_to_operand(src);
         let (dst, _, uint_asm_type) = self.value_to_operand_and_type(dst);
         match uint_asm_type {
+            ScalarAssemblyType::Byte => todo!(),
             ScalarAssemblyType::Longword => Self::gen_double_to_uint(src, dst),
             ScalarAssemblyType::Quadword => self.gen_double_to_ulong(src, dst),
             ScalarAssemblyType::Double => unreachable!("double-to-uint dst {uint_asm_type:?}"),
@@ -87,6 +88,7 @@ impl InstrsGenerator {
         let (src, _, uint_asm_type) = self.value_to_operand_and_type(src);
         let dst = self.value_to_operand(dst);
         match uint_asm_type {
+            ScalarAssemblyType::Byte => todo!(),
             ScalarAssemblyType::Longword => Self::gen_uint_to_double(src, dst),
             ScalarAssemblyType::Quadword => Self::gen_ulong_to_double(src, dst),
             ScalarAssemblyType::Double => unreachable!("uint-to-double src {uint_asm_type:?}"),

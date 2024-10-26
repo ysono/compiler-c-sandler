@@ -44,12 +44,7 @@ impl ScalarType {
         }
     }
     pub fn bytelen(&self) -> ByteLen {
-        match self {
-            ScalarType::Arith(
-                ArithmeticType::Char | ArithmeticType::SChar | ArithmeticType::UChar,
-            ) => ByteLen::new(1), // TODO
-            _ => ByteLen::from(self.effective_arithmetic_type()),
-        }
+        ByteLen::from(self.effective_arithmetic_type())
     }
 }
 

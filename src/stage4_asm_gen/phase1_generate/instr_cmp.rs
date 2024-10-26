@@ -83,6 +83,7 @@ impl InstrsGenerator {
         src_asm_type: ScalarAssemblyType,
     ) -> Vec<Instruction<GeneratedAsmAst>> {
         match src_asm_type {
+            ScalarAssemblyType::Byte => todo!(),
             ScalarAssemblyType::Longword | ScalarAssemblyType::Quadword => {
                 vec![Instruction::Cmp {
                     asm_type: src_asm_type,

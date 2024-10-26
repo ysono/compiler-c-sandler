@@ -18,6 +18,7 @@ impl<Ot: Borrow<ObjType>> From<Ot> for AssemblyType {
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum ScalarAssemblyType {
+    Byte,
     Longword, // 32-bit. Aka doubleword.
     Quadword, // 64-bit
     Double,
@@ -26,7 +27,7 @@ impl From<ArithmeticType> for ScalarAssemblyType {
     fn from(ari_type: ArithmeticType) -> Self {
         use ArithmeticType as AT;
         match ari_type {
-            AT::Char | AT::SChar | AT::UChar => todo!(),
+            AT::Char | AT::SChar | AT::UChar => Self::Byte,
             AT::Int | AT::UInt => Self::Longword,
             AT::Long | AT::ULong => Self::Quadword,
             AT::Double => Self::Double,
@@ -54,6 +55,7 @@ impl<At: Borrow<ArrayType>> From<At> for ByteArrayAssemblyType {
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum Alignment {
+    B1 = 1,
     B4 = 4,
     B8 = 8,
     B16 = 16,
@@ -66,6 +68,7 @@ impl Alignment {
     pub fn default_of_scalar<T: Into<ScalarAssemblyType>>(t: T) -> Self {
         let asm_type = t.into();
         match asm_type {
+            ScalarAssemblyType::Byte => Self::B1,
             ScalarAssemblyType::Longword => Self::B4,
             ScalarAssemblyType::Quadword => Self::B8,
             ScalarAssemblyType::Double => Self::B8,
@@ -98,24 +101,14 @@ pub enum OperandByteLen {
     B4 = 4,
     B8 = 8,
 }
-impl From<ScalarAssemblyType> for OperandByteLen {
-    fn from(asm_type: ScalarAssemblyType) -> Self {
+impl<T: Into<ScalarAssemblyType>> From<T> for OperandByteLen {
+    fn from(t: T) -> Self {
+        let asm_type = t.into();
         match asm_type {
+            ScalarAssemblyType::Byte => Self::B1,
             ScalarAssemblyType::Longword => Self::B4,
             ScalarAssemblyType::Quadword => Self::B8,
             ScalarAssemblyType::Double => Self::B8,
-        }
-    }
-}
-impl From<ArithmeticType> for OperandByteLen {
-    // TODO merge with `impl From<ScalarAssemblyType> for OperandByteLen`
-    fn from(ari_typ: ArithmeticType) -> Self {
-        match ari_typ {
-            ArithmeticType::Char | ArithmeticType::SChar | ArithmeticType::UChar => Self::B1,
-            _ => {
-                let asm_type = ScalarAssemblyType::from(ari_typ);
-                Self::from(asm_type)
-            }
         }
     }
 }

@@ -192,6 +192,7 @@ impl Default for ArgRegResolver {
 impl ArgRegResolver {
     fn next_reg(&mut self, asm_type: ScalarAssemblyType) -> Option<Register> {
         match asm_type {
+            ScalarAssemblyType::Byte => todo!(),
             ScalarAssemblyType::Longword | ScalarAssemblyType::Quadword => {
                 let ret = INT_ARG_REGS.get(self.int_args_count).cloned();
                 self.int_args_count += 1;
@@ -208,6 +209,7 @@ impl ArgRegResolver {
 
 fn derive_return_register(asm_type: ScalarAssemblyType) -> Register {
     match asm_type {
+        ScalarAssemblyType::Byte => todo!(),
         ScalarAssemblyType::Longword | ScalarAssemblyType::Quadword => Register::AX,
         ScalarAssemblyType::Double => Register::XMM0,
     }

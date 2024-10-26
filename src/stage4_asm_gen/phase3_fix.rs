@@ -90,6 +90,7 @@ impl OperandFixer {
 
                 let (src_to_reg1, dst_to_and_from_reg2);
                 match asm_type {
+                    ScalarAssemblyType::Byte => todo!(),
                     ScalarAssemblyType::Longword | ScalarAssemblyType::Quadword => {
                         src_to_reg1 =
                             (matches!(&op, BO::Add | BO::Sub | BO::And | BO::Or)
@@ -116,6 +117,7 @@ impl OperandFixer {
             Instruction::Cmp { asm_type, arg, tgt } => {
                 let (src_to_reg1, dst_to_reg2);
                 match asm_type {
+                    ScalarAssemblyType::Byte => todo!(),
                     ScalarAssemblyType::Longword | ScalarAssemblyType::Quadword => {
                         src_to_reg1 =
                             (arg.is_on_mem() && tgt.is_on_mem())
@@ -209,6 +211,7 @@ impl OperandFixer {
     ) -> Vec<Instruction<FinalizedAsmAst>> {
         let reg1 = |src_asm_type: ScalarAssemblyType| {
             let reg = match src_asm_type {
+                ScalarAssemblyType::Byte => todo!(),
                 ScalarAssemblyType::Longword | ScalarAssemblyType::Quadword => Register::R10,
                 ScalarAssemblyType::Double => Register::XMM14,
             };
@@ -216,6 +219,7 @@ impl OperandFixer {
         };
         let reg2 = |dst_asm_type: ScalarAssemblyType| {
             let reg = match dst_asm_type {
+                ScalarAssemblyType::Byte => todo!(),
                 ScalarAssemblyType::Longword | ScalarAssemblyType::Quadword => Register::R11,
                 ScalarAssemblyType::Double => Register::XMM15,
             };

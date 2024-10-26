@@ -87,6 +87,7 @@ impl<W: Write> AsmCodeEmitter<W> {
                 let regular_instr_sfx = Self::get_instr_sfx_wordlen(asm_type);
                 let (instr, instr_sfx);
                 match asm_type {
+                    ScalarAssemblyType::Byte => todo!(),
                     ScalarAssemblyType::Longword | ScalarAssemblyType::Quadword => {
                         instr = match op {
                             BinaryOperator::Add => "add",
@@ -120,6 +121,7 @@ impl<W: Write> AsmCodeEmitter<W> {
             }
             Instruction::Cmp { asm_type, arg, tgt } => {
                 let instr = match asm_type {
+                    ScalarAssemblyType::Byte => todo!(),
                     ScalarAssemblyType::Longword | ScalarAssemblyType::Quadword => "cmp",
                     ScalarAssemblyType::Double => "comi",
                 };
@@ -142,6 +144,7 @@ impl<W: Write> AsmCodeEmitter<W> {
             }
             Instruction::Cdq(asm_type) => {
                 let instr = match asm_type {
+                    ScalarAssemblyType::Byte => todo!(),
                     ScalarAssemblyType::Longword => "cdq",
                     ScalarAssemblyType::Quadword => "cqo",
                     ScalarAssemblyType::Double => unreachable!("Invalid instr cdq {asm_type:?}"),
@@ -187,6 +190,7 @@ impl<W: Write> AsmCodeEmitter<W> {
 
     fn get_instr_sfx_wordlen(asm_type: ScalarAssemblyType) -> &'static str {
         match asm_type {
+            ScalarAssemblyType::Byte => todo!(),
             ScalarAssemblyType::Longword => "l",
             ScalarAssemblyType::Quadword => "q",
             ScalarAssemblyType::Double => "sd",
