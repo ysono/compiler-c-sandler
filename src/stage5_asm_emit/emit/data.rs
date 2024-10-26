@@ -19,6 +19,50 @@ use std::{
 
 impl<W: Write> AsmCodeEmitter<W> {
     pub(super) fn write_static_objs(&mut self) -> Result<(), io::Error> {
+        if cfg!(debug_assertions) {
+            self.write_static_objs_sorted()
+        } else {
+            self.write_static_objs_nonsorted()
+        }
+    }
+
+    fn write_static_objs_sorted(&mut self) -> Result<(), io::Error> {
+        let mut static_rw_idents = vec![];
+        let mut static_ro_idents = vec![];
+        for (ident, obj) in self.backend_symtab.ident_to_obj().iter() {
+            let AsmObj { asm_type: _, asm_attrs } = obj;
+            match asm_attrs {
+                AsmObjAttrs::Stack => noop!(),
+                AsmObjAttrs::StaticRW(_) => static_rw_idents.push(Rc::clone(ident)),
+                AsmObjAttrs::StaticRO(_) => static_ro_idents.push(Rc::clone(ident)),
+            }
+        }
+
+        #[cfg(debug_assertions)]
+        {
+            static_rw_idents.sort();
+            static_ro_idents.sort();
+        }
+
+        let backend_symtab = Rc::clone(&self.backend_symtab);
+        for ident in static_rw_idents {
+            let AsmObj { asm_attrs, .. } = backend_symtab.ident_to_obj().get(&ident).unwrap();
+            match asm_attrs {
+                AsmObjAttrs::StaticRW(attrs) => self.write_static_readwrite(&ident, attrs)?,
+                _ => unreachable!(),
+            }
+        }
+        for ident in static_ro_idents {
+            let AsmObj { asm_attrs, .. } = backend_symtab.ident_to_obj().get(&ident).unwrap();
+            match asm_attrs {
+                AsmObjAttrs::StaticRO(attrs) => self.write_static_readonly(&ident, attrs)?,
+                _ => unreachable!(),
+            }
+        }
+
+        Ok(())
+    }
+    fn write_static_objs_nonsorted(&mut self) -> Result<(), io::Error> {
         let backend_symtab = Rc::clone(&self.backend_symtab);
         for (ident, obj) in backend_symtab.ident_to_obj().iter() {
             let AsmObj { asm_type: _, asm_attrs } = obj;
@@ -30,6 +74,7 @@ impl<W: Write> AsmCodeEmitter<W> {
         }
         Ok(())
     }
+
     fn write_static_readwrite(
         &mut self,
         ident: &SymbolIdentifier,
