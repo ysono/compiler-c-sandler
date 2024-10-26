@@ -3,6 +3,7 @@
 use crate::{
     common::types_backend::ScalarAssemblyType,
     stage4_asm_gen::{asm_ast::*, phase2_finalize::FinalizedAsmAst},
+    utils::noop,
 };
 
 pub struct OperandFixer {}
@@ -12,10 +13,18 @@ impl OperandFixer {
     ) -> impl 'a + Iterator<Item = Instruction<FinalizedAsmAst>> {
         in_instrs.flat_map(|in_instr| match in_instr {
             Instruction::Mov { asm_type, mut src, dst } => {
-                if let (ScalarAssemblyType::Longword, Operand::ImmediateValue(i)) = (asm_type, &src) {
-                    /* In case this `mov` is truncating from quadword to longword,
-                    zero-out the most significant bytes, in order to prevent warning from gcc's assembler. */
-                    src = Operand::ImmediateValue(*i as u32 as i64);
+                if let Operand::ImmediateValue(i) = &src {
+                    /* In case this `mov` is truncating an immediate-value,
+                    do the truncation at compile-time, in order to prevent warning from gcc's assembler. */
+                    match asm_type {
+                        ScalarAssemblyType::Byte => {
+                            src = Operand::ImmediateValue(*i as u8 as i64);
+                        }
+                        ScalarAssemblyType::Longword => {
+                            src = Operand::ImmediateValue(*i as u32 as i64);
+                        }
+                        ScalarAssemblyType::Quadword | ScalarAssemblyType::Double => noop!(),
+                    }
                 }
 
                 let src_to_reg1 =
@@ -30,32 +39,46 @@ impl OperandFixer {
             }
             Instruction::Movsx { src_asm_type, dst_asm_type, src, dst } => {
                 let src_to_reg1 = matches!(&src, Operand::ImmediateValue(_));
-                let src_to_reg1 = src_to_reg1.then_some(ScalarAssemblyType::Longword);
+                let src_to_reg1 = src_to_reg1.then_some(src_asm_type);
 
                 let reg2_to_dst = dst.is_on_mem();
-                let reg2_to_dst = reg2_to_dst.then_some((ToFromReg::FromReg, ScalarAssemblyType::Quadword));
+                let reg2_to_dst = reg2_to_dst.then_some((ToFromReg::FromReg, dst_asm_type));
 
                 let new_instr = |src: Operand, dst: Operand| Instruction::Movsx { src_asm_type, dst_asm_type, src, dst };
 
                 Self::maybe_use_2_regs(src, dst, src_to_reg1, reg2_to_dst, new_instr)
             }
             Instruction::MovZeroExtend { src_asm_type, dst_asm_type, src, dst } => {
-                let (_, _) = (src_asm_type, dst_asm_type); // TODO
+                match src_asm_type {
+                    ScalarAssemblyType::Byte => {
+                        let src_to_reg1 = matches!(&src, Operand::ImmediateValue(_)) == true;
+                        let src_to_reg1 = src_to_reg1.then_some(src_asm_type);
 
-                if dst.is_on_mem() {
-                    let reg = Register::R11;
-                    let instr_at_reg = Instruction::Mov{
-                        asm_type: ScalarAssemblyType::Quadword,
-                        src: Operand::Register(reg),
-                        dst,
-                    };
-                    Self::to_reg(ScalarAssemblyType::Longword, src, reg, instr_at_reg)
-                } else {
-                    vec![Instruction::Mov{
-                        asm_type: ScalarAssemblyType::Longword,
-                        src,
-                        dst
-                    }]
+                        let reg2_to_dst = matches!(&dst, Operand::Register(_)) == false;
+                        let reg2_to_dst = reg2_to_dst.then_some((ToFromReg::FromReg, dst_asm_type));
+
+                        let new_instr = |src: Operand, dst: Operand| Instruction::MovZeroExtend { src_asm_type, dst_asm_type, src, dst };
+
+                        Self::maybe_use_2_regs(src, dst, src_to_reg1, reg2_to_dst, new_instr)
+                    }
+                    ScalarAssemblyType::Longword => {
+                        if dst.is_on_mem() {
+                            let reg = Register::R11;
+                            let instr_at_reg = Instruction::Mov{
+                                asm_type: ScalarAssemblyType::Quadword,
+                                src: Operand::Register(reg),
+                                dst,
+                            };
+                            Self::to_reg(ScalarAssemblyType::Longword, src, reg, instr_at_reg)
+                        } else {
+                            vec![Instruction::Mov{
+                                asm_type: ScalarAssemblyType::Longword,
+                                src,
+                                dst
+                            }]
+                        }
+                    }
+                    ScalarAssemblyType::Quadword | ScalarAssemblyType::Double => unreachable!(),
                 }
             }
             Instruction::Lea { src, dst } => {
@@ -119,8 +142,7 @@ impl OperandFixer {
             Instruction::Cmp { asm_type, arg, tgt } => {
                 let (src_to_reg1, dst_to_reg2);
                 match asm_type {
-                    ScalarAssemblyType::Byte => todo!(),
-                    ScalarAssemblyType::Longword | ScalarAssemblyType::Quadword => {
+                    ScalarAssemblyType::Byte | ScalarAssemblyType::Longword | ScalarAssemblyType::Quadword => {
                         src_to_reg1 =
                             (arg.is_on_mem() && tgt.is_on_mem())
                             || Self::is_imm_outside_i32(asm_type, &arg);
@@ -211,28 +233,25 @@ impl OperandFixer {
         dst_tofrom_reg2: Option<(ToFromReg, ScalarAssemblyType)>,
         new_instr: impl FnOnce(Operand, Operand) -> Instruction<FinalizedAsmAst>,
     ) -> Vec<Instruction<FinalizedAsmAst>> {
-        let reg1 = |src_asm_type: ScalarAssemblyType| {
+        use ScalarAssemblyType as SAT;
+
+        let reg1 = |src_asm_type: SAT| {
             let reg = match src_asm_type {
-                ScalarAssemblyType::Byte => todo!(),
-                ScalarAssemblyType::Longword | ScalarAssemblyType::Quadword => Register::R10,
-                ScalarAssemblyType::Double => Register::XMM14,
+                SAT::Byte | SAT::Longword | SAT::Quadword => Register::R10,
+                SAT::Double => Register::XMM14,
             };
             Operand::Register(reg)
         };
-        let reg2 = |dst_asm_type: ScalarAssemblyType| {
+        let reg2 = |dst_asm_type: SAT| {
             let reg = match dst_asm_type {
-                ScalarAssemblyType::Byte => todo!(),
-                ScalarAssemblyType::Longword | ScalarAssemblyType::Quadword => Register::R11,
-                ScalarAssemblyType::Double => Register::XMM15,
+                SAT::Byte | SAT::Longword | SAT::Quadword => Register::R11,
+                SAT::Double => Register::XMM15,
             };
             Operand::Register(reg)
         };
 
-        let mov = |asm_type: ScalarAssemblyType, src: Operand, dst: Operand| Instruction::Mov {
-            asm_type,
-            src,
-            dst,
-        };
+        let mov =
+            |asm_type: SAT, src: Operand, dst: Operand| Instruction::Mov { asm_type, src, dst };
 
         let mut instr_to_reg1 = None;
         if let Some(src_asm_type) = src_to_reg1 {
