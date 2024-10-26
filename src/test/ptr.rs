@@ -8,7 +8,7 @@ use anyhow::Result;
 
 fn compile_tacky_instrs(pp: &'static str) -> Result<Vec<t::Instruction>> {
     let (t_prog, _) = utils::compile_until_tacky(pp)?;
-    let mut t_prog = utils::expect_tacky_implicit_return_instr(t_prog);
+    let mut t_prog = utils::remove_tacky_implicit_return_instr(t_prog);
     let instrs = t_prog.funs.pop().unwrap().instrs;
     Ok(instrs)
 }

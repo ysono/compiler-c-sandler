@@ -2,19 +2,23 @@
 
 use crate::{
     common::{
-        identifier::SymbolIdentifier,
+        identifier::{RawIdentifier, SymbolIdentifier},
         primitive::Const,
         symbol_table_backend::{
             AsmObj, AsmObjAttrs, BackendSymbolTable, StaticReadWriteAsmObjAttrs,
             StaticReadonlyAsmObjAttrs,
         },
+        types_backend::ScalarAssemblyType,
     },
     stage3_tacky::tacky_ast,
+    stage4_asm_gen::{asm_ast, FinalizedAsmAst},
+    test::utils::fail,
     utils::noop,
 };
-use std::rc::Rc;
+use owning_ref::OwningRef;
+use std::{collections::HashMap, rc::Rc};
 
-pub fn expect_tacky_implicit_return_instr(mut t_prog: tacky_ast::Program) -> tacky_ast::Program {
+pub fn remove_tacky_implicit_return_instr(mut t_prog: tacky_ast::Program) -> tacky_ast::Program {
     for fun in t_prog.funs.iter_mut() {
         let last_instr = fun.instrs.pop();
         assert!(matches!(
@@ -25,6 +29,39 @@ pub fn expect_tacky_implicit_return_instr(mut t_prog: tacky_ast::Program) -> tac
         ));
     }
     t_prog
+}
+
+pub fn asm_prog_into_fun_by_ident(
+    a_prog: asm_ast::Program<FinalizedAsmAst>,
+) -> HashMap<OwningRef<Rc<RawIdentifier>, str>, asm_ast::Function<FinalizedAsmAst>> {
+    a_prog
+        .funs
+        .into_iter()
+        .map(|a_fun| {
+            let ident = match &a_fun.ident.as_ref() {
+                SymbolIdentifier::Exact(raw_ident) => {
+                    /* We want HashMap key type to be `Borrow<str>`, for syntactical convenience. */
+                    OwningRef::new(Rc::clone(raw_ident)).map(|raw_ident| &raw_ident as &str)
+                }
+                SymbolIdentifier::Generated { .. } => fail!(),
+            };
+            (ident, a_fun)
+        })
+        .collect()
+}
+
+pub fn remove_asm_implicit_return_instr(a_fun: &mut asm_ast::Function<FinalizedAsmAst>) {
+    let instr_2 = a_fun.instrs.pop_back();
+    let instr_1 = a_fun.instrs.pop_back();
+    assert!(matches!(
+        instr_1,
+        Some(asm_ast::Instruction::Mov {
+            asm_type: ScalarAssemblyType::Longword,
+            src: asm_ast::Operand::ImmediateValue(0),
+            dst: asm_ast::Operand::Register(asm_ast::Register::AX),
+        })
+    ));
+    assert!(matches!(instr_2, Some(asm_ast::Instruction::Ret)));
 }
 
 pub fn be_symtab_into_static_objs(
