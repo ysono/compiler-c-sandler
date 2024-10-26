@@ -31,7 +31,7 @@ pub struct StaticReadWriteAsmObjAttrs {
 #[derive(Debug)]
 pub struct StaticReadonlyAsmObjAttrs {
     pub alignment: Alignment,
-    pub initializer: Const,
+    pub initializer: InitializerItem<Const>,
 }
 
 #[derive(Debug)]
@@ -64,8 +64,11 @@ impl BackendSymbolTable {
                     Rc::clone(&ident),
                     AsmObj {
                         asm_type: ScalarAssemblyType::from(konst.arithmetic_type()).into(),
-                        asm_attrs: StaticReadonlyAsmObjAttrs { alignment, initializer: konst }
-                            .into(),
+                        asm_attrs: StaticReadonlyAsmObjAttrs {
+                            alignment,
+                            initializer: InitializerItem::Single(konst),
+                        }
+                        .into(),
                     },
                 );
 
@@ -101,7 +104,17 @@ impl BackendSymbolTable {
                             }
                             .into()
                         }
-                        ObjAttrs::StaticReadonly { .. } => todo!(),
+                        ObjAttrs::StaticReadonly { initializer } => {
+                            let alignment = match initializer {
+                                InitializerItem::String { .. } => {
+                                    /* Each static string obj requires 1-byte alignment.
+                                    Even if its length is >= 16 bytes, it does _not_ require 16-byte alignment. */
+                                    Alignment::B1
+                                }
+                                _ => Alignment::default_of_obj_type(&typ),
+                            };
+                            StaticReadonlyAsmObjAttrs { alignment, initializer }.into()
+                        }
                     };
                     self.ident_to_obj
                         .insert(ident, AsmObj { asm_type, asm_attrs });

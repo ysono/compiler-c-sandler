@@ -1,7 +1,8 @@
 use crate::{
     common::{
         identifier::SymbolIdentifier, primitive::Const,
-        symbol_table_backend::StaticReadonlyAsmObjAttrs as ROAttrs, types_backend::Alignment,
+        symbol_table_backend::StaticReadonlyAsmObjAttrs as ROAttrs,
+        symbol_table_frontend::InitializerItem, types_backend::Alignment,
     },
     test::utils,
 };
@@ -42,19 +43,22 @@ fn static_double_objs() -> Result<()> {
             let (ident, ROAttrs { alignment, initializer }) = static_ro_objs.next().unwrap();
             assert!(is_ident_generated(&ident));
             assert_eq!(alignment, Alignment::B8);
-            assert_eq!(initializer, Const::Double(3.14));
+            assert_eq!(initializer, InitializerItem::Single(Const::Double(3.14)));
         }
         {
             let (ident, ROAttrs { alignment, initializer }) = static_ro_objs.next().unwrap();
             assert!(is_ident_generated(&ident));
             assert_eq!(alignment, Alignment::B16);
-            assert_eq!(initializer, Const::Double(-0.0));
+            assert_eq!(initializer, InitializerItem::Single(Const::Double(-0.0)));
         }
         {
             let (ident, ROAttrs { alignment, initializer }) = static_ro_objs.next().unwrap();
             assert!(is_ident_generated(&ident));
             assert_eq!(alignment, Alignment::B8);
-            assert_eq!(initializer, Const::Double((1u64 << 63) as f64),);
+            assert_eq!(
+                initializer,
+                InitializerItem::Single(Const::Double((1u64 << 63) as f64))
+            );
         }
         assert!(static_ro_objs.next().is_none());
     }

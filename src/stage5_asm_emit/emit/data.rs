@@ -12,6 +12,7 @@ use crate::{
     utils::noop,
 };
 use std::{
+    array,
     io::{self, Write},
     rc::Rc,
 };
@@ -65,10 +66,10 @@ impl<W: Write> AsmCodeEmitter<W> {
         } else {
             ".section .rodata"
         };
-        let items = &[InitializerItem::Single(*initializer)];
+        let items = array::from_ref(initializer);
         self.write_static_datum(ident, visibility, locality, section, *alignment, items)?;
         if cfg!(target_os = "macos") {
-            self.write_fillin_data(*initializer, *alignment)?;
+            self.write_fillin_data(initializer, *alignment)?;
         }
         Ok(())
     }
@@ -114,21 +115,27 @@ impl<W: Write> AsmCodeEmitter<W> {
         writeln!(&mut self.w)?;
         Ok(())
     }
-    fn write_fillin_data(&mut self, init: Const, alignment: Alignment) -> Result<(), io::Error> {
-        let declared_bytelen = OperandByteLen::from(init.arithmetic_type());
-        match (declared_bytelen, alignment) {
-            (blen, ali) if (blen as u8) == (ali as u8) => noop!(),
-            (OperandByteLen::B4, Alignment::B8) => {
-                writeln!(&mut self.w, "{TAB}.long 0")?;
+    fn write_fillin_data(
+        &mut self,
+        init: &InitializerItem<Const>,
+        alignment: Alignment,
+    ) -> Result<(), io::Error> {
+        if let InitializerItem::Single(konst) = init {
+            let declared_bytelen = OperandByteLen::from(konst.arithmetic_type());
+            match (declared_bytelen, alignment) {
+                (blen, ali) if (blen as u8) == (ali as u8) => noop!(),
+                (OperandByteLen::B4, Alignment::B8) => {
+                    writeln!(&mut self.w, "{TAB}.long 0")?;
+                }
+                (OperandByteLen::B4, Alignment::B16) => {
+                    writeln!(&mut self.w, "{TAB}.long 0")?;
+                    writeln!(&mut self.w, "{TAB}.quad 0")?;
+                }
+                (OperandByteLen::B8, Alignment::B16) => {
+                    writeln!(&mut self.w, "{TAB}.quad 0")?;
+                }
+                _ => unreachable!(),
             }
-            (OperandByteLen::B4, Alignment::B16) => {
-                writeln!(&mut self.w, "{TAB}.long 0")?;
-                writeln!(&mut self.w, "{TAB}.quad 0")?;
-            }
-            (OperandByteLen::B8, Alignment::B16) => {
-                writeln!(&mut self.w, "{TAB}.quad 0")?;
-            }
-            _ => unreachable!(),
         }
         Ok(())
     }
