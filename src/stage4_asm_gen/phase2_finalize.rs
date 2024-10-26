@@ -64,15 +64,35 @@ impl InstrsFinalizer {
                 let dst = self.convert_operand(dst);
                 Instruction::Mov { asm_type, src, dst }
             }
-            Instruction::Movsx { src, dst } => {
+            Instruction::Movsx {
+                src_asm_type,
+                dst_asm_type,
+                src,
+                dst,
+            } => {
                 let src = self.convert_operand(src);
                 let dst = self.convert_operand(dst);
-                Instruction::Movsx { src, dst }
+                Instruction::Movsx {
+                    src_asm_type,
+                    dst_asm_type,
+                    src,
+                    dst,
+                }
             }
-            Instruction::MovZeroExtend { src, dst } => {
+            Instruction::MovZeroExtend {
+                src_asm_type,
+                dst_asm_type,
+                src,
+                dst,
+            } => {
                 let src = self.convert_operand(src);
                 let dst = self.convert_operand(dst);
-                Instruction::MovZeroExtend { src, dst }
+                Instruction::MovZeroExtend {
+                    src_asm_type,
+                    dst_asm_type,
+                    src,
+                    dst,
+                }
             }
             Instruction::Lea { src, dst } => {
                 let src = self.convert_operand(src);

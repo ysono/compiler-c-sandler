@@ -17,17 +17,27 @@ impl InstrsGenerator {
         &mut self,
         t::SrcDst { src, dst }: t::SrcDst,
     ) -> Vec<Instruction<GeneratedAsmAst>> {
-        let src = self.value_to_operand(src);
-        let dst = self.value_to_operand(dst);
-        vec![Instruction::Movsx { src, dst }]
+        let (src, _, src_asm_type) = self.value_to_operand_and_type(src);
+        let (dst, _, dst_asm_type) = self.value_to_operand_and_type(dst);
+        vec![Instruction::Movsx {
+            src_asm_type,
+            dst_asm_type,
+            src,
+            dst,
+        }]
     }
     pub(super) fn gen_zeroextend(
         &mut self,
         t::SrcDst { src, dst }: t::SrcDst,
     ) -> Vec<Instruction<GeneratedAsmAst>> {
-        let src = self.value_to_operand(src);
-        let dst = self.value_to_operand(dst);
-        vec![Instruction::MovZeroExtend { src, dst }]
+        let (src, _, src_asm_type) = self.value_to_operand_and_type(src);
+        let (dst, _, dst_asm_type) = self.value_to_operand_and_type(dst);
+        vec![Instruction::MovZeroExtend {
+            src_asm_type,
+            dst_asm_type,
+            src,
+            dst,
+        }]
     }
     pub(super) fn gen_truncate(
         &mut self,
@@ -178,7 +188,12 @@ impl InstrsGenerator {
     ) -> Vec<Instruction<GeneratedAsmAst>> {
         let gp_reg = || Operand::Register(Register::AX).into();
         vec![
-            Instruction::MovZeroExtend { src, dst: gp_reg() }, // u32 to u64
+            Instruction::MovZeroExtend {
+                src_asm_type: ScalarAssemblyType::Longword,
+                dst_asm_type: ScalarAssemblyType::Quadword,
+                src,
+                dst: gp_reg(),
+            }, // u32 to u64
             Instruction::Cvtsi2sd {
                 src_asm_type: ScalarAssemblyType::Quadword,
                 src: gp_reg(),

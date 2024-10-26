@@ -33,10 +33,14 @@ pub enum Instruction<A: AsmAstVariant> {
         dst: A::Operand,
     },
     Movsx {
+        src_asm_type: ScalarAssemblyType,
+        dst_asm_type: ScalarAssemblyType,
         src: A::Operand,
         dst: A::Operand,
     },
     MovZeroExtend {
+        src_asm_type: ScalarAssemblyType,
+        dst_asm_type: ScalarAssemblyType,
         src: A::Operand,
         dst: A::Operand,
     },

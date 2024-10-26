@@ -33,7 +33,14 @@ impl<W: Write> AsmCodeEmitter<W> {
 
                 self.write_instr_two_args(("mov", instr_sfx), (src, bytelen), (dst, bytelen))?;
             }
-            Instruction::Movsx { src, dst } => {
+            Instruction::Movsx {
+                src_asm_type,
+                dst_asm_type,
+                src,
+                dst,
+            } => {
+                let (_, _) = (src_asm_type, dst_asm_type); // TODO
+
                 self.write_instr_two_args(
                     ("movs", "lq"),
                     (src, OperandByteLen::B4),

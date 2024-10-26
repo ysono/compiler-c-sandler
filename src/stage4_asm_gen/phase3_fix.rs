@@ -28,18 +28,20 @@ impl OperandFixer {
 
                 Self::maybe_use_2_regs(src, dst, src_to_reg1, None, new_instr)
             }
-            Instruction::Movsx { src, dst } => {
+            Instruction::Movsx { src_asm_type, dst_asm_type, src, dst } => {
                 let src_to_reg1 = matches!(&src, Operand::ImmediateValue(_));
                 let src_to_reg1 = src_to_reg1.then_some(ScalarAssemblyType::Longword);
 
                 let reg2_to_dst = dst.is_on_mem();
                 let reg2_to_dst = reg2_to_dst.then_some((ToFromReg::FromReg, ScalarAssemblyType::Quadword));
 
-                let new_instr = |src: Operand, dst: Operand| Instruction::Movsx { src, dst };
+                let new_instr = |src: Operand, dst: Operand| Instruction::Movsx { src_asm_type, dst_asm_type, src, dst };
 
                 Self::maybe_use_2_regs(src, dst, src_to_reg1, reg2_to_dst, new_instr)
             }
-            Instruction::MovZeroExtend { src, dst } => {
+            Instruction::MovZeroExtend { src_asm_type, dst_asm_type, src, dst } => {
+                let (_, _) = (src_asm_type, dst_asm_type); // TODO
+
                 if dst.is_on_mem() {
                     let reg = Register::R11;
                     let instr_at_reg = Instruction::Mov{
