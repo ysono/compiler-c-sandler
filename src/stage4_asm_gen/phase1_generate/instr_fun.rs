@@ -65,37 +65,46 @@ impl InstrsGenerator {
 
             match arg_reg {
                 Some(reg) => {
-                    asm_instrs.push(Instruction::Mov {
+                    let reg_operand = || Operand::Register(reg).into();
+
+                    let instr1 = Some(Instruction::Mov {
                         asm_type: arg_asm_type,
                         src: arg_operand,
-                        dst: Operand::Register(reg).into(),
+                        dst: reg_operand(),
                     });
+                    let instr2 = Self::get_instr_widen_arg(arg_asm_type, reg_operand());
+
+                    asm_instrs.extend([instr2, instr1].into_iter().flatten());
                 }
                 None => {
                     stack_args_count += 1;
 
+                    let (instr1, instr2);
                     match (arg_operand.is_on_mem(), OperandByteLen::from(arg_asm_type)) {
                         (false, _) | (true, OperandByteLen::B8) => {
-                            asm_instrs.push(Instruction::Push(arg_operand));
+                            instr1 = Some(Instruction::Push(arg_operand));
+                            instr2 = None;
                         }
                         (true, OperandByteLen::B4 | OperandByteLen::B1) => {
                             /* `pushq` operation always reads and pushes 8 bytes.
                             In case (arg's memory address + (8-1)) lies outside the readable memory, we cannot `pushq` directly. */
-                            let reg = || Operand::Register(Register::AX).into();
-                            asm_instrs.extend(
-                                [
-                                    Instruction::Mov {
-                                        asm_type: arg_asm_type,
-                                        src: arg_operand,
-                                        dst: reg(),
-                                    },
-                                    Instruction::Push(reg()),
-                                ]
-                                .into_iter()
-                                .rev(),
-                            );
+                            let reg_operand = || Operand::Register(Register::AX).into();
+
+                            instr1 = Some(Instruction::Mov {
+                                asm_type: arg_asm_type,
+                                src: arg_operand,
+                                dst: reg_operand(),
+                            });
+                            instr2 = Some(Instruction::Push(reg_operand()));
                         }
                     }
+
+                    let instr3 = Self::get_instr_widen_arg(
+                        arg_asm_type,
+                        Operand::Memory(Register::SP, MemoryOffset::new(0)).into(),
+                    );
+
+                    asm_instrs.extend([instr3, instr2, instr1].into_iter().flatten());
                 }
             }
         }
@@ -140,6 +149,37 @@ impl InstrsGenerator {
         });
 
         asm_instrs
+    }
+
+    /// Each argument that is narrower than 4 bytes (henceforth "narrow arg") is handled in subtly different ways by different compilers.
+    /// Clang produces code such that
+    ///     + Caller sign-extends each outgoing narrow arg to 4 bytes.
+    ///     + Callee assumes that each incoming narrow arg has already been sign-extended by the caller; and,
+    ///         given some optimizations are enabled,
+    ///         when the narrow-typed-but-actually-widened value is semantically cast to a wider type,
+    ///         does _not_ sign-extend the value.
+    /// Gcc produces code such that
+    ///     + Caller sign-extends each outgoing narrow arg to 4 bytes.
+    ///     + Callee sign-extends each incoming narrow arg to 4 bytes (I'm not sure at what timing).
+    /// Our compiler produces code such that
+    ///     + Caller sign-extends each outgoing narrow arg to 4 bytes. -- Emitted by this function.
+    ///     + Callee widens or narrows any value upon casting (whether explicit or implicit). -- Emitted during the Tacky stage.
+    ///
+    /// See book ch 16, section "Assembly Generation", block "Clang goes rogue", page 444.
+    fn get_instr_widen_arg(
+        src_asm_type: ScalarAssemblyType,
+        operand: PreFinalOperand,
+    ) -> Option<Instruction<GeneratedAsmAst>> {
+        if src_asm_type == ScalarAssemblyType::Byte {
+            Some(Instruction::Movsx {
+                src_asm_type,
+                dst_asm_type: ScalarAssemblyType::Longword,
+                src: operand.clone(),
+                dst: operand,
+            })
+        } else {
+            None
+        }
     }
 
     pub(super) fn gen_return(&mut self, t_val: t::Value) -> Vec<Instruction<GeneratedAsmAst>> {
@@ -192,8 +232,9 @@ impl Default for ArgRegResolver {
 impl ArgRegResolver {
     fn next_reg(&mut self, asm_type: ScalarAssemblyType) -> Option<Register> {
         match asm_type {
-            ScalarAssemblyType::Byte => todo!(),
-            ScalarAssemblyType::Longword | ScalarAssemblyType::Quadword => {
+            ScalarAssemblyType::Byte
+            | ScalarAssemblyType::Longword
+            | ScalarAssemblyType::Quadword => {
                 let ret = INT_ARG_REGS.get(self.int_args_count).cloned();
                 self.int_args_count += 1;
                 ret
@@ -209,8 +250,9 @@ impl ArgRegResolver {
 
 fn derive_return_register(asm_type: ScalarAssemblyType) -> Register {
     match asm_type {
-        ScalarAssemblyType::Byte => todo!(),
-        ScalarAssemblyType::Longword | ScalarAssemblyType::Quadword => Register::AX,
+        ScalarAssemblyType::Byte | ScalarAssemblyType::Longword | ScalarAssemblyType::Quadword => {
+            Register::AX
+        }
         ScalarAssemblyType::Double => Register::XMM0,
     }
 }
