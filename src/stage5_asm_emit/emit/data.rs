@@ -12,7 +12,7 @@ use crate::{
     utils::noop,
 };
 use std::{
-    array,
+    array, ascii,
     io::{self, Write},
     rc::Rc,
 };
@@ -57,11 +57,14 @@ impl<W: Write> AsmCodeEmitter<W> {
         let visibility = StaticVisibility::NonGlobal;
         let locality = LabelLocality::OF_STATIC_RO_OBJ;
         let section = if cfg!(target_os = "macos") {
-            match alignment {
-                Alignment::B1 => todo!(),
-                Alignment::B4 => ".literal4",
-                Alignment::B8 => ".literal8",
-                Alignment::B16 => ".literal16",
+            match initializer {
+                InitializerItem::String { .. } => ".cstring",
+                _ => match alignment {
+                    Alignment::B1 => ".literal1",
+                    Alignment::B4 => ".literal4",
+                    Alignment::B8 => ".literal8",
+                    Alignment::B16 => ".literal16",
+                },
             }
         } else {
             ".section .rodata"
@@ -85,7 +88,9 @@ impl<W: Write> AsmCodeEmitter<W> {
     ) -> Result<(), io::Error> {
         self.write_symbol_visibility(ident, visibility, locality)?;
         writeln!(&mut self.w, "{TAB}{section}")?;
-        writeln!(&mut self.w, "{TAB}.balign {}", alignment as u8)?;
+        if alignment != Alignment::B1 {
+            writeln!(&mut self.w, "{TAB}.balign {}", alignment as u8)?;
+        }
         self.write_symbol_decl(ident, locality)?;
         for init in inits {
             match init {
@@ -93,8 +98,47 @@ impl<W: Write> AsmCodeEmitter<W> {
                     let bytelen = bytelen.as_int();
                     writeln!(&mut self.w, "{TAB}.zero {bytelen}")?;
                 }
-                InitializerItem::String { .. } => todo!(),
-                InitializerItem::Pointer(_) => todo!(),
+                InitializerItem::String { chars, zeros_sfx_bytelen } => {
+                    let mut zeros_sfx_bytelen = zeros_sfx_bytelen.as_int();
+
+                    let ascii_directive;
+                    if zeros_sfx_bytelen >= 1 {
+                        zeros_sfx_bytelen -= 1;
+                        ascii_directive = ".asciz";
+                    } else {
+                        ascii_directive = ".ascii";
+                    }
+
+                    write!(&mut self.w, "{TAB}{ascii_directive} \"")?;
+                    for byte in chars {
+                        if "\"\\\n".as_bytes().contains(byte) {
+                            write!(&mut self.w, "{}", ascii::escape_default(*byte))?;
+                        } else if *byte == b' ' || byte.is_ascii_graphic() {
+                            write!(&mut self.w, "{}", char::from(*byte))?;
+                            /* Eg on MacOS, the single-quote character must _not_ be escaped. */
+                        } else {
+                            write!(&mut self.w, "\\{byte:03o}")?;
+                        }
+                    }
+                    writeln!(&mut self.w, "\"")?;
+
+                    if zeros_sfx_bytelen > 0 {
+                        writeln!(&mut self.w, "{TAB}.zero {zeros_sfx_bytelen}")?;
+                    }
+                }
+                InitializerItem::Pointer(ident) => {
+                    let AsmObj { asm_attrs, .. } =
+                        self.backend_symtab.ident_to_obj().get(ident).unwrap();
+                    let locality = match asm_attrs {
+                        AsmObjAttrs::Stack => unreachable!(),
+                        AsmObjAttrs::StaticRW(_) => LabelLocality::OF_STATIC_RW_OBJ,
+                        AsmObjAttrs::StaticRO(_) => LabelLocality::OF_STATIC_RO_OBJ,
+                    };
+
+                    write!(&mut self.w, "{TAB}.quad ")?;
+                    self.write_symbol_name(ident, locality)?;
+                    writeln!(&mut self.w)?;
+                }
                 InitializerItem::Single(konst) => {
                     /* Supported formats include:
                         + hexadecimal floating-point: `.double 0x2.8p+3` (LLVM supports it; GAS doesn't)
@@ -102,7 +146,8 @@ impl<W: Write> AsmCodeEmitter<W> {
                         + decimal
                     We choose to emit as decimal. */
                     match konst {
-                        Const::Char(_) | Const::UChar(_) => todo!(),
+                        Const::Char(i) => writeln!(&mut self.w, "{TAB}.byte {i}")?,
+                        Const::UChar(i) => writeln!(&mut self.w, "{TAB}.byte {i}")?,
                         Const::Int(i) => writeln!(&mut self.w, "{TAB}.long {i}")?,
                         Const::UInt(i) => writeln!(&mut self.w, "{TAB}.long {i}")?,
                         Const::Long(i) => writeln!(&mut self.w, "{TAB}.quad {i}")?,
