@@ -4,16 +4,16 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-anyhow = "1.0.86"
-clap = { version = "4.5.4", features = ["derive"] }
+anyhow = "1.0.96"
+clap = { version = "4.5.30", features = ["derive"] }
 derivative = "2.2.0"
-derive_more = "0.99.17"
+derive_more = { version = "2.0.1", features = ["full"] }
 duct = "0.13.7"
-env_logger = "0.11.3"
-getset = "0.1.2"
-log = "0.4.21"
+env_logger = "0.11.6"
+getset = "0.1.4"
+log = "0.4.25"
 owning_ref = "0.4.1"
-regex = "1.10.4"
+regex = "1.11.1"
 
 [dev-dependencies]
 rusty-hook = "0.11.2"
