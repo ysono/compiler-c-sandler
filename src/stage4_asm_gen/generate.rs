@@ -40,12 +40,12 @@ impl AsmCodeGenerator {
     ) {
         /* Instrs phase 1 */
 
-        let mut gen = InstrsGenerator::new(self.frontend_symtab);
+        let mut gener = InstrsGenerator::new(self.frontend_symtab);
         let prefinal_funs = funs
             .into_iter()
-            .map(|t_fun| gen.convert_fun(t_fun))
+            .map(|t_fun| gener.convert_fun(t_fun))
             .collect::<Vec<_>>();
-        let (frontend_symtab, mut backend_symtab) = gen.into();
+        let (frontend_symtab, mut backend_symtab) = gener.into();
 
         /* Preparing for instrs phase 2 and 3 */
 

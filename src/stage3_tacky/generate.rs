@@ -43,8 +43,8 @@ impl Tackifier {
         c_funs
             .into_iter()
             .map(|c_fun| {
-                let gen = FunInstrsGenerator::new(&mut self.symbol_table);
-                gen.tackify_fun_defn(c_fun)
+                let gener = FunInstrsGenerator::new(&mut self.symbol_table);
+                gener.tackify_fun_defn(c_fun)
             })
             .collect()
     }
