@@ -8,7 +8,7 @@ use crate::{
 use std::collections::HashMap;
 use std::rc::Rc;
 
-impl<'a> FunInstrsGenerator<'a> {
+impl FunInstrsGenerator<'_> {
     pub(super) fn gen_stmt_break(&mut self, loop_id: Rc<c::LoopId>) {
         let lbls = self.loop_id_to_labels.get_or_new_lbls(loop_id);
         let lbl_break = Rc::clone(&lbls.lbl_break);

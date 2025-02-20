@@ -9,7 +9,7 @@ use crate::{
     stage3_tacky::tacky_ast::*,
 };
 
-impl<'a> FunInstrsGenerator<'a> {
+impl FunInstrsGenerator<'_> {
     /* Binary pointer arithmetic */
 
     pub(super) fn gen_exp_binary_ptr(

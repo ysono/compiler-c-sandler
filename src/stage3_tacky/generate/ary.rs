@@ -10,7 +10,7 @@ use crate::{
 };
 use std::rc::Rc;
 
-impl<'a> FunInstrsGenerator<'a> {
+impl FunInstrsGenerator<'_> {
     /* C Unary */
 
     pub(super) fn gen_exp_unary(

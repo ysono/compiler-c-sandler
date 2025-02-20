@@ -9,7 +9,7 @@ use crate::{
 };
 use std::cmp::Ordering;
 
-impl<'a> FunInstrsGenerator<'a> {
+impl FunInstrsGenerator<'_> {
     /* C Cast */
 
     pub(super) fn gen_exp_cast(

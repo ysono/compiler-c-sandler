@@ -9,7 +9,7 @@ use crate::{
 };
 use std::rc::Rc;
 
-impl<'a> FunInstrsGenerator<'a> {
+impl FunInstrsGenerator<'_> {
     pub(super) fn gen_stmt_conditional(
         &mut self,
         c::If { condition, then, elze }: c::If<TypeCheckedCAst>,

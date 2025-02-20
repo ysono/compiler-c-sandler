@@ -5,7 +5,7 @@ use crate::{
     stage3_tacky::tacky_ast::*,
 };
 
-impl<'a> FunInstrsGenerator<'a> {
+impl FunInstrsGenerator<'_> {
     /* C Assignment */
 
     pub(super) fn gen_exp_assignment(

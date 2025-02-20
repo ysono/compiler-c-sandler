@@ -9,7 +9,7 @@ use crate::{
 };
 use std::{cmp, rc::Rc};
 
-impl<'a> FunInstrsGenerator<'a> {
+impl FunInstrsGenerator<'_> {
     pub(super) fn gen_var_defn(
         &mut self,
         c::VariableDefinition { ident, init }: c::VariableDefinition<TypeCheckedCAst>,

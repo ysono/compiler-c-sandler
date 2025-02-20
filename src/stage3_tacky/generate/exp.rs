@@ -11,7 +11,7 @@ use crate::{
 };
 use std::rc::Rc;
 
-impl<'a> FunInstrsGenerator<'a> {
+impl FunInstrsGenerator<'_> {
     /* Expression */
 
     pub(super) fn gen_exp<LTyp>(&mut self, typed_exp: c::TypedExp<LTyp>) -> ExpResult<LTyp> {
