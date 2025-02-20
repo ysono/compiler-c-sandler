@@ -27,9 +27,9 @@ impl InstrsGenerator {
         t_op: t::ComparisonBinaryOperator,
         t::Binary { op: _, lhs, rhs, dst }: t::Binary,
     ) -> Vec<Instruction<GeneratedAsmAst>> {
-        use t::ComparisonBinaryOperator as TBOC;
         use ArithmeticType as AT;
         use ConditionCode as CC;
+        use t::ComparisonBinaryOperator as TBOC;
 
         let (lhs, src_ari_type, src_asm_type) = self.value_to_operand_and_type(lhs);
         let rhs = self.value_to_operand(rhs);

@@ -11,7 +11,7 @@ use crate::{
         types_backend::ScalarAssemblyType,
     },
     stage3_tacky::tacky_ast,
-    stage4_asm_gen::{asm_ast, FinalizedAsmAst},
+    stage4_asm_gen::{FinalizedAsmAst, asm_ast},
     test::utils::fail,
     utils::noop,
 };

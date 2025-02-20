@@ -1,11 +1,11 @@
-use super::{label::LabelLocality, AsmCodeEmitter, TAB};
+use super::{AsmCodeEmitter, TAB, label::LabelLocality};
 use crate::{
     common::{
         identifier::SymbolIdentifier,
         symbol_table_backend::AsmFun,
         types_backend::{OperandByteLen, ScalarAssemblyType},
     },
-    stage4_asm_gen::{asm_ast::*, FinalizedAsmAst},
+    stage4_asm_gen::{FinalizedAsmAst, asm_ast::*},
 };
 use std::io::{self, Write};
 

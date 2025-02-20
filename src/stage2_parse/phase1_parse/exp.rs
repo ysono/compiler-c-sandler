@@ -1,6 +1,6 @@
 use super::{ParsedCAst, Parser};
 use crate::{stage1_lex::tokens as t, stage2_parse::c_ast::*};
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use derive_more::From;
 use std::borrow::Borrow;
 

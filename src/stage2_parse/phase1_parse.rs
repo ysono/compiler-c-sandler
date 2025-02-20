@@ -15,7 +15,7 @@ use crate::{
     stage2_parse::c_ast::*,
     utils::noop,
 };
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use derive_more::Into;
 use std::iter::Peekable;
 

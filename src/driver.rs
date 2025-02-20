@@ -16,11 +16,11 @@ use crate::{
         phase3_typecheck::{TypeCheckedCAst, TypeChecker},
     },
     stage3_tacky::{generate::Tackifier, tacky_ast},
-    stage4_asm_gen::{asm_ast, AsmCodeGenerator, FinalizedAsmAst},
+    stage4_asm_gen::{AsmCodeGenerator, FinalizedAsmAst, asm_ast},
     stage5_asm_emit::emit::AsmCodeEmitter,
 };
 use anyhow::Result;
-use duct::{cmd, Handle, ReaderHandle};
+use duct::{Handle, ReaderHandle, cmd};
 use std::fs::{self, OpenOptions};
 use std::io::{self, BufRead, BufReader, BufWriter, Read};
 use std::mem;

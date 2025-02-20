@@ -1,4 +1,4 @@
-use super::{label::LabelLocality, AsmCodeEmitter, TAB};
+use super::{AsmCodeEmitter, TAB, label::LabelLocality};
 use crate::{
     common::{
         identifier::SymbolIdentifier,

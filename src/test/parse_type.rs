@@ -1,7 +1,7 @@
 use crate::{
     common::types_frontend::ArithmeticType,
     stage2_parse::c_ast as c,
-    test::utils::{self, fail, ProtoType, TestDeclaratorItem as Dec},
+    test::utils::{self, ProtoType, TestDeclaratorItem as Dec, fail},
 };
 use anyhow::Result;
 

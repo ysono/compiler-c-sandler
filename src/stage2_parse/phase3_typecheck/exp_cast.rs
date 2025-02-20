@@ -7,7 +7,7 @@ use crate::{
     ds_n_a::singleton::Singleton,
     stage2_parse::{c_ast::*, phase2_resolve::ResolvedCAst},
 };
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use owning_ref::OwningRef;
 use std::borrow::Borrow;
 use std::cmp::Ordering;

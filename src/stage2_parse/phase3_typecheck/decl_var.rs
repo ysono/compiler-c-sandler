@@ -9,7 +9,7 @@ use crate::{
     stage2_parse::{c_ast::*, phase2_resolve::ResolvedCAst},
     utils::noop,
 };
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use derive_more::From;
 use std::collections::hash_map::Entry;
 use std::rc::Rc;
@@ -120,7 +120,7 @@ impl TypeChecker {
                         }
                         match attrs {
                             ObjAttrs::AutomaticStorageDuration => {
-                                return Err(anyhow!("Cannot declare with 2+ storage durations."))
+                                return Err(anyhow!("Cannot declare with 2+ storage durations."));
                             }
                             #[rustfmt::skip]
                             ObjAttrs::StaticReadWrite { visibility, initializer } => {
@@ -141,7 +141,9 @@ impl TypeChecker {
                                 }
                             }
                             ObjAttrs::StaticReadonly { .. } => {
-                                unreachable!("Declarations of static readonly objs within C src code (using the `const` keyword) aren't supported.")
+                                unreachable!(
+                                    "Declarations of static readonly objs within C src code (using the `const` keyword) aren't supported."
+                                )
                             }
                         }
                         Ok(())

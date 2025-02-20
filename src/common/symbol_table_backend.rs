@@ -8,7 +8,7 @@ use crate::common::{
 };
 use derive_more::From;
 use getset::{Getters, MutGetters};
-use std::collections::{hash_map::Entry, HashMap};
+use std::collections::{HashMap, hash_map::Entry};
 use std::rc::Rc;
 
 #[derive(Debug)]

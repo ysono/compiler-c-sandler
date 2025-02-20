@@ -7,7 +7,7 @@ use crate::{
     },
     ds_n_a::singleton::Singleton,
 };
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use derive_more::{AsMut, Deref, Into};
 use std::collections::HashMap;
 use std::rc::Rc;

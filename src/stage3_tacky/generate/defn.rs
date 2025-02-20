@@ -150,7 +150,7 @@ mod test {
             types_frontend::{ArithmeticType, ObjType, SubObjType},
         },
         ds_n_a::singleton::SingletonRepository,
-        test::utils::{fail, TypeBuilder},
+        test::utils::{TypeBuilder, fail},
     };
     use c::{RExp, TypedExp, TypedRExp, VariableDefinition};
     use owning_ref::OwningRef;

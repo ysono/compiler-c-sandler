@@ -1,7 +1,7 @@
 use crate::{
     common::{primitive::Const, types_frontend::ArithmeticType},
     stage2_parse::{c_ast as c, phase3_typecheck::TypeCheckedCAst},
-    test::utils::{self, fail, ProtoType},
+    test::utils::{self, ProtoType, fail},
 };
 use anyhow::Result;
 
@@ -20,10 +20,12 @@ fn return_const() -> Result<()> {
     )?;
     match &items[..] {
         // No redundant casting "as if by assignment".
-        [c::BlockItem::Statement(c::Statement::Return(c::TypedExp::R(c::TypedRExp {
-            exp: c::RExp::Const(Const::Int(42)),
-            typ,
-        })))] => {
+        [
+            c::BlockItem::Statement(c::Statement::Return(c::TypedExp::R(c::TypedRExp {
+                exp: c::RExp::Const(Const::Int(42)),
+                typ,
+            }))),
+        ] => {
             assert_eq!(
                 typ.as_owner().as_ref(),
                 ProtoType {

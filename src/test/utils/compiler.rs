@@ -1,15 +1,15 @@
 use crate::{
     common::{symbol_table_backend::BackendSymbolTable, symbol_table_frontend::SymbolTable},
     driver::{
+        CompilationResult, Driver,
         config::{Args, CompilerUntil, DriverUntil},
         files::SrcFilepath,
-        CompilationResult, Driver,
     },
     stage2_parse::{c_ast, phase1_parse::ParsedCAst, phase3_typecheck::TypeCheckedCAst},
     stage3_tacky::tacky_ast,
-    stage4_asm_gen::{asm_ast, FinalizedAsmAst},
+    stage4_asm_gen::{FinalizedAsmAst, asm_ast},
 };
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use std::{
     io::{BufReader, Cursor},
     path::PathBuf,

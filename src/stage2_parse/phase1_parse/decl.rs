@@ -12,7 +12,7 @@ use crate::{
     stage2_parse::c_ast::*,
     utils::noop,
 };
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use std::cmp;
 
 impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
@@ -39,8 +39,8 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
     fn parse_specifiers(
         &mut self,
     ) -> Result<Option<(ArithmeticType, Option<StorageClassSpecifier>)>> {
-        use t::TypeSpecifier as TS;
         use ArithmeticType as AT;
+        use t::TypeSpecifier as TS;
 
         let mut inner = || -> Result<_> {
             let mut typs = vec![];
@@ -256,10 +256,10 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
                 }
                 DeclaratorItem::Fun(params) => match items_baseward.last() {
                     Some(DeclaratorItem::Fun(_)) => {
-                        return Err(anyhow!("In C, a function can't return a function."))
+                        return Err(anyhow!("In C, a function can't return a function."));
                     }
                     Some(DeclaratorItem::Ptr(_) | DeclaratorItem::Arr(_)) => {
-                        return Err(anyhow!("Function pointers aren't supported."))
+                        return Err(anyhow!("Function pointers aren't supported."));
                     }
                     None => {
                         let mut param_types = Vec::with_capacity(params.len());
@@ -275,7 +275,7 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
                                 DeclaratorResult::Fun(..) => {
                                     return Err(anyhow!(
                                         "Function parameters aren't supported. {param_res:?}"
-                                    ))
+                                    ));
                                 }
                             }
                         }
@@ -341,7 +341,9 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
 
                     let declarator = self.parse_abstract_declarator()?;
                     if declarator.items_baseward.is_empty() {
-                        return Err(anyhow!("Empty parentheses. It means a param-list. Can't cast to a function type."));
+                        return Err(anyhow!(
+                            "Empty parentheses. It means a param-list. Can't cast to a function type."
+                        ));
                     }
 
                     self.expect_exact(&[t::Demarcator::ParenClose.into()])?;

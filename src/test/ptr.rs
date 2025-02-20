@@ -124,10 +124,13 @@ fn ptr_minus_integer() -> Result<()> {
 
     let instrs = compile_tacky_instrs(pp)?;
     match &instrs[..] {
-        [t::Instruction::Unary(t::Unary {
-            op: t::UnaryOperator::Numeric(t::NumericUnaryOperator::Negate),
-            ..
-        }), t::Instruction::AddPtr(t::AddPtr { scale, .. })] => {
+        [
+            t::Instruction::Unary(t::Unary {
+                op: t::UnaryOperator::Numeric(t::NumericUnaryOperator::Negate),
+                ..
+            }),
+            t::Instruction::AddPtr(t::AddPtr { scale, .. }),
+        ] => {
             assert_eq!(scale.as_int(), 4);
         }
         _ => fail!(),
@@ -176,7 +179,11 @@ fn ptr_minus_ptr() -> Result<()> {
 
         let instrs = compile_tacky_instrs(pp)?;
         match &instrs[..] {
-            [t::Instruction::GetAddress(_), t::Instruction::GetAddress(_), tail_instrs @ ..] => {
+            [
+                t::Instruction::GetAddress(_),
+                t::Instruction::GetAddress(_),
+                tail_instrs @ ..,
+            ] => {
                 assert_sub_then_div(tail_instrs, 4);
             }
             _ => fail!(),
@@ -191,7 +198,11 @@ fn ptr_minus_ptr() -> Result<()> {
 
         let instrs = compile_tacky_instrs(pp)?;
         match &instrs[..] {
-            [t::Instruction::GetAddress(_), t::Instruction::GetAddress(_), tail_instrs @ ..] => {
+            [
+                t::Instruction::GetAddress(_),
+                t::Instruction::GetAddress(_),
+                tail_instrs @ ..,
+            ] => {
                 assert_sub_then_div(tail_instrs, 4 * 13);
             }
             _ => fail!(),
@@ -200,14 +211,17 @@ fn ptr_minus_ptr() -> Result<()> {
 
     fn assert_sub_then_div(instrs: &[t::Instruction], expected_scale: u64) {
         match instrs {
-            [t::Instruction::Binary(t::Binary {
-                op: t::BinaryOperator::Arithmetic(t::ArithmeticBinaryOperator::Sub),
-                ..
-            }), t::Instruction::Binary(t::Binary {
-                op: t::BinaryOperator::DivRem(t::DivRemBinaryOperator::Div),
-                rhs,
-                ..
-            })] => {
+            [
+                t::Instruction::Binary(t::Binary {
+                    op: t::BinaryOperator::Arithmetic(t::ArithmeticBinaryOperator::Sub),
+                    ..
+                }),
+                t::Instruction::Binary(t::Binary {
+                    op: t::BinaryOperator::DivRem(t::DivRemBinaryOperator::Div),
+                    rhs,
+                    ..
+                }),
+            ] => {
                 assert_eq!(rhs, &t::Value::Constant(Const::ULong(expected_scale)));
             }
             _ => fail!(),

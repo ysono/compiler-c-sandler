@@ -1,6 +1,6 @@
 use crate::{
     common::{identifier::RawIdentifier, types_backend::ScalarAssemblyType},
-    stage4_asm_gen::{asm_ast::*, FinalizedAsmAst},
+    stage4_asm_gen::{FinalizedAsmAst, asm_ast::*},
     test::utils,
 };
 use anyhow::Result;

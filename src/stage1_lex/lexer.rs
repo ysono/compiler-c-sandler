@@ -4,7 +4,7 @@ use crate::{
     common::{identifier::RawIdentifier, primitive::Const},
     stage1_lex::tokens::*,
 };
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use regex::Regex;
 use std::collections::VecDeque;
 use std::io::{BufRead, Read};

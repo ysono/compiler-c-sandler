@@ -9,7 +9,7 @@ use crate::{
     stage2_parse::{c_ast::*, phase2_resolve::ResolvedCAst},
     utils::noop,
 };
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use std::collections::hash_map::Entry;
 use std::rc::Rc;
 
@@ -109,12 +109,12 @@ impl TypeChecker {
             (DS::Block, _, Some(_)) => {
                 return Err(anyhow!(
                     "At scope=block, type=fun cannot have a definition."
-                ))
+                ));
             }
             (DS::Block, Some(SCS::Static), _) => {
                 return Err(anyhow!(
                     "At scope=block, type=fun cannot specify storage duration `static`."
-                ))
+                ));
             }
         };
         Ok(new_viz)

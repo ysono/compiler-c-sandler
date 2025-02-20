@@ -1,5 +1,5 @@
 [hooks]
-pre-commit = "cargo test && cargo clippy -- --deny warnings && RUSTDOCFLAGS='-D warnings' cargo doc --no-deps --document-private-items"
+pre-commit = "cargo test && cargo fmt --check && cargo clippy -- --deny warnings && RUSTDOCFLAGS='-D warnings' cargo doc --no-deps --document-private-items"
 
 [logging]
 verbose = true

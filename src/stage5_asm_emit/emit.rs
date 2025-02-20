@@ -5,7 +5,7 @@ mod label;
 use crate::{
     common::symbol_table_backend::BackendSymbolTable,
     ds_n_a::immutable_owned::ImmutableOwned,
-    stage4_asm_gen::{asm_ast::*, FinalizedAsmAst},
+    stage4_asm_gen::{FinalizedAsmAst, asm_ast::*},
 };
 use regex::Regex;
 use std::{

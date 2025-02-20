@@ -9,7 +9,7 @@ mod stage3_tacky;
 mod stage4_asm_gen;
 mod stage5_asm_emit;
 
-pub use driver::{config::CliArgs, Driver};
+pub use driver::{Driver, config::CliArgs};
 
 mod utils {
     macro_rules! noop {

@@ -3,7 +3,7 @@ use crate::{
     common::types_frontend::{ArithmeticType, ObjType, PointerType, ScalarType, SubObjType},
     stage2_parse::{c_ast::*, phase2_resolve::ResolvedCAst},
 };
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use owning_ref::OwningRef;
 
 /* Binary */

@@ -8,7 +8,7 @@ use crate::{
     common::identifier::SymbolIdentifier,
     stage2_parse::{c_ast::*, phase1_parse::ParsedCAst},
 };
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use std::rc::Rc;
 
 #[derive(Debug)]

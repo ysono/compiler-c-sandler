@@ -10,7 +10,7 @@ use crate::{
     stage2_parse::{c_ast::*, phase2_resolve::ResolvedCAst},
     utils::noop,
 };
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 
 impl TypeChecker {
     pub(super) fn generate_zero_static_initializer(typ: &ObjType) -> StaticInitializer {
@@ -43,7 +43,11 @@ impl TypeChecker {
         match &from {
             Expression::R(RExp::Const(_)) => noop!(),
             Expression::L(LExp::String(_)) => noop!(),
-            _ => return Err(anyhow!("Within each static initializer, each single expression must be a constexpr. For each constexpr, only a literal is supported."))
+            _ => {
+                return Err(anyhow!(
+                    "Within each static initializer, each single expression must be a constexpr. For each constexpr, only a literal is supported."
+                ));
+            }
         };
 
         let from = self.typecheck_exp_and_convert_to_scalar(from)?;
@@ -151,7 +155,7 @@ impl TypeChecker {
                 _ => {
                     return Err(anyhow!(
                         "Cannot initialize {arr_typ:?} using string literal."
-                    ))
+                    ));
                 }
             },
             (ObjType::Scalar(_), init @ VariableInitializer::Compound(..))

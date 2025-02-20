@@ -1,6 +1,6 @@
-use super::{decl::DeclaratorResult, ParsedCAst, Parser};
+use super::{ParsedCAst, Parser, decl::DeclaratorResult};
 use crate::{stage1_lex::tokens as t, stage2_parse::c_ast::*, utils::noop};
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 
 impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
     pub(super) fn parse_declaration(&mut self) -> Result<Option<Declaration<ParsedCAst>>> {

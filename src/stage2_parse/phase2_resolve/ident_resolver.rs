@@ -2,7 +2,7 @@ use crate::{
     common::identifier::{RawIdentifier, SymbolIdentifier},
     stage2_parse::c_ast::StorageClassSpecifier,
 };
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
@@ -95,7 +95,9 @@ impl IdentResolver {
                 if prev_has_linkage && new_has_linkage {
                     Ok(Rc::clone(resolved_ident))
                 } else {
-                    Err(anyhow!("In one scope, 2+ declarations of a same identifier must all refer to the same object or function, hence must all have some linkage. {ident:?}: {resolved_ident:?} vs {new_has_linkage}"))
+                    Err(anyhow!(
+                        "In one scope, 2+ declarations of a same identifier must all refer to the same object or function, hence must all have some linkage. {ident:?}: {resolved_ident:?} vs {new_has_linkage}"
+                    ))
                 }
             }
         }
