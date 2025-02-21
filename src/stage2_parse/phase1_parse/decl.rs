@@ -115,7 +115,7 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
         let mut inner = || -> Result<_> {
             let declarator = self.parse_simple_declarator()?;
 
-            self.parse_declarator_suffx(declarator)
+            self.parse_declarator_suffix(declarator)
         };
         inner().context("<direct-declarator>")
     }
@@ -135,7 +135,7 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
         };
         inner().context("<simple-declarator>")
     }
-    fn parse_declarator_suffx(&mut self, mut declarator: Declarator) -> Result<Declarator> {
+    fn parse_declarator_suffix(&mut self, mut declarator: Declarator) -> Result<Declarator> {
         let inner = || -> Result<_> {
             match self.parse_param_list()? {
                 Some(params) => declarator.items_baseward.push(DeclaratorItem::Fun(params)),
@@ -331,7 +331,7 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
 
             Ok(declarator)
         };
-        inner().context("<abstract-declarator>")
+        inner().context("[ <abstract-declarator> ]")
     }
     fn parse_direct_abstract_declarator(&mut self) -> Result<AbstractDeclarator> {
         let mut inner = || -> Result<_> {
@@ -342,7 +342,7 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
                     let declarator = self.parse_abstract_declarator()?;
                     if declarator.items_baseward.is_empty() {
                         return Err(anyhow!(
-                            "Empty parentheses. It means a param-list. Can't cast to a function type."
+                            "Empty parentheses. It means a <param-list>. Can't cast to a function type."
                         ));
                     }
 

@@ -156,8 +156,8 @@ mod test {
         let mut obj_typ_repo = SingletonRepository::<ObjType>::default();
         let mut typ_bld = TypeBuilder::new(&mut obj_typ_repo);
 
-        let mut get_properties = |items_outward: &[Dec], base_typ: ArithmeticType| {
-            let obj_typ = typ_bld.build_obj_type(items_outward, base_typ);
+        let mut get_properties = |items_baseward: &[Dec], base_typ: ArithmeticType| {
+            let obj_typ = typ_bld.build_obj_type(items_baseward, base_typ);
 
             let single_typ = match obj_typ.as_ref() {
                 ObjType::Scalar(_) => None,

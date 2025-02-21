@@ -5,6 +5,7 @@ use derive_more::From;
 use std::borrow::Borrow;
 
 impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
+    #[inline]
     pub(super) fn parse_exp(&mut self) -> Result<Expression<ParsedCAst>> {
         self.do_parse_exp(BinaryOperatorPrecedence::min())
     }
@@ -176,7 +177,7 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
             }
             Ok(args)
         };
-        inner().context("<argument-list>")
+        inner().context(r#""(" <argument-list> ")""#)
     }
     fn parse_postfix_exp(
         &mut self,
@@ -199,7 +200,7 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
             }
             Ok(lhs_exp)
         };
-        inner().context("<postfix-exp> suffix")
+        inner().context(r#"{ "[" <exp> "]" }"#)
     }
 }
 

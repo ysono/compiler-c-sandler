@@ -62,7 +62,7 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
             loop {
                 match self.tokens.peek() {
                     None => break,
-                    _ => match self.parse_declaration()? {
+                    Some(_) => match self.parse_declaration()? {
                         Some(decl) => {
                             decls.push(decl);
                         }

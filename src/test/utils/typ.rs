@@ -24,12 +24,12 @@ pub struct TypeBuilder<'a> {
 impl<'a> TypeBuilder<'a> {
     pub fn build_obj_type(
         &mut self,
-        in_items_outward: &[TestDeclaratorItem],
+        in_items_baseward: &[TestDeclaratorItem],
         base_typ: ArithmeticType,
     ) -> Singleton<ObjType> {
         let mut cur_typ = self.obj_typ_repo.get_or_new(base_typ.into());
 
-        for in_item in in_items_outward.iter().rev() {
+        for in_item in in_items_baseward.iter().rev() {
             match in_item {
                 TestDeclaratorItem::Ptr => {
                     cur_typ = self
