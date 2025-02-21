@@ -66,9 +66,10 @@ impl<'a> FunInstrsGenerator<'a> {
             instrs: Default::default(),
         }
     }
+}
 
-    /* Definition */
-
+/// Definition
+impl FunInstrsGenerator<'_> {
     fn tackify_fun_defn(
         mut self,
         c::FunctionDefinition {
@@ -97,9 +98,10 @@ impl<'a> FunInstrsGenerator<'a> {
             instrs: self.instrs,
         }
     }
+}
 
-    /* Block */
-
+/// Block
+impl FunInstrsGenerator<'_> {
     fn gen_block(&mut self, c_block: c::Block<TypeCheckedCAst>) {
         for c_item in c_block.items {
             match c_item {
@@ -108,9 +110,10 @@ impl<'a> FunInstrsGenerator<'a> {
             }
         }
     }
+}
 
-    /* Statement */
-
+/// Statement
+impl FunInstrsGenerator<'_> {
     fn gen_stmt(&mut self, c_stmt: c::Statement<TypeCheckedCAst>) {
         match c_stmt {
             c::Statement::Return(c_exp) => {

@@ -9,9 +9,8 @@ use crate::{
     stage3_tacky::tacky_ast::*,
 };
 
+/// Binary pointer arithmetic
 impl FunInstrsGenerator<'_> {
-    /* Binary pointer arithmetic */
-
     pub(super) fn gen_exp_binary_ptr(
         &mut self,
         op: c::PointerArithmeticBinaryOperator,
@@ -117,9 +116,10 @@ impl FunInstrsGenerator<'_> {
 
         out_val
     }
+}
 
-    /* Subscript */
-
+/// Subscript
+impl FunInstrsGenerator<'_> {
     pub(super) fn gen_exp_subscript<LTyp>(
         &mut self,
         c::Subscript { exp1: ptr_exp, exp2: idx_exp }: c::Subscript<TypeCheckedCAst>,

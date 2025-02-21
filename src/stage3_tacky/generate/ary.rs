@@ -10,9 +10,8 @@ use crate::{
 };
 use std::rc::Rc;
 
+/// C Unary
 impl FunInstrsGenerator<'_> {
-    /* C Unary */
-
     pub(super) fn gen_exp_unary(
         &mut self,
         c::Unary { op, sub_exp }: c::Unary<TypeCheckedCAst>,
@@ -34,9 +33,10 @@ impl FunInstrsGenerator<'_> {
             .push(Instruction::Unary(Unary { op, src, dst: dst.clone() }));
         dst
     }
+}
 
-    /* C Binary */
-
+/// C Binary
+impl FunInstrsGenerator<'_> {
     pub(super) fn gen_exp_binary(
         &mut self,
         c_binary: c::Binary<TypeCheckedCAst>,

@@ -11,9 +11,8 @@ use anyhow::{Result, anyhow};
 use owning_ref::OwningRef;
 use std::{borrow::Borrow, cmp::Ordering};
 
+/// Common type
 impl TypeChecker {
-    /* Common type */
-
     /// Given an expression that requires its two sub-expressions to have the same type,
     ///     cast these sub-expressions to their "common type".
     pub(super) fn cast_to_common_type(
@@ -99,9 +98,10 @@ impl TypeChecker {
             ))
         }
     }
+}
 
-    /* Casting explicitly */
-
+/// Casting explicitly
+impl TypeChecker {
     pub(super) fn cast_explicitly(
         &mut self,
         Cast { typ: to, sub_exp: from }: Cast<ResolvedCAst>,
@@ -124,9 +124,10 @@ impl TypeChecker {
         let typed_rexp = Self::insert_cast_node(to, from);
         Ok(typed_rexp)
     }
+}
 
-    /* Casting "as if by assignment" */
-
+/// Casting "as if by assignment"
+impl TypeChecker {
     /// Cast unidirectionally and implicitly, in various assignment-like contexts.
     pub(super) fn cast_by_assignment(
         &mut self,
@@ -168,9 +169,10 @@ impl TypeChecker {
         };
         ok.map_err(|()| anyhow!("Cannot \"convert as if by assignment\" {to:?} <- {from:?}"))
     }
+}
 
-    /* Promotion */
-
+/// Promotion
+impl TypeChecker {
     pub(super) fn promote_character_to_int(
         &mut self,
         in_typed_exp: TypedExp<ScalarType>,
@@ -183,9 +185,10 @@ impl TypeChecker {
             in_typed_exp
         }
     }
+}
 
-    /* Helpers on casting */
-
+/// Helpers on casting
+impl TypeChecker {
     pub(super) fn maybe_insert_cast_node<St: Borrow<SubObjType<ScalarType>>>(
         to: St,
         from: TypedExp<ScalarType>,
@@ -206,9 +209,10 @@ impl TypeChecker {
             typ: to,
         }
     }
+}
 
-    /* Helpers on types */
-
+/// Helpers on types
+impl TypeChecker {
     pub(super) fn get_scalar_type<Typ: Into<ScalarType>>(
         &mut self,
         typ: Typ,

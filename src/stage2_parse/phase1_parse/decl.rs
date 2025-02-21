@@ -15,9 +15,8 @@ use crate::{
 use anyhow::{Context, Result, anyhow};
 use std::cmp;
 
+/// Non-abstract declarator
 impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
-    /* Non-abstract declarator */
-
     pub(super) fn parse_specifiers_and_declarator(
         &mut self,
     ) -> Result<Option<(DeclaratorResult, Option<StorageClassSpecifier>)>> {
@@ -294,9 +293,10 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
 
         Ok(DeclaratorResult::Var(ident, cur_type))
     }
+}
 
-    /* Abstract declarator */
-
+/// Abstract declarator
+impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
     pub(super) fn parse_cast_type(&mut self) -> Result<Option<Singleton<ObjType>>> {
         let mut inner = || -> Result<_> {
             let base_type = match self.parse_specifiers()? {

@@ -4,9 +4,8 @@ use crate::{
     stage4_asm_gen::asm_ast::*,
 };
 
+/// Tacky Copy
 impl InstrsGenerator {
-    /* Tacky Copy */
-
     pub(super) fn gen_copy(
         &mut self,
         t::SrcDst { src, dst }: t::SrcDst,
@@ -15,9 +14,10 @@ impl InstrsGenerator {
         let dst = self.value_to_operand(dst);
         vec![Instruction::Mov { asm_type, src, dst }]
     }
+}
 
-    /* Tacky instructions using a memory address. */
-
+/// Tacky instructions using a memory address.
+impl InstrsGenerator {
     pub(super) fn gen_getaddr(
         &mut self,
         t::GetAddress { src_obj, dst_addr }: t::GetAddress,

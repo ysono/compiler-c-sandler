@@ -37,6 +37,8 @@ pub struct CAstValidator {
 
     loop_ids_stack: Vec<Rc<LoopId>>,
 }
+
+/// Program
 impl CAstValidator {
     pub fn resolve_program(
         &mut self,
@@ -51,9 +53,10 @@ impl CAstValidator {
         };
         inner().context("c_ast resolver on <program>")
     }
+}
 
-    /* Declaration */
-
+/// Declaration
+impl CAstValidator {
     fn resolve_decl(&mut self, decl: Declaration<ParsedCAst>) -> Result<Declaration<ResolvedCAst>> {
         let inner = || -> Result<_> {
             match decl {
@@ -137,9 +140,10 @@ impl CAstValidator {
         };
         inner().context("<function-declaration>")
     }
+}
 
-    /* Block */
-
+/// Block
+impl CAstValidator {
     fn resolve_block(
         &mut self,
         Block { items }: Block<ParsedCAst>,
@@ -188,9 +192,10 @@ impl CAstValidator {
         };
         inner().context("<block-item>")
     }
+}
 
-    /* Statement */
-
+/// Statement
+impl CAstValidator {
     fn resolve_stmt(&mut self, stmt: Statement<ParsedCAst>) -> Result<Statement<ResolvedCAst>> {
         let inner = || -> Result<_> {
             match stmt {
@@ -300,9 +305,10 @@ impl CAstValidator {
         };
         inner().context("<statement> for")
     }
+}
 
-    /* Expression */
-
+/// Expression
+impl CAstValidator {
     fn resolve_exp(&mut self, exp: Expression<ParsedCAst>) -> Result<Expression<ResolvedCAst>> {
         let inner = || -> Result<_> {
             match exp {

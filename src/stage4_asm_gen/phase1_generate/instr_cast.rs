@@ -10,9 +10,8 @@ use crate::{
 };
 use std::rc::Rc;
 
+/// Purely bitwise transformations
 impl InstrsGenerator {
-    /* Purely bitwise transformations */
-
     pub(super) fn gen_signextend(
         &mut self,
         t::SrcDst { src, dst }: t::SrcDst,
@@ -47,17 +46,17 @@ impl InstrsGenerator {
         let (dst, _, asm_type) = self.value_to_operand_and_type(dst);
         vec![Instruction::Mov { asm_type, src, dst }]
     }
+}
 
-    /* Transformation across integer and floating-point types */
-    /*
-    Note, wherever we use `Instruction::Cvttsd2si`,
-        if the src float value is out of the range of the dst int type,
-        the result is the special "indefinite integer" value, which is the minimum value the dst int type supports,
-        and a status flag is set.
-    In such case, all downstream values are corrupted.
-    We choose not to warn about this edge case.
-    */
-
+/// Transformation across integer and floating-point types
+///
+/// Note, wherever we use `Instruction::Cvttsd2si`,
+///     if the src float value is out of the range of the dst int type,
+///     the result is the special "indefinite integer" value, which is the minimum value the dst int type supports,
+///     and a status flag is set.
+/// In such case, all downstream values are corrupted.
+/// We choose not to warn about this edge case.
+impl InstrsGenerator {
     pub(super) fn gen_double_to_sgn_integ(
         &mut self,
         t::SrcDst { src, dst }: t::SrcDst,

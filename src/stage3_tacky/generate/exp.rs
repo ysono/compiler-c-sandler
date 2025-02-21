@@ -11,9 +11,8 @@ use crate::{
 };
 use std::rc::Rc;
 
+/// Expression
 impl FunInstrsGenerator<'_> {
-    /* Expression */
-
     pub(super) fn gen_exp<LTyp>(&mut self, typed_exp: c::TypedExp<LTyp>) -> ExpResult<LTyp> {
         match typed_exp {
             c::TypedExp::R(typed_rexp) => self.gen_rexp(typed_rexp).into(),
@@ -61,9 +60,10 @@ impl FunInstrsGenerator<'_> {
             },
         }
     }
+}
 
-    /* Helpers */
-
+/// Helpers
+impl FunInstrsGenerator<'_> {
     pub(super) fn register_new_value(&mut self, sca_typ: SubObjType<ScalarType>) -> Value {
         let ident = Rc::new(SymbolIdentifier::new_generated());
 

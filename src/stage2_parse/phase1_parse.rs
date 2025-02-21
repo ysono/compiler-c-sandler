@@ -46,6 +46,7 @@ pub struct Parser<T: Iterator<Item = Result<t::Token>>> {
     obj_type_repo: SingletonRepository<ObjType>,
     fun_type_repo: SingletonRepository<ParsedFunType>,
 }
+
 impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
     pub fn new(tokens: T) -> Self {
         Self {
@@ -76,9 +77,10 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
         };
         inner().context("tokens -> c_ast <program>")
     }
+}
 
-    /* Block */
-
+/// Block
+impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
     fn parse_block(&mut self) -> Result<Block<ParsedCAst>> {
         let mut inner = || -> Result<_> {
             self.expect_exact(&[t::Demarcator::CurlyOpen.into()])?;
@@ -110,9 +112,10 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
         };
         inner().context("<block-item>")
     }
+}
 
-    /* Helpers */
-
+/// Helpers
+impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
     fn expect_exact(&mut self, next_tokens: &[t::Token]) -> Result<()> {
         for expected in next_tokens {
             match self.tokens.next() {

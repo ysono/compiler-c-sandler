@@ -38,8 +38,6 @@ impl InstrsGenerator {
         }
     }
 
-    /* Tacky Function */
-
     pub fn convert_fun(
         &mut self,
         t::Function {
@@ -53,8 +51,6 @@ impl InstrsGenerator {
         let instrs = self.gen_fun_instrs(typ, param_idents, instrs);
         Function { ident, visibility, instrs }
     }
-
-    /* Tacky Instruction */
 
     fn gen_instructions(
         &mut self,

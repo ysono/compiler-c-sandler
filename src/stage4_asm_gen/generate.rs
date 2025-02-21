@@ -29,8 +29,6 @@ impl AsmCodeGenerator {
         (prog, backend_symtab)
     }
 
-    /* Tacky Function */
-
     fn convert_funs(
         self,
         funs: Vec<t::Function>,

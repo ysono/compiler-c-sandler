@@ -1,3 +1,4 @@
+use self::helpers_binary::*;
 use super::TypeChecker;
 use crate::{
     common::types_frontend::{ArithmeticType, ObjType, PointerType, ScalarType, SubObjType},
@@ -6,8 +7,7 @@ use crate::{
 use anyhow::{Result, anyhow};
 use owning_ref::OwningRef;
 
-/* Binary */
-
+/// Binary
 impl TypeChecker {
     pub(super) fn typecheck_exp_binary(
         &mut self,
@@ -166,26 +166,28 @@ impl TypeChecker {
     }
 }
 
-/* Helpers on binary expressions */
+/// Helpers on binary expressions
+mod helpers_binary {
+    use super::*;
 
-fn new_binary_exp<Op: Into<TypeCheckedBinaryOperator>>(
-    op: Op,
-    lhs: TypedExp<ScalarType>,
-    rhs: TypedExp<ScalarType>,
-    typ: SubObjType<ScalarType>,
-) -> TypedRExp {
-    TypedRExp {
-        exp: RExp::Binary(Binary {
-            op: op.into(),
-            lhs: Box::new(lhs),
-            rhs: Box::new(rhs),
-        }),
-        typ,
+    pub fn new_binary_exp<Op: Into<TypeCheckedBinaryOperator>>(
+        op: Op,
+        lhs: TypedExp<ScalarType>,
+        rhs: TypedExp<ScalarType>,
+        typ: SubObjType<ScalarType>,
+    ) -> TypedRExp {
+        TypedRExp {
+            exp: RExp::Binary(Binary {
+                op: op.into(),
+                lhs: Box::new(lhs),
+                rhs: Box::new(rhs),
+            }),
+            typ,
+        }
     }
 }
 
-/* Subscript */
-
+/// Subscript
 impl TypeChecker {
     pub(super) fn typecheck_exp_subscript(
         &mut self,

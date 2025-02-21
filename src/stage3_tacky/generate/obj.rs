@@ -5,9 +5,8 @@ use crate::{
     stage3_tacky::tacky_ast::*,
 };
 
+/// C Assignment
 impl FunInstrsGenerator<'_> {
-    /* C Assignment */
-
     pub(super) fn gen_exp_assignment(
         &mut self,
         c::Assignment { lhs, rhs }: c::Assignment<TypeCheckedCAst>,
@@ -35,9 +34,10 @@ impl FunInstrsGenerator<'_> {
             }
         }
     }
+}
 
-    /* Object <-> pointer-typed Value */
-
+/// Object <-> pointer-typed Value
+impl FunInstrsGenerator<'_> {
     pub(super) fn gen_exp_deref<LTyp>(
         &mut self,
         c::Dereference(sub_exp): c::Dereference<TypeCheckedCAst>,

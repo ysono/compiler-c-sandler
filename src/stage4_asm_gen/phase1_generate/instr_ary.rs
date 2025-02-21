@@ -8,9 +8,8 @@ use crate::{
     stage4_asm_gen::asm_ast::*,
 };
 
+/// Tacky Unary
 impl InstrsGenerator {
-    /* Tacky Unary */
-
     pub(super) fn gen_unary(&mut self, t_unary: t::Unary) -> Vec<Instruction<GeneratedAsmAst>> {
         match &t_unary.op {
             t::UnaryOperator::Numeric(op) => self.gen_unary_numeric(*op, t_unary),
@@ -57,9 +56,10 @@ impl InstrsGenerator {
         };
         vec![asm_instr_1, asm_instr_2]
     }
+}
 
-    /* Tacky Binary */
-
+/// Tacky Binary
+impl InstrsGenerator {
     pub(super) fn gen_binary(&mut self, t_binary: t::Binary) -> Vec<Instruction<GeneratedAsmAst>> {
         use t::BinaryOperator as TBO;
 

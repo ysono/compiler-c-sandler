@@ -90,9 +90,10 @@ impl TypeChecker {
 
         Ok((program, self.symbol_table))
     }
+}
 
-    /* Block */
-
+/// Block
+impl TypeChecker {
     fn typecheck_block(
         &mut self,
         Block { items }: Block<ResolvedCAst>,
@@ -130,9 +131,10 @@ impl TypeChecker {
             }
         }
     }
+}
 
-    /* Statement */
-
+/// Statement
+impl TypeChecker {
     fn typecheck_stmt(
         &mut self,
         stmt: Statement<ResolvedCAst>,

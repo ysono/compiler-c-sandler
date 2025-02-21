@@ -11,9 +11,8 @@ use crate::{
 };
 use std::rc::Rc;
 
+/// Tacky Value -> Asm Operand and type info
 impl InstrsGenerator {
-    /* Tacky Value -> Asm Operand and type info */
-
     pub(super) fn value_to_operand_and_type(
         &mut self,
         t_val: t::Value,
@@ -70,9 +69,10 @@ impl InstrsGenerator {
             },
         }
     }
+}
 
-    /* Asm static readonly objs */
-
+/// Asm static readonly objs
+impl InstrsGenerator {
     pub(super) fn get_or_new_static_readonly_operand(
         &mut self,
         custom_alignment: Option<Alignment>,

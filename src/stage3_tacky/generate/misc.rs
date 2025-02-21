@@ -9,9 +9,8 @@ use crate::{
 };
 use std::cmp::Ordering;
 
+/// C Cast
 impl FunInstrsGenerator<'_> {
-    /* C Cast */
-
     pub(super) fn gen_exp_cast(
         &mut self,
         c::Cast { typ: _, sub_exp }: c::Cast<TypeCheckedCAst>,
@@ -70,9 +69,10 @@ impl FunInstrsGenerator<'_> {
             dst
         }
     }
+}
 
-    /* C Function Call */
-
+/// C Function Call
+impl FunInstrsGenerator<'_> {
     pub(super) fn gen_exp_fun_call(
         &mut self,
         c::FunctionCall { ident, args }: c::FunctionCall<TypeCheckedCAst>,
