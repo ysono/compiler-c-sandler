@@ -4,7 +4,7 @@ use crate::{
         primitive::Const,
         symbol_table_frontend::{InitializerItem, StaticInitializer},
         types_backend::ByteLen,
-        types_frontend::{ObjType, ScalarType},
+        types_frontend::{ObjType, ScalarType, SubObjType},
     },
     ds_n_a::singleton::Singleton,
     stage2_parse::{c_ast::*, phase2_resolve::ResolvedCAst},
@@ -24,7 +24,7 @@ impl TypeChecker {
         typ: &Singleton<ObjType>,
         init: VariableInitializer<ResolvedCAst>,
     ) -> Result<Vec<InitializerItem<Const>>> {
-        let mut typecheck_single = |typ: &Singleton<ObjType>, exp: Expression<ResolvedCAst>| {
+        let mut typecheck_single = |typ: SubObjType<ScalarType>, exp: Expression<ResolvedCAst>| {
             self.typecheck_initializer_static_single(typ, exp)
         };
 
@@ -34,12 +34,9 @@ impl TypeChecker {
     }
     fn typecheck_initializer_static_single(
         &mut self,
-        to: &Singleton<ObjType>,
+        to: SubObjType<ScalarType>,
         from: Expression<ResolvedCAst>,
     ) -> Result<InitializerItem<Const>> {
-        let to = Self::extract_scalar_type_ref(to)
-            .map_err(|typ| anyhow!("Cannot \"convert as if by assignment\" to {typ:#?}"))?;
-
         match &from {
             Expression::R(RExp::Const(_)) => noop!(),
             Expression::L(LExp::String(_)) => noop!(),
@@ -52,12 +49,12 @@ impl TypeChecker {
 
         let from = self.typecheck_exp_and_convert_to_scalar(from)?;
 
-        let () = Self::can_cast_by_assignment(to, &from)?;
+        let () = Self::can_cast_by_assignment(&to, &from)?;
 
         let item = match from {
             TypedExp::R(TypedRExp { exp, .. }) => match exp {
                 RExp::Const(in_konst) => {
-                    let out_konst = in_konst.cast_at_compile_time(to);
+                    let out_konst = in_konst.cast_at_compile_time(&to);
 
                     if out_konst.is_zero_integer() {
                         let bytelen = ByteLen::from(out_konst.arithmetic_type());
@@ -87,8 +84,8 @@ impl TypeChecker {
         typ: &Singleton<ObjType>,
         init: VariableInitializer<ResolvedCAst>,
     ) -> Result<Vec<InitializerItem<TypedExp<ScalarType>>>> {
-        let mut typecheck_single = |typ: &Singleton<ObjType>, exp: Expression<ResolvedCAst>| {
-            self.cast_by_assignment(typ.clone(), exp)
+        let mut typecheck_single = |typ: SubObjType<ScalarType>, exp: Expression<ResolvedCAst>| {
+            self.cast_by_assignment(typ, exp)
                 .map(InitializerItem::Single)
         };
 
@@ -104,11 +101,12 @@ impl TypeChecker {
         out_items: &mut Vec<InitializerItem<Sngl>>,
     ) -> Result<()>
     where
-        F: FnMut(&Singleton<ObjType>, Expression<ResolvedCAst>) -> Result<InitializerItem<Sngl>>,
+        F: FnMut(SubObjType<ScalarType>, Expression<ResolvedCAst>) -> Result<InitializerItem<Sngl>>,
     {
         match (typ.as_ref(), init) {
             (ObjType::Scalar(_), VariableInitializer::Single(exp)) => {
-                let item = typecheck_single(typ, exp)?;
+                let sca_typ = Self::extract_scalar_type(typ.clone()).unwrap();
+                let item = typecheck_single(sca_typ, exp)?;
                 Self::push_initializer_item(out_items, item);
             }
             (ObjType::Array(arr_typ), VariableInitializer::Compound(sub_inits)) => {

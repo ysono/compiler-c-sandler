@@ -129,17 +129,7 @@ impl TypeChecker {
 /// Casting "as if by assignment"
 impl TypeChecker {
     /// Cast unidirectionally and implicitly, in various assignment-like contexts.
-    pub(super) fn cast_by_assignment(
-        &mut self,
-        to: Singleton<ObjType>,
-        from: Expression<ResolvedCAst>,
-    ) -> Result<TypedExp<ScalarType>> {
-        let to = Self::extract_scalar_type(to)
-            .map_err(|typ| anyhow!("Cannot \"convert as if by assignment\" to {typ:#?}"))?;
-
-        self.cast_scalar_by_assignment(to, from)
-    }
-    pub(super) fn cast_scalar_by_assignment<St: Borrow<SubObjType<ScalarType>>>(
+    pub(super) fn cast_by_assignment<St: Borrow<SubObjType<ScalarType>>>(
         &mut self,
         to: St,
         from: Expression<ResolvedCAst>,
@@ -236,12 +226,6 @@ impl TypeChecker {
                 let ownref = OwningRef::new(obj_typ).map(|_| arr_typ);
                 Err(ownref)
             }
-        }
-    }
-    pub(super) fn extract_scalar_type_ref(obj_typ: &ObjType) -> Result<&ScalarType, &ArrayType> {
-        match obj_typ {
-            ObjType::Scalar(s) => Ok(s),
-            ObjType::Array(a) => Err(a),
         }
     }
 }

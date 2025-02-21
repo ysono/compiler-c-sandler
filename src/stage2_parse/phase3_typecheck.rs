@@ -144,7 +144,7 @@ impl TypeChecker {
                 // Does transform.
                 let fun_typ = self.curr_fun_type.as_ref().unwrap();
                 let ret_typ = fun_typ.ret.clone();
-                let exp = self.cast_scalar_by_assignment(ret_typ, exp)?;
+                let exp = self.cast_by_assignment(ret_typ, exp)?;
 
                 Ok(Statement::Return(exp))
             }
