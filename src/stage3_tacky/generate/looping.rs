@@ -5,8 +5,7 @@ use crate::{
     stage3_tacky::tacky_ast::*,
     utils::noop,
 };
-use std::collections::HashMap;
-use std::rc::Rc;
+use std::{collections::HashMap, rc::Rc};
 
 impl FunInstrsGenerator<'_> {
     pub(super) fn gen_stmt_break(&mut self, loop_id: Rc<c::LoopId>) {

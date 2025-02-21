@@ -1,12 +1,13 @@
 #[cfg(test)]
 mod test;
 
-use core::borrow::Borrow;
-use core::hash::{Hash, Hasher};
-use core::ops::Deref;
+use core::{
+    borrow::Borrow,
+    hash::{Hash, Hasher},
+    ops::Deref,
+};
 use owning_ref::{CloneStableAddress, StableAddress};
-use std::collections::HashSet;
-use std::rc::Rc;
+use std::{collections::HashSet, rc::Rc};
 
 /// This container stores distinct instances of `T`.
 ///

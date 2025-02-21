@@ -6,8 +6,10 @@ use crate::{
 };
 use anyhow::{Context, Result, anyhow};
 use regex::Regex;
-use std::collections::VecDeque;
-use std::io::{BufRead, Read};
+use std::{
+    collections::VecDeque,
+    io::{BufRead, Read},
+};
 
 pub struct Lexer<R> {
     matchers: TokenMatchers,

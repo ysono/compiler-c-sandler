@@ -1,6 +1,8 @@
 use crate::common::types_frontend::{ArithmeticType, ScalarType};
-use std::hash::{Hash, Hasher};
-use std::mem;
+use std::{
+    hash::{Hash, Hasher},
+    mem,
+};
 
 #[derive(Clone, Copy, Debug)]
 pub enum Const {

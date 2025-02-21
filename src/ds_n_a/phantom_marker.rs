@@ -1,5 +1,7 @@
-use core::fmt::{self, Debug, Formatter};
-use core::marker::PhantomData;
+use core::{
+    fmt::{self, Debug, Formatter},
+    marker::PhantomData,
+};
 
 /// This type helps ensure the presence of an instance of `T`, for sanity-check purposes.
 /// The struct takes no space at runtime.

@@ -1,8 +1,6 @@
 use anyhow::{Result, anyhow};
 use derive_more::Deref;
-use std::borrow::Borrow;
-use std::ffi::OsStr;
-use std::path::PathBuf;
+use std::{borrow::Borrow, ffi::OsStr, path::PathBuf};
 
 #[derive(Deref, Debug)]
 pub struct SrcFilepath(PathBuf);

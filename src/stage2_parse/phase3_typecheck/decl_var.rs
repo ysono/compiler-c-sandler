@@ -11,8 +11,7 @@ use crate::{
 };
 use anyhow::{Context, Result, anyhow};
 use derive_more::From;
-use std::collections::hash_map::Entry;
-use std::rc::Rc;
+use std::{collections::hash_map::Entry, rc::Rc};
 
 impl TypeChecker {
     /// Resolve a variable declaration, in the symbol table.

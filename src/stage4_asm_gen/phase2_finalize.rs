@@ -13,8 +13,7 @@ use crate::{
     ds_n_a::immutable_owned::ImmutableOwned,
     stage4_asm_gen::{asm_ast::*, phase1_generate::GeneratedAsmAst, phase3_fix::OperandFixer},
 };
-use std::collections::VecDeque;
-use std::rc::Rc;
+use std::{collections::VecDeque, rc::Rc};
 
 #[derive(Debug)]
 pub struct FinalizedAsmAst(());

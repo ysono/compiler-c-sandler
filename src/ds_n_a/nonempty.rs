@@ -1,7 +1,6 @@
 //! Note, in a different library, [`NonEmpty::from_vec()`](https://docs.rs/nonempty/0.10.0/nonempty/struct.NonEmpty.html#method.from_vec) calls `Vec::remove(0)`, which is O(n).
 
-use core::fmt::Debug;
-use core::ops::Deref;
+use core::{fmt::Debug, ops::Deref};
 
 pub struct NonEmpty<T> {
     vec: Vec<T>,

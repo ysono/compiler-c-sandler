@@ -5,8 +5,7 @@ use crate::common::{
     types_backend::{ByteLen, ScalarAssemblyType},
 };
 use derive_more::{AsMut, Constructor, From};
-use std::fmt::Debug;
-use std::rc::Rc;
+use std::{fmt::Debug, rc::Rc};
 
 pub trait AsmAstVariant {
     type Instructions: Debug;

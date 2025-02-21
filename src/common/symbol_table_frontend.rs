@@ -9,8 +9,7 @@ use crate::{
 };
 use anyhow::{Result, anyhow};
 use derive_more::{AsMut, Deref, Into};
-use std::collections::HashMap;
-use std::rc::Rc;
+use std::{collections::HashMap, rc::Rc};
 
 #[derive(Debug)]
 pub enum Symbol {

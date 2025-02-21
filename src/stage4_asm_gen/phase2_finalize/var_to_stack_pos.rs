@@ -5,8 +5,7 @@ use crate::{
     },
     stage4_asm_gen::asm_ast::MemoryOffset,
 };
-use std::collections::HashMap;
-use std::rc::Rc;
+use std::{collections::HashMap, rc::Rc};
 
 pub struct VarToStackPos {
     last_used_stack_pos: MemoryOffset,

@@ -1,8 +1,10 @@
 use derivative::Derivative;
 use derive_more::{Constructor, Deref};
-use std::borrow::Borrow;
-use std::rc::Rc;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::{
+    borrow::Borrow,
+    rc::Rc,
+    sync::atomic::{AtomicU64, Ordering},
+};
 
 #[derive(Constructor, Deref, PartialEq, Eq, Hash, Debug)]
 pub struct RawIdentifier(String);

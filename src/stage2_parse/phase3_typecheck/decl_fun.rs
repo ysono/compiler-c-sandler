@@ -10,8 +10,7 @@ use crate::{
     utils::noop,
 };
 use anyhow::{Context, Result, anyhow};
-use std::collections::hash_map::Entry;
-use std::rc::Rc;
+use std::{collections::hash_map::Entry, rc::Rc};
 
 impl TypeChecker {
     /// Resolve a function declaration, in the symbol table.

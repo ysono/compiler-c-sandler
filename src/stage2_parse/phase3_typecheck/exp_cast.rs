@@ -9,8 +9,7 @@ use crate::{
 };
 use anyhow::{Result, anyhow};
 use owning_ref::OwningRef;
-use std::borrow::Borrow;
-use std::cmp::Ordering;
+use std::{borrow::Borrow, cmp::Ordering};
 
 impl TypeChecker {
     /* Common type */

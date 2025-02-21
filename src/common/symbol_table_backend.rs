@@ -8,8 +8,10 @@ use crate::common::{
 };
 use derive_more::From;
 use getset::{Getters, MutGetters};
-use std::collections::{HashMap, hash_map::Entry};
-use std::rc::Rc;
+use std::{
+    collections::{HashMap, hash_map::Entry},
+    rc::Rc,
+};
 
 #[derive(Debug)]
 pub struct AsmObj {

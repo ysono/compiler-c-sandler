@@ -3,8 +3,10 @@ use crate::{
     stage2_parse::c_ast::StorageClassSpecifier,
 };
 use anyhow::{Result, anyhow};
-use std::collections::{HashMap, HashSet};
-use std::rc::Rc;
+use std::{
+    collections::{HashMap, HashSet},
+    rc::Rc,
+};
 
 pub struct IdentResolver {
     /// This abstracts a copy-on-write dict.

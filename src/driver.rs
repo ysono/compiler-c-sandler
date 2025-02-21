@@ -21,10 +21,12 @@ use crate::{
 };
 use anyhow::Result;
 use duct::{Handle, ReaderHandle, cmd};
-use std::fs::{self, OpenOptions};
-use std::io::{self, BufRead, BufReader, BufWriter, Read};
-use std::mem;
-use std::path::PathBuf;
+use std::{
+    fs::{self, OpenOptions},
+    io::{self, BufRead, BufReader, BufWriter, Read},
+    mem,
+    path::PathBuf,
+};
 
 pub struct Driver {
     args: Args,
