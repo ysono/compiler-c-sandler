@@ -1,7 +1,10 @@
+use self::{binary_helpers::*, unary_helpers::*};
 use super::{ParsedCAst, Parser};
-use crate::{stage1_lex::tokens as t, stage2_parse::c_ast::*};
+use crate::{
+    common::types_frontend::ObjType, ds_n_a::singleton::Singleton, stage1_lex::tokens as t,
+    stage2_parse::c_ast::*,
+};
 use anyhow::{Context, Result, anyhow};
-use derive_more::From;
 use std::borrow::Borrow;
 
 impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
@@ -77,11 +80,30 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
     }
     fn parse_unary_exp(&mut self) -> Result<Expression<ParsedCAst>> {
         let mut inner = || -> Result<_> {
-            match self.tokens.next() {
+            match self.parse_unary_exp_head()? {
+                UnaryExpHead::PrimaryExp(primary_exp) => self.parse_postfix_exp(primary_exp),
+                UnaryExpHead::UnaryOp(op) => {
+                    let sub_exp = Box::new(self.parse_unary_exp()?);
+
+                    let exp = match op {
+                        ParsedUnaryOp::Op(op) => RExp::Unary(Unary { op, sub_exp }).into(),
+                        ParsedUnaryOp::Deref => LExp::Dereference(Dereference(sub_exp)).into(),
+                        ParsedUnaryOp::AddrOf => RExp::AddrOf(AddrOf(sub_exp)).into(),
+                        ParsedUnaryOp::Cast(typ) => RExp::Cast(Cast { typ, sub_exp }).into(),
+                    };
+                    Ok(exp)
+                }
+            }
+        };
+        inner().context("<unary-exp>")
+    }
+    fn parse_unary_exp_head(&mut self) -> Result<UnaryExpHead> {
+        let mut inner = || -> Result<_> {
+            let head = match self.tokens.next() {
                 Some(Ok(t::Token::Const(konst))) => {
                     let primary_exp = RExp::Const(konst).into();
 
-                    self.parse_postfix_exp(primary_exp)
+                    UnaryExpHead::PrimaryExp(primary_exp)
                 }
                 Some(Ok(t::Token::String(mut chars))) => {
                     while let Some(Ok(t::Token::String(_))) = self.tokens.peek() {
@@ -91,7 +113,7 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
                     }
                     let primary_exp = LExp::String(chars).into();
 
-                    self.parse_postfix_exp(primary_exp)
+                    UnaryExpHead::PrimaryExp(primary_exp)
                 }
                 Some(Ok(t::Token::Identifier(ident))) => {
                     let primary_exp = match self.tokens.peek() {
@@ -102,57 +124,41 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
                         _ => LExp::Var(ident).into(),
                     };
 
-                    self.parse_postfix_exp(primary_exp)
+                    UnaryExpHead::PrimaryExp(primary_exp)
                 }
-                Some(Ok(t::Token::Operator(t_op))) => self.parse_unary_op_exp(t_op),
+                Some(Ok(t::Token::Operator(t_op))) => {
+                    let op = match t_op {
+                        t::Operator::Tilde => ParsedUnaryOp::Op(UnaryOperator::Complement),
+                        t::Operator::Minus => ParsedUnaryOp::Op(UnaryOperator::Negate),
+                        t::Operator::Bang => ParsedUnaryOp::Op(UnaryOperator::Not),
+                        t::Operator::Star => ParsedUnaryOp::Deref,
+                        t::Operator::Ampersand => ParsedUnaryOp::AddrOf,
+                        actual => return Err(anyhow!("{actual:#?}")),
+                    };
+
+                    UnaryExpHead::UnaryOp(op)
+                }
                 Some(Ok(t::Token::Demarcator(t::Demarcator::ParenOpen))) => {
                     match self.parse_cast_type()? {
                         Some(typ) => {
                             self.expect_exact(&[t::Demarcator::ParenClose.into()])?;
 
-                            let sub_exp = Box::new(self.parse_unary_exp()?);
-                            Ok(RExp::Cast(Cast { typ, sub_exp }).into())
+                            UnaryExpHead::UnaryOp(ParsedUnaryOp::Cast(typ))
                         }
                         None => {
                             let primary_exp = self.parse_exp()?;
 
                             self.expect_exact(&[t::Demarcator::ParenClose.into()])?;
 
-                            self.parse_postfix_exp(primary_exp)
+                            UnaryExpHead::PrimaryExp(primary_exp)
                         }
                     }
                 }
-                actual => Err(anyhow!("{actual:#?}")),
-            }
-        };
-        inner().context("<unary-exp>")
-    }
-    fn parse_unary_op_exp(&mut self, t_op: t::Operator) -> Result<Expression<ParsedCAst>> {
-        let inner = || -> Result<_> {
-            #[derive(From)]
-            enum Op {
-                Unary(UnaryOperator),
-                Deref,
-                AddrOf,
-            }
-            let op = match t_op {
-                t::Operator::Tilde => UnaryOperator::Complement.into(),
-                t::Operator::Minus => UnaryOperator::Negate.into(),
-                t::Operator::Bang => UnaryOperator::Not.into(),
-                t::Operator::Star => Op::Deref,
-                t::Operator::Ampersand => Op::AddrOf,
                 actual => return Err(anyhow!("{actual:#?}")),
             };
-
-            let sub_exp = Box::new(self.parse_unary_exp()?);
-            let exp = match op {
-                Op::Unary(op) => RExp::Unary(Unary { op, sub_exp }).into(),
-                Op::Deref => LExp::Dereference(Dereference(sub_exp)).into(),
-                Op::AddrOf => RExp::AddrOf(AddrOf(sub_exp)).into(),
-            };
-            Ok(exp)
+            Ok(head)
         };
-        inner().context("<unary-exp> unary")
+        inner().context("<unary-exp> head")
     }
     fn parse_arg_list(&mut self) -> Result<Vec<Expression<ParsedCAst>>> {
         let mut inner = || -> Result<_> {
@@ -204,74 +210,94 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
     }
 }
 
-enum BinaryOperatorInfo {
-    Generic(BinaryOperator),
-    Question,
-    Assign,
-}
-impl<Bo: Into<BinaryOperator>> From<Bo> for BinaryOperatorInfo {
-    fn from(bo: Bo) -> Self {
-        Self::Generic(bo.into())
+mod binary_helpers {
+    use super::*;
+
+    pub enum BinaryOperatorInfo {
+        Generic(BinaryOperator),
+        Question,
+        Assign,
     }
-}
-impl BinaryOperatorInfo {
-    fn parse(t_op: &t::Operator) -> Option<Self> {
-        use t::Operator as TO;
+    impl<Bo: Into<BinaryOperator>> From<Bo> for BinaryOperatorInfo {
+        fn from(bo: Bo) -> Self {
+            Self::Generic(bo.into())
+        }
+    }
+    impl BinaryOperatorInfo {
+        pub fn parse(t_op: &t::Operator) -> Option<Self> {
+            use t::Operator as TO;
 
-        use ArithmeticBinaryOperator as COA;
-        use ComparisonBinaryOperator as COC;
-        use LogicBinaryOperator as COL;
+            use ArithmeticBinaryOperator as COA;
+            use ComparisonBinaryOperator as COC;
+            use LogicBinaryOperator as COL;
 
-        match t_op {
-            TO::Minus => Some(Self::from(COA::Sub)),
-            TO::Plus => Some(Self::from(COA::Add)),
-            TO::Star => Some(Self::from(COA::Mul)),
-            TO::Slash => Some(Self::from(COA::Div)),
-            TO::Percent => Some(Self::from(COA::Rem)),
-            TO::And => Some(Self::from(COL::And)),
-            TO::Or => Some(Self::from(COL::Or)),
-            TO::Eq => Some(Self::from(COC::Eq)),
-            TO::Neq => Some(Self::from(COC::Neq)),
-            TO::Lt => Some(Self::from(COC::Lt)),
-            TO::Lte => Some(Self::from(COC::Lte)),
-            TO::Gt => Some(Self::from(COC::Gt)),
-            TO::Gte => Some(Self::from(COC::Gte)),
-            TO::Question => Some(Self::Question),
-            TO::Assign => Some(Self::Assign),
-            _ => None,
+            match t_op {
+                TO::Minus => Some(Self::from(COA::Sub)),
+                TO::Plus => Some(Self::from(COA::Add)),
+                TO::Star => Some(Self::from(COA::Mul)),
+                TO::Slash => Some(Self::from(COA::Div)),
+                TO::Percent => Some(Self::from(COA::Rem)),
+                TO::And => Some(Self::from(COL::And)),
+                TO::Or => Some(Self::from(COL::Or)),
+                TO::Eq => Some(Self::from(COC::Eq)),
+                TO::Neq => Some(Self::from(COC::Neq)),
+                TO::Lt => Some(Self::from(COC::Lt)),
+                TO::Lte => Some(Self::from(COC::Lte)),
+                TO::Gt => Some(Self::from(COC::Gt)),
+                TO::Gte => Some(Self::from(COC::Gte)),
+                TO::Question => Some(Self::Question),
+                TO::Assign => Some(Self::Assign),
+                _ => None,
+            }
+        }
+    }
+
+    #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+    pub struct BinaryOperatorPrecedence(u8);
+    impl<B: Borrow<BinaryOperatorInfo>> From<B> for BinaryOperatorPrecedence {
+        fn from(boi: B) -> Self {
+            use BinaryOperator as CO;
+
+            use ArithmeticBinaryOperator as COA;
+            use ComparisonBinaryOperator as COC;
+            use LogicBinaryOperator as COL;
+
+            match boi.borrow() {
+                BinaryOperatorInfo::Generic(bo) => match bo {
+                    CO::Arith(COA::Mul | COA::Div | COA::Rem) => Self(50),
+                    CO::Arith(COA::Sub | COA::Add) => Self(45),
+                    CO::Cmp(COC::Lt | COC::Lte | COC::Gt | COC::Gte) => Self(35),
+                    CO::Cmp(COC::Eq | COC::Neq) => Self(30),
+                    CO::Logic(COL::And) => Self(10),
+                    CO::Logic(COL::Or) => Self(5),
+                },
+                BinaryOperatorInfo::Question => Self(3),
+                BinaryOperatorInfo::Assign => Self(1),
+            }
+        }
+    }
+    impl BinaryOperatorPrecedence {
+        pub fn min() -> Self {
+            Self(0)
+        }
+        pub fn inc1(&self) -> Self {
+            Self(self.0 + 1)
         }
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-struct BinaryOperatorPrecedence(u8);
-impl<B: Borrow<BinaryOperatorInfo>> From<B> for BinaryOperatorPrecedence {
-    fn from(boi: B) -> Self {
-        use BinaryOperator as CO;
+mod unary_helpers {
+    use super::*;
 
-        use ArithmeticBinaryOperator as COA;
-        use ComparisonBinaryOperator as COC;
-        use LogicBinaryOperator as COL;
+    pub enum UnaryExpHead {
+        PrimaryExp(Expression<ParsedCAst>),
+        UnaryOp(ParsedUnaryOp),
+    }
 
-        match boi.borrow() {
-            BinaryOperatorInfo::Generic(bo) => match bo {
-                CO::Arith(COA::Mul | COA::Div | COA::Rem) => Self(50),
-                CO::Arith(COA::Sub | COA::Add) => Self(45),
-                CO::Cmp(COC::Lt | COC::Lte | COC::Gt | COC::Gte) => Self(35),
-                CO::Cmp(COC::Eq | COC::Neq) => Self(30),
-                CO::Logic(COL::And) => Self(10),
-                CO::Logic(COL::Or) => Self(5),
-            },
-            BinaryOperatorInfo::Question => Self(3),
-            BinaryOperatorInfo::Assign => Self(1),
-        }
-    }
-}
-impl BinaryOperatorPrecedence {
-    fn min() -> Self {
-        Self(0)
-    }
-    fn inc1(&self) -> Self {
-        Self(self.0 + 1)
+    pub enum ParsedUnaryOp {
+        Op(UnaryOperator),
+        Deref,
+        AddrOf,
+        Cast(Singleton<ObjType>),
     }
 }
