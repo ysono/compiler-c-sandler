@@ -66,7 +66,7 @@ fn assert_method_calls(stats: &Stats, exp: ExpectedMethodCalls) {
     let hash_ct = stats.hash_ct_since_last();
     let eq_ct = stats.eq_ct_since_last();
     let ok = ((hash_ct > 0) == exp.hash) && ((eq_ct > 0) == exp.eq);
-    assert!(ok, "{:?}", (hash_ct, eq_ct, exp));
+    assert!(ok, "{:#?}", (hash_ct, eq_ct, exp));
 }
 
 #[test]

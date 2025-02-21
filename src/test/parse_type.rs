@@ -9,7 +9,7 @@ fn do_test(pp: &'static str, expected_type: ProtoType) -> Result<()> {
     let c_prog = utils::compile_until_parser(pp)?;
     let typ = match &c_prog.decls[0] {
         c::Declaration::Var(c::VariableDeclaration { typ, .. }) => typ,
-        _ => fail!("{c_prog:?}"),
+        _ => fail!("{c_prog:#?}"),
     };
     assert_eq!(typ.as_ref(), expected_type);
     Ok(())

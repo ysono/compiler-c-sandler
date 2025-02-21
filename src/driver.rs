@@ -85,7 +85,7 @@ impl Driver {
             "-o", // Output.
             "/dev/stdout",
         );
-        log::info!("Preprocessor: {gcc_cmd:?}");
+        log::info!("Preprocessor: {gcc_cmd:#?}");
         gcc_cmd.reader()
     }
 
@@ -171,7 +171,7 @@ impl Driver {
                 "-o", // Output
                 obj_filepath.as_os_str()
             );
-            log::info!("Assembler: {gcc_cmd:?}");
+            log::info!("Assembler: {gcc_cmd:#?}");
             gcc_cmd.start()
         })
     }
@@ -198,7 +198,7 @@ impl Driver {
 
         let args = asm_args.chain(lib_args).chain(prog_args);
         let gcc_cmd = cmd("gcc", args);
-        log::info!("Linker: {gcc_cmd:?}");
+        log::info!("Linker: {gcc_cmd:#?}");
         gcc_cmd.start()
     }
 
@@ -207,18 +207,18 @@ impl Driver {
         for handle in downstream_handles {
             match handle {
                 Err(_) => {
-                    log::error!("Downstream failed to launch. {handle:?}");
+                    log::error!("Downstream failed to launch. {handle:#?}");
                     is_ok = false;
                 }
                 Ok(handle) => {
                     let output = handle.wait();
                     match output {
                         Err(_) => {
-                            log::error!("Downstream failed. {handle:?} {output:?}");
+                            log::error!("Downstream failed. {handle:#?} {output:#?}");
                             is_ok = false;
                         }
                         Ok(output) => {
-                            log::info!("Downstream done. {handle:?} {output:?}");
+                            log::info!("Downstream done. {handle:#?} {output:#?}");
                         }
                     }
                 }

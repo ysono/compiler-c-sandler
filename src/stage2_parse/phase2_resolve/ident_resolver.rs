@@ -98,7 +98,7 @@ impl IdentResolver {
                     Ok(Rc::clone(resolved_ident))
                 } else {
                     Err(anyhow!(
-                        "In one scope, 2+ declarations of a same identifier must all refer to the same object or function, hence must all have some linkage. {ident:?}: {resolved_ident:?} vs {new_has_linkage}"
+                        "In one scope, 2+ declarations of a same identifier must all refer to the same object or function, hence must all have some linkage. {ident:#?}: {resolved_ident:#?} vs {new_has_linkage}"
                     ))
                 }
             }
@@ -109,7 +109,7 @@ impl IdentResolver {
         let resolved_idents = self
             .ident_to_resolved_idents
             .get(ident)
-            .ok_or_else(|| anyhow!("Identifier wasn't declared in scope. {ident:?}"))?;
+            .ok_or_else(|| anyhow!("Identifier wasn't declared in scope. {ident:#?}"))?;
         let resolved_ident = resolved_idents.last().unwrap();
         Ok(Rc::clone(resolved_ident))
     }

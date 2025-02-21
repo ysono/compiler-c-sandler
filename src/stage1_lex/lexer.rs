@@ -158,7 +158,7 @@ impl<R: Read + BufRead> Lexer<R> {
                     .map(Const::Int)
                     .unwrap_or_else(|_| Const::Long(i_wide))
             }
-            actual => return Err(anyhow!("{actual:?}")),
+            actual => return Err(anyhow!("{actual:#?}")),
         };
         Ok(konst)
     }

@@ -60,7 +60,7 @@ impl TypeChecker {
         let ParsedFunType { params, ret } = in_fun_typ.as_ref();
 
         let ret = Self::extract_scalar_type(ret.clone())
-            .map_err(|typ| anyhow!("In C, a function can't return {typ:?}"))?;
+            .map_err(|typ| anyhow!("In C, a function can't return {typ:#?}"))?;
 
         let params = params
             .iter()
@@ -91,7 +91,7 @@ impl TypeChecker {
 
             self.insert_fun_decl(Rc::clone(ident), new_viz, newly_defined, new_typ)
         };
-        inner().with_context(|| anyhow!("{new_scope:?}, {ident:?}"))
+        inner().with_context(|| anyhow!("{new_scope:#?}, {ident:#?}"))
     }
     fn derive_fun_decl_visibility(
         new_scope: FunDeclScope,
@@ -167,7 +167,7 @@ impl TypeChecker {
                     }
                     _ => return Err(anyhow!("Cannot declare with 2+ types.")),
                 };
-                inner().with_context(|| anyhow!("prev_symbol = {prev_symbol:?}"))
+                inner().with_context(|| anyhow!("prev_symbol = {prev_symbol:#?}"))
             }
         }
     }

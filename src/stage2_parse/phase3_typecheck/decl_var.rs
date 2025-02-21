@@ -149,7 +149,7 @@ impl TypeChecker {
                     }
                     _ => return Err(anyhow!("Cannot declare with 2+ types.")),
                 };
-                inner().with_context(|| anyhow!("prev_symbol = {prev_symbol:?}"))
+                inner().with_context(|| anyhow!("prev_symbol = {prev_symbol:#?}"))
             }
         }
     }

@@ -29,7 +29,7 @@ impl TypeChecker {
             RExp::Unary(Unary { op, sub_exp }) => {
                 let sub_exp = self.typecheck_exp_and_convert_to_scalar(*sub_exp)?;
 
-                let err_invalid_op = || Err(anyhow!("Cannot apply {op:?} on {sub_exp:?}"));
+                let err_invalid_op = || Err(anyhow!("Cannot apply {op:#?} on {sub_exp:#?}"));
 
                 let (out_typ, final_sub_exp);
                 match &op {
@@ -83,7 +83,7 @@ impl TypeChecker {
                 let fun_typ = self.symbol_table.get_fun_type(&ident)?;
                 if fun_typ.params.len() != args.len() {
                     return Err(anyhow!(
-                        "Mismatched signature. {ident:?} : {fun_typ:?} vs {args:?}"
+                        "Mismatched signature. {ident:#?} : {fun_typ:#?} vs {args:#?}"
                     ));
                 }
                 let fun_typ = fun_typ.clone();
@@ -154,7 +154,7 @@ impl TypeChecker {
 
                 let typ = match sub_exp.typ().as_ref() {
                     ScalarType::Ptr(PointerType { pointee_type }) => pointee_type.clone(),
-                    _ => return Err(anyhow!("Cannot dereference {sub_exp:?}")),
+                    _ => return Err(anyhow!("Cannot dereference {sub_exp:#?}")),
                 };
                 let typ = OwningRef::new(typ);
 
@@ -207,14 +207,14 @@ impl TypeChecker {
 
 fn extract_lexp(exp: Expression<ResolvedCAst>) -> Result<LExp<ResolvedCAst>> {
     match exp {
-        Expression::R(rexp) => Err(anyhow!("Expected lvalue expression, but found {rexp:?}")),
+        Expression::R(rexp) => Err(anyhow!("Expected lvalue expression, but found {rexp:#?}")),
         Expression::L(lexp) => Ok(lexp),
     }
 }
 fn extract_typed_lexp<LTyp>(typed_exp: TypedExp<LTyp>) -> Result<TypedLExp<LTyp>> {
     match typed_exp {
         TypedExp::R(typed_rexp) => Err(anyhow!(
-            "Expected lvalue expression, but found {typed_rexp:?}"
+            "Expected lvalue expression, but found {typed_rexp:#?}"
         )),
         TypedExp::L(typed_lexp) => Ok(typed_lexp),
     }

@@ -76,14 +76,14 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
                 [TS::Signed] => AT::Int,
                 [TS::Unsigned] => AT::UInt,
                 [TS::Double] => AT::Double,
-                actual => return Err(anyhow!("Invalid types. {actual:?}")),
+                actual => return Err(anyhow!("Invalid types. {actual:#?}")),
                 /* Void is not supported yet. */
             };
 
             let scs = match &scss[..] {
                 [] => None,
                 [scs] => Some(*scs),
-                actual => return Err(anyhow!("Invalid storage class specifiers. {actual:?}")),
+                actual => return Err(anyhow!("Invalid storage class specifiers. {actual:#?}")),
             };
 
             Ok(Some((ari_type, scs)))
@@ -130,7 +130,7 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
 
                     Ok(declarator)
                 }
-                actual => Err(anyhow!("{actual:?}")),
+                actual => Err(anyhow!("{actual:#?}")),
             }
         };
         inner().context("<simple-declarator>")
@@ -170,7 +170,7 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
                     loop {
                         let param_ari_type = match self.parse_specifiers()? {
                             Some((t, None)) => t,
-                            actual => return Err(anyhow!("{actual:?}")),
+                            actual => return Err(anyhow!("{actual:#?}")),
                         };
 
                         let declarator = self.parse_declarator()?;
@@ -211,9 +211,9 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
                     Const::Long(i) => i as u64,
                     Const::UInt(i) => i as u64,
                     Const::ULong(i) => i,
-                    actual => return Err(anyhow!("{actual:?}")),
+                    actual => return Err(anyhow!("{actual:#?}")),
                 },
-                actual => return Err(anyhow!("{actual:?}")),
+                actual => return Err(anyhow!("{actual:#?}")),
             };
 
             self.expect_exact(&[t::Demarcator::SquareClose.into()])?;
@@ -273,7 +273,7 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
                                 }
                                 DeclaratorResult::Fun(..) => {
                                     return Err(anyhow!(
-                                        "Function parameters aren't supported. {param_res:?}"
+                                        "Function parameters aren't supported. {param_res:#?}"
                                     ));
                                 }
                             }
@@ -301,7 +301,7 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
         let mut inner = || -> Result<_> {
             let base_type = match self.parse_specifiers()? {
                 None => return Ok(None),
-                Some((_, storage_class @ Some(_))) => return Err(anyhow!("{storage_class:?}")),
+                Some((_, storage_class @ Some(_))) => return Err(anyhow!("{storage_class:#?}")),
                 Some((typ, None)) => typ,
             };
 

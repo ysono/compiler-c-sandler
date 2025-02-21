@@ -116,7 +116,7 @@ impl InstrsGenerator {
                 dst,
             ), // f64 -> i64 -> u32
             ScalarAssemblyType::Quadword => self.gen_double_to_ulong(src, dst),
-            ScalarAssemblyType::Double => unreachable!("double-to-uint dst {uint_asm_type:?}"),
+            ScalarAssemblyType::Double => unreachable!("double-to-uint dst {uint_asm_type:#?}"),
         }
     }
     pub(super) fn gen_unsgn_integ_to_double(
@@ -141,7 +141,7 @@ impl InstrsGenerator {
                 dst,
             ), // u32 -> u64 (as i64) -> f64
             ScalarAssemblyType::Quadword => Self::gen_ulong_to_double(src, dst),
-            ScalarAssemblyType::Double => unreachable!("uint-to-double src {uint_asm_type:?}"),
+            ScalarAssemblyType::Double => unreachable!("uint-to-double src {uint_asm_type:#?}"),
         }
     }
 

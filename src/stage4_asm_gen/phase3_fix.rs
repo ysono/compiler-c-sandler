@@ -82,7 +82,7 @@ impl OperandFixer {
                 }
             }
             Instruction::Lea { src, dst } => {
-                debug_assert!(src.is_on_mem(), "Lea src {src:?}");
+                debug_assert!(src.is_on_mem(), "Lea src {src:#?}");
 
                 let reg2_to_dst = matches!(&dst, Operand::Register(_)) == false;
                 let reg2_to_dst = reg2_to_dst.then_some((ToFromReg::FromReg, ScalarAssemblyType::Quadword));

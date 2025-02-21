@@ -121,7 +121,7 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
                         }
                     }
                 }
-                actual => Err(anyhow!("{actual:?}")),
+                actual => Err(anyhow!("{actual:#?}")),
             }
         };
         inner().context("<unary-exp>")
@@ -140,7 +140,7 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
                 t::Operator::Bang => UnaryOperator::Not.into(),
                 t::Operator::Star => Op::Deref,
                 t::Operator::Ampersand => Op::AddrOf,
-                actual => return Err(anyhow!("{actual:?}")),
+                actual => return Err(anyhow!("{actual:#?}")),
             };
 
             let sub_exp = Box::new(self.parse_unary_exp()?);

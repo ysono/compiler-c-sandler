@@ -46,7 +46,7 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
 
                     Ok(Some(init))
                 }
-                actual => Err(anyhow!("{actual:?}")),
+                actual => Err(anyhow!("{actual:#?}")),
             }
         };
         inner().context(r#"[ "=" <initializer> ] ";""#)
@@ -64,7 +64,7 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
                         match self.tokens.next() {
                             Some(Ok(t::Token::Demarcator(t::Demarcator::CurlyClose))) => break,
                             Some(Ok(t::Token::Demarcator(t::Demarcator::Comma))) => noop!(),
-                            actual => return Err(anyhow!("{actual:?}")),
+                            actual => return Err(anyhow!("{actual:#?}")),
                         }
 
                         match self.tokens.peek() {

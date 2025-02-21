@@ -44,7 +44,7 @@ impl TypeChecker {
                         self.cast_to_common_type(lhs, rhs)?
                     }
                     (ScalarType::Ptr(p1), ScalarType::Ptr(p2)) if p1 == p2 => (lhs, rhs),
-                    _ => return Err(anyhow!("Can't compare {lhs:?} and {rhs:?}")),
+                    _ => return Err(anyhow!("Can't compare {lhs:#?} and {rhs:#?}")),
                 }
                 /* Note, gcc and clang allow comparing pointer vs constexpr-zero-integer as well.
                 If we choose to allow this, we can validate using `cast_to_common_type()` on all scalar types. */
@@ -91,7 +91,7 @@ impl TypeChecker {
             (ScalarType::Arith(a), ScalarType::Ptr(_)) if a.is_integer() => {
                 Ok(self.typecheck_arith_add_ptr(rhs, lhs))
             }
-            _ => Err(anyhow!("Can't add {lhs:?} and {rhs:?}")),
+            _ => Err(anyhow!("Can't add {lhs:#?} and {rhs:#?}")),
         }
     }
     fn typecheck_arith_add_ptr(
@@ -140,7 +140,7 @@ impl TypeChecker {
 
                 Ok(new_binary_exp(op, lhs, rhs, long_typ))
             }
-            _ => Err(anyhow!("Can't sub {lhs:?} and {rhs:?}")),
+            _ => Err(anyhow!("Can't sub {lhs:#?} and {rhs:#?}")),
         }
     }
 
@@ -159,7 +159,7 @@ impl TypeChecker {
             (&op, common_typ.as_ref()),
             (OA::Rem, ScalarType::Arith(ArithmeticType::Double)) | (_, ScalarType::Ptr(_))
         ) {
-            return Err(anyhow!("Can't apply {op:?} on {lhs:?} and {rhs:?}"));
+            return Err(anyhow!("Can't apply {op:#?} on {lhs:#?} and {rhs:#?}"));
         }
 
         Ok(new_binary_exp(op, lhs, rhs, common_typ))
@@ -207,7 +207,7 @@ impl TypeChecker {
             {
                 (pointee_type.clone(), exp2, exp1)
             }
-            _ => return Err(anyhow!("Can't subscript {exp1:?} and {exp2:?}")),
+            _ => return Err(anyhow!("Can't subscript {exp1:#?} and {exp2:#?}")),
         };
 
         let long_typ = self.get_scalar_type(ArithmeticType::Long);

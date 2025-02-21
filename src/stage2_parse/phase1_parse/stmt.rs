@@ -127,7 +127,7 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
 
             let init = match self.parse_declaration()? {
                 Some(Declaration::Var(vd)) => ForInit::Decl(vd),
-                Some(Declaration::Fun(fd)) => return Err(anyhow!("{fd:?}")),
+                Some(Declaration::Fun(fd)) => return Err(anyhow!("{fd:#?}")),
                 None => match self.tokens.peek() {
                     Some(Ok(t::Token::Demarcator(t::Demarcator::Semicolon))) => {
                         self.tokens.next();

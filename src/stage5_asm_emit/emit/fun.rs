@@ -122,7 +122,7 @@ impl<W: Write> AsmCodeEmitter<W> {
                             BinaryOperator::Sub => "sub",
                             BinaryOperator::Mul => "imul",
                             BinaryOperator::DivDouble => {
-                                unreachable!("Invalid instr {op:?} {asm_type:?}")
+                                unreachable!("Invalid instr {op:#?} {asm_type:#?}")
                             }
                             BinaryOperator::And => "and",
                             BinaryOperator::Or => "or",
@@ -137,7 +137,7 @@ impl<W: Write> AsmCodeEmitter<W> {
                             BinaryOperator::Mul => ("mul", regular_instr_sfx),
                             BinaryOperator::DivDouble => ("div", regular_instr_sfx),
                             BinaryOperator::And | BinaryOperator::Or => {
-                                unreachable!("Invalid instr {op:?} {asm_type:?}")
+                                unreachable!("Invalid instr {op:#?} {asm_type:#?}")
                             }
                             BinaryOperator::Xor => ("xor", "pd"),
                         };
@@ -178,7 +178,7 @@ impl<W: Write> AsmCodeEmitter<W> {
                     ),
                     ScalarAssemblyType::Longword => "cdq",
                     ScalarAssemblyType::Quadword => "cqo",
-                    ScalarAssemblyType::Double => unreachable!("Invalid instr cdq {asm_type:?}"),
+                    ScalarAssemblyType::Double => unreachable!("Invalid instr cdq {asm_type:#?}"),
                 };
 
                 writeln!(&mut self.w, "{TAB}{instr}")?;

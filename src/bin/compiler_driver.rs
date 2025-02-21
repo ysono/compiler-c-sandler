@@ -6,7 +6,7 @@ fn main() -> Result<()> {
     env_logger::init();
 
     let args = CliArgs::parse();
-    log::info!("{args:?}");
+    log::info!("{args:#?}");
 
     let driver = Driver::from(args);
     let res = driver.run();

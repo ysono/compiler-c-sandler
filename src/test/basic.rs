@@ -34,7 +34,7 @@ fn return_const() -> Result<()> {
                 }
             );
         }
-        _ => fail!("{items:?}"),
+        _ => fail!("{items:#?}"),
     }
     Ok(())
 }

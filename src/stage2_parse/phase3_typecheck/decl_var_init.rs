@@ -38,7 +38,7 @@ impl TypeChecker {
         from: Expression<ResolvedCAst>,
     ) -> Result<InitializerItem<Const>> {
         let to = Self::extract_scalar_type_ref(to)
-            .map_err(|typ| anyhow!("Cannot \"convert as if by assignment\" to {typ:?}"))?;
+            .map_err(|typ| anyhow!("Cannot \"convert as if by assignment\" to {typ:#?}"))?;
 
         match &from {
             Expression::R(RExp::Const(_)) => noop!(),
@@ -116,7 +116,7 @@ impl TypeChecker {
                 let sub_inits_ct = sub_inits.len() as u64;
                 if elems_ct < sub_inits_ct {
                     return Err(anyhow!(
-                        "Too many initializer elements. {arr_typ:?} vs {sub_inits:?}"
+                        "Too many initializer elements. {arr_typ:#?} vs {sub_inits:#?}"
                     ));
                 }
 
@@ -144,7 +144,7 @@ impl TypeChecker {
                     let chars_ct = chars.len() as u64;
                     if elems_ct < chars_ct {
                         return Err(anyhow!(
-                            "Too many chars in initializer. {arr_typ:?} vs {chars:?}"
+                            "Too many chars in initializer. {arr_typ:#?} vs {chars:#?}"
                         ));
                     }
 
@@ -154,14 +154,14 @@ impl TypeChecker {
                 }
                 _ => {
                     return Err(anyhow!(
-                        "Cannot initialize {arr_typ:?} using string literal."
+                        "Cannot initialize {arr_typ:#?} using string literal."
                     ));
                 }
             },
             (ObjType::Scalar(_), init @ VariableInitializer::Compound(..))
             | (ObjType::Array(_), init @ VariableInitializer::Single(_)) => {
                 return Err(anyhow!(
-                    "Advanced compound initializers aren't supported. {typ:?} vs {init:?}"
+                    "Advanced compound initializers aren't supported. {typ:#?} vs {init:#?}"
                 ));
             }
         }
@@ -568,7 +568,7 @@ mod test {
                     (&typ_decls[..], base_typ),
                     in_single_constexpr_str("aabb"),
                 );
-                assert!(res.is_err(), "{res:?}");
+                assert!(res.is_err(), "{res:#?}");
             }
             Ok(())
         }

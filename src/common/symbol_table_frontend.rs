@@ -73,20 +73,20 @@ impl SymbolTable {
     pub fn get(&self, ident: &SymbolIdentifier) -> Result<&Symbol> {
         self.symbol_table
             .get(ident)
-            .ok_or_else(|| anyhow!("Not declared. {ident:?}"))
+            .ok_or_else(|| anyhow!("Not declared. {ident:#?}"))
     }
     pub fn get_obj_type(&self, ident: &SymbolIdentifier) -> Result<&Singleton<ObjType>> {
         let symbol = self.get(ident)?;
         match symbol {
             Symbol::Obj { typ, .. } => Ok(typ),
-            _ => Err(anyhow!("Not variable. {ident:?} {symbol:?}")),
+            _ => Err(anyhow!("Not variable. {ident:#?} {symbol:#?}")),
         }
     }
     pub fn get_fun_type(&self, ident: &SymbolIdentifier) -> Result<&Singleton<ScalarFunType>> {
         let symbol = self.get(ident)?;
         match symbol {
             Symbol::Fun { typ, .. } => Ok(typ),
-            _ => Err(anyhow!("Not function. {ident:?} {symbol:?}")),
+            _ => Err(anyhow!("Not function. {ident:#?} {symbol:#?}")),
         }
     }
 }

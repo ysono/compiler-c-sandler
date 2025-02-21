@@ -94,7 +94,7 @@ impl TypeChecker {
             Ok(())
         } else {
             Err(anyhow!(
-                "No common type between {ptr_typ:?} and {other_exp:?}"
+                "No common type between {ptr_typ:#?} and {other_exp:#?}"
             ))
         }
     }
@@ -107,7 +107,7 @@ impl TypeChecker {
         Cast { typ: to, sub_exp: from }: Cast<ResolvedCAst>,
     ) -> Result<TypedRExp> {
         let to = Self::extract_scalar_type(to)
-            .map_err(|typ| anyhow!("Cannot explicitly cast to {typ:?}"))?;
+            .map_err(|typ| anyhow!("Cannot explicitly cast to {typ:#?}"))?;
 
         let from = self.typecheck_exp_and_convert_to_scalar(*from)?;
 
@@ -119,7 +119,7 @@ impl TypeChecker {
 
             _ => Ok(()),
         };
-        let () = ok.map_err(|()| anyhow!("Cannot explicitly cast {to:?} <- {from:?}"))?;
+        let () = ok.map_err(|()| anyhow!("Cannot explicitly cast {to:#?} <- {from:#?}"))?;
 
         let typed_rexp = Self::insert_cast_node(to, from);
         Ok(typed_rexp)
@@ -135,7 +135,7 @@ impl TypeChecker {
         from: Expression<ResolvedCAst>,
     ) -> Result<TypedExp<ScalarType>> {
         let to = Self::extract_scalar_type(to)
-            .map_err(|typ| anyhow!("Cannot \"convert as if by assignment\" to {typ:?}"))?;
+            .map_err(|typ| anyhow!("Cannot \"convert as if by assignment\" to {typ:#?}"))?;
 
         self.cast_scalar_by_assignment(to, from)
     }
@@ -167,7 +167,7 @@ impl TypeChecker {
 
             _ => Err(()),
         };
-        ok.map_err(|()| anyhow!("Cannot \"convert as if by assignment\" {to:?} <- {from:?}"))
+        ok.map_err(|()| anyhow!("Cannot \"convert as if by assignment\" {to:#?} <- {from:#?}"))
     }
 }
 

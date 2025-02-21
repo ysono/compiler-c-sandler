@@ -68,7 +68,7 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
                         }
                         None => {
                             let actual = self.tokens.peek();
-                            return Err(anyhow!("Expected <declaration> but found {actual:?}"));
+                            return Err(anyhow!("Expected <declaration> but found {actual:#?}"));
                         }
                     },
                 }
@@ -120,7 +120,7 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
         for expected in next_tokens {
             match self.tokens.next() {
                 Some(Ok(actual)) if expected == &actual => noop!(),
-                actual => return Err(anyhow!("Expected {:?} but found {:?}", expected, actual)),
+                actual => return Err(anyhow!("Expected {:#?} but found {:#?}", expected, actual)),
             }
         }
         Ok(())
