@@ -6,17 +6,17 @@ use std::{
     sync::atomic::{AtomicU64, Ordering},
 };
 
-#[derive(Constructor, Deref, PartialEq, Eq, Hash, Debug)]
+#[derive(Constructor, Deref, Hash, PartialEq, Eq, Debug)]
 pub struct RawIdentifier(String);
 
 #[derive(Derivative, Debug)]
-#[derivative(PartialEq, Eq, Hash)]
+#[derivative(Hash, PartialEq, Eq)]
 pub enum SymbolIdentifier {
     Exact(Rc<RawIdentifier>),
     Generated {
         id: UniqueId,
 
-        #[derivative(PartialEq = "ignore", Hash = "ignore")]
+        #[derivative(Hash = "ignore", PartialEq = "ignore")]
         descr: (),
         /* We might let `descr` member be an `Option<String>`, hence this identifier type is non-`Clone`. */
     },
@@ -85,7 +85,7 @@ impl JumpLabel {
     }
 }
 
-#[derive(PartialEq, Eq, Hash, Debug)]
+#[derive(Hash, PartialEq, Eq, Debug)]
 pub struct UniqueId(u64);
 impl UniqueId {
     #[allow(clippy::new_without_default)]

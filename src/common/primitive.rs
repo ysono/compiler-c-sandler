@@ -86,24 +86,6 @@ impl Const {
         )
     }
 }
-impl PartialEq<Self> for Const {
-    /// Between two Doubles,
-    ///     + cause +0.0 and -0.0 to _not_ equal each other.
-    ///     + cause two f64::NAN instances having the same bitwise repr, to equal each other.
-    fn eq(&self, other: &Self) -> bool {
-        match (self, other) {
-            (Self::Char(l0), Self::Char(r0)) => l0 == r0,
-            (Self::UChar(l0), Self::UChar(r0)) => l0 == r0,
-            (Self::Int(l0), Self::Int(r0)) => l0 == r0,
-            (Self::Long(l0), Self::Long(r0)) => l0 == r0,
-            (Self::UInt(l0), Self::UInt(r0)) => l0 == r0,
-            (Self::ULong(l0), Self::ULong(r0)) => l0 == r0,
-            (Self::Double(l0), Self::Double(r0)) => l0.to_bits() == r0.to_bits(),
-            _ => false,
-        }
-    }
-}
-impl Eq for Const {}
 impl Hash for Const {
     fn hash<H: Hasher>(&self, state: &mut H) {
         mem::discriminant(self).hash(state);
@@ -118,6 +100,24 @@ impl Hash for Const {
         }
     }
 }
+impl PartialEq<Self> for Const {
+    /// Between two Doubles,
+    ///     + +0.0 and -0.0 are _not_ equal each other.
+    ///     + two f64::NAN instances having the same bitwise repr, are equal each other.
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Char(l0), Self::Char(r0)) => l0 == r0,
+            (Self::UChar(l0), Self::UChar(r0)) => l0 == r0,
+            (Self::Int(l0), Self::Int(r0)) => l0 == r0,
+            (Self::Long(l0), Self::Long(r0)) => l0 == r0,
+            (Self::UInt(l0), Self::UInt(r0)) => l0 == r0,
+            (Self::ULong(l0), Self::ULong(r0)) => l0 == r0,
+            (Self::Double(l0), Self::Double(r0)) => l0.to_bits() == r0.to_bits(),
+            _ => false,
+        }
+    }
+}
+impl Eq for Const {}
 
 #[cfg(test)]
 mod test {
@@ -130,10 +130,10 @@ mod test {
 
         assert_ne!(f64::NAN, f64::NAN);
 
-        assert_ne!(Const::Double(0.0), Const::Double(-0.0));
         assert_ne!(hash(Const::Double(0.0)), hash(Const::Double(-0.0)));
+        assert_ne!(Const::Double(0.0), Const::Double(-0.0));
 
-        assert_eq!(Const::Double(f64::NAN), Const::Double(f64::NAN));
         assert_eq!(hash(Const::Double(f64::NAN)), hash(Const::Double(f64::NAN)));
+        assert_eq!(Const::Double(f64::NAN), Const::Double(f64::NAN));
     }
 }

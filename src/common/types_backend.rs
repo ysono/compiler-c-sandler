@@ -53,7 +53,7 @@ impl<At: Borrow<ArrayType>> From<At> for ByteArrayAssemblyType {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+#[derive(Clone, Copy, Hash, PartialEq, Eq, Debug)]
 pub enum Alignment {
     B1 = 1,
     B4 = 4,

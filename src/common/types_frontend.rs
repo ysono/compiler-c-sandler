@@ -7,7 +7,7 @@ use std::hash::Hash;
 
 pub type SubObjType<SubTyp> = OwningRef<Singleton<ObjType>, SubTyp>;
 
-#[derive(PartialEq, Eq, Hash, Debug)]
+#[derive(Hash, PartialEq, Eq, Debug)]
 pub enum ObjType {
     Scalar(ScalarType),
     Array(ArrayType),
@@ -31,7 +31,7 @@ impl ObjType {
     }
 }
 
-#[derive(From, PartialEq, Eq, Hash, Debug)]
+#[derive(From, Hash, PartialEq, Eq, Debug)]
 pub enum ScalarType {
     Arith(ArithmeticType),
     Ptr(PointerType),
@@ -48,7 +48,7 @@ impl ScalarType {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+#[derive(Clone, Copy, Hash, PartialEq, Eq, Debug)]
 pub enum ArithmeticType {
     Char,
     SChar,
@@ -86,24 +86,24 @@ impl ArithmeticType {
     }
 }
 
-#[derive(PartialEq, Eq, Hash, Debug)]
+#[derive(Hash, PartialEq, Eq, Debug)]
 pub struct PointerType {
     pub pointee_type: Singleton<ObjType>, // We don't support function-pointers.
 }
 
 #[derive(Getters, Derivative, Debug)]
 #[getset(get = "pub")]
-#[derivative(PartialEq, Eq, Hash)]
+#[derivative(Hash, PartialEq, Eq)]
 pub struct ArrayType {
     elem_type: Singleton<ObjType>,
     elem_count: ArrayElementCount,
 
     /// Even though the semantic information is [`ScalarType`], we encode [`ArithmeticType`],
     ///     b/c that's all that our use cases need and it's cheaper to represent.
-    #[derivative(PartialEq = "ignore", Hash = "ignore")]
+    #[derivative(Hash = "ignore", PartialEq = "ignore")]
     single_type: ArithmeticType,
 
-    #[derivative(PartialEq = "ignore", Hash = "ignore")]
+    #[derivative(Hash = "ignore", PartialEq = "ignore")]
     bytelen: ByteLen,
 }
 impl ArrayType {
@@ -127,7 +127,7 @@ impl ArrayType {
     }
 }
 
-#[derive(Constructor, Clone, Copy, PartialEq, Eq, Hash, Debug)]
+#[derive(Constructor, Clone, Copy, Hash, PartialEq, Eq, Debug)]
 pub struct ArrayElementCount(u64);
 impl ArrayElementCount {
     pub fn as_int(&self) -> u64 {
@@ -135,7 +135,7 @@ impl ArrayElementCount {
     }
 }
 
-#[derive(PartialEq, Eq, Hash, Debug)]
+#[derive(Hash, PartialEq, Eq, Debug)]
 pub struct FunType<Typ> {
     pub params: Vec<Typ>,
     pub ret: Typ,

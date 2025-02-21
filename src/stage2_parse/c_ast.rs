@@ -139,11 +139,11 @@ mod statement {
     }
 
     #[derive(Derivative, Debug)]
-    #[derivative(PartialEq, Eq, Hash)]
+    #[derivative(Hash, PartialEq, Eq)]
     pub struct LoopId {
         pub id: UniqueId,
 
-        #[derivative(PartialEq = "ignore", Hash = "ignore")]
+        #[derivative(Hash = "ignore", PartialEq = "ignore")]
         pub descr: &'static str,
     }
     impl LoopId {
