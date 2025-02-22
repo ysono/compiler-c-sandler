@@ -1,10 +1,6 @@
 use super::{GeneratedAsmAst, InstrsGenerator};
 use crate::{
-    common::{
-        identifier::{JumpLabel, UniqueId},
-        primitive::Const,
-        types_backend::ScalarAssemblyType,
-    },
+    common::{identifier::JumpLabel, primitive::Const, types_backend::ScalarAssemblyType},
     stage3_tacky::tacky_ast as t,
     stage4_asm_gen::asm_ast::*,
 };
@@ -177,7 +173,7 @@ impl InstrsGenerator {
             self.get_or_new_static_readonly_operand(None, Const::Double(i64_ceil_as_f64));
 
         let [lbl_out_of_range, lbl_end] =
-            JumpLabel::create(UniqueId::new(), "f64_u64", ["oor", "end"]);
+            JumpLabel::create(None, "f64_u64", ["oor", "end"]).map(Rc::new);
 
         let sse_reg = || Operand::Register(Register::XMM0).into();
 
@@ -263,7 +259,7 @@ impl InstrsGenerator {
         dst: PreFinalOperand,
     ) -> Vec<Instruction<GeneratedAsmAst>> {
         let [lbl_out_of_range, lbl_end] =
-            JumpLabel::create(UniqueId::new(), "u64_f64", ["oor", "end"]);
+            JumpLabel::create(None, "u64_f64", ["oor", "end"]).map(Rc::new);
 
         let gp_reg_1 = || Operand::Register(Register::AX).into();
         let gp_reg_2 = || Operand::Register(Register::DX).into();

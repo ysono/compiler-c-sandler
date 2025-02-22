@@ -1,7 +1,7 @@
 use super::FunInstrsGenerator;
 use crate::{
     common::{
-        identifier::{JumpLabel, UniqueId},
+        identifier::JumpLabel,
         types_frontend::{ScalarType, SubObjType},
     },
     stage2_parse::{c_ast as c, phase3_typecheck::TypeCheckedCAst},
@@ -16,7 +16,7 @@ impl FunInstrsGenerator<'_> {
     ) {
         match elze {
             None => {
-                let [label_end] = JumpLabel::create(UniqueId::new(), "stmt_cond", ["end"]);
+                let [label_end] = JumpLabel::create(None, "stmt_cond", ["end"]).map(Rc::new);
 
                 /* Begin instructions */
 
@@ -34,7 +34,7 @@ impl FunInstrsGenerator<'_> {
             }
             Some(elze) => {
                 let [label_else, label_end] =
-                    JumpLabel::create(UniqueId::new(), "stmt_cond", ["else", "end"]);
+                    JumpLabel::create(None, "stmt_cond", ["else", "end"]).map(Rc::new);
 
                 /* Begin instructions */
 
@@ -64,7 +64,7 @@ impl FunInstrsGenerator<'_> {
         out_typ: SubObjType<ScalarType>,
     ) -> Value {
         let [label_else, label_end] =
-            JumpLabel::create(UniqueId::new(), "exp_cond", ["else", "end"]);
+            JumpLabel::create(None, "exp_cond", ["else", "end"]).map(Rc::new);
 
         let result = self.register_new_value(out_typ);
 

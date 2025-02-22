@@ -125,7 +125,7 @@ pub struct LoopIdToLabels {
 }
 impl LoopIdToLabels {
     fn new_lbl_start(loop_id: &c::LoopId) -> JumpLabel {
-        let [lbl_start] = JumpLabel::create(&loop_id.id, loop_id.descr, ["start"]);
+        let [lbl_start] = JumpLabel::create(Some(&loop_id.id), loop_id.descr, ["start"]);
         lbl_start
     }
     fn get_or_new_lbls(&mut self, loop_id: Rc<c::LoopId>) -> &Labels {
@@ -133,7 +133,8 @@ impl LoopIdToLabels {
             .entry(loop_id)
             .or_insert_with_key(|loop_id| {
                 let [lbl_break, lbl_cont] =
-                    JumpLabel::create(&loop_id.id, loop_id.descr, ["break", "cont"]);
+                    JumpLabel::create(Some(&loop_id.id), loop_id.descr, ["break", "cont"])
+                        .map(Rc::new);
                 Labels { lbl_break, lbl_cont }
             })
     }

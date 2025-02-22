@@ -1,7 +1,6 @@
 use derivative::Derivative;
 use derive_more::{Constructor, Deref};
 use std::{
-    borrow::Borrow,
     rc::Rc,
     sync::atomic::{AtomicU64, Ordering},
 };
@@ -60,28 +59,21 @@ pub struct JumpLabel {
 }
 impl JumpLabel {
     /// @arg `descr2s` elements must be all distinct. (We ought to `static_assert` this.)
-    pub fn create<Uid, const LEN: usize, Out>(
-        id: Uid,
+    pub fn create<const LEN: usize>(
+        custom_id: Option<&UniqueId>,
         descr1: &'static str,
         descr2s: [&'static str; LEN],
-    ) -> [Out; LEN]
-    where
-        Uid: Borrow<UniqueId>,
-        Out: From<Self> + std::fmt::Debug,
-    {
-        descr2s
-            .into_iter()
-            .map(|descr2| {
-                Self {
-                    id: id.borrow().privately_clone(),
-                    descr1,
-                    descr2,
-                }
-                .into()
-            })
-            .collect::<Vec<_>>()
-            .try_into()
-            .unwrap()
+    ) -> [Self; LEN] {
+        let id = match custom_id {
+            None => UniqueId::new(),
+            Some(id) => id.privately_clone(),
+        };
+
+        descr2s.map(|descr2| Self {
+            id: id.privately_clone(),
+            descr1,
+            descr2,
+        })
     }
 }
 

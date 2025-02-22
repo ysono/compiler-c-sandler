@@ -1,7 +1,7 @@
 use super::FunInstrsGenerator;
 use crate::{
     common::{
-        identifier::{JumpLabel, UniqueId},
+        identifier::JumpLabel,
         primitive::Const,
         types_frontend::{ScalarType, SubObjType},
     },
@@ -105,7 +105,7 @@ impl FunInstrsGenerator<'_> {
             c::LogicBinaryOperator::Or => "or",
         };
         let [label_shortcirc, label_end] =
-            JumpLabel::create(UniqueId::new(), descr, ["shortcircuit", "end"]);
+            JumpLabel::create(None, descr, ["shortcircuit", "end"]).map(Rc::new);
 
         let new_shortcirc_jump_instr = |condition: Value| {
             let jump_crit = match op {
