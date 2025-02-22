@@ -5,7 +5,7 @@ use crate::{
         symbol_table_backend::{
             StaticReadWriteAsmObjAttrs as RWAttrs, StaticReadonlyAsmObjAttrs as ROAttrs,
         },
-        symbol_table_frontend::InitializerItem,
+        symbol_table_frontend::StaticInitializerItem,
         types_backend::{Alignment, ByteLen},
     },
     test::utils,
@@ -56,13 +56,19 @@ fn static_double_objs() -> Result<()> {
             let (ident, ROAttrs { alignment, initializer }) = static_ro_objs.next().unwrap();
             assert!(is_ident_generated(&ident));
             assert_eq!(alignment, Alignment::B8);
-            assert_eq!(initializer, InitializerItem::Single(Const::Double(3.14)));
+            assert_eq!(
+                initializer,
+                StaticInitializerItem::Single(Const::Double(3.14))
+            );
         }
         {
             let (ident, ROAttrs { alignment, initializer }) = static_ro_objs.next().unwrap();
             assert!(is_ident_generated(&ident));
             assert_eq!(alignment, Alignment::B16);
-            assert_eq!(initializer, InitializerItem::Single(Const::Double(-0.0)));
+            assert_eq!(
+                initializer,
+                StaticInitializerItem::Single(Const::Double(-0.0))
+            );
         }
         {
             let (ident, ROAttrs { alignment, initializer }) = static_ro_objs.next().unwrap();
@@ -70,7 +76,7 @@ fn static_double_objs() -> Result<()> {
             assert_eq!(alignment, Alignment::B8);
             assert_eq!(
                 initializer,
-                InitializerItem::Single(Const::Double((1u64 << 63) as f64))
+                StaticInitializerItem::Single(Const::Double((1u64 << 63) as f64))
             );
         }
         assert!(static_ro_objs.next().is_none());
@@ -111,7 +117,7 @@ fn static_string_objs() -> Result<()> {
             assert_eq!(alignment, Alignment::B1);
             assert_eq!(
                 initializer,
-                Some(vec![InitializerItem::String {
+                Some(vec![StaticInitializerItem::String {
                     chars: "AABBB".into(),
                     zeros_sfx_bytelen: ByteLen::new(0)
                 },])
@@ -123,7 +129,7 @@ fn static_string_objs() -> Result<()> {
             assert_eq!(alignment, Alignment::B16);
             assert_eq!(
                 initializer,
-                Some(vec![InitializerItem::String {
+                Some(vec![StaticInitializerItem::String {
                     chars: "CCDDD".into(),
                     zeros_sfx_bytelen: ByteLen::new(21 - 5)
                 },])
@@ -136,7 +142,7 @@ fn static_string_objs() -> Result<()> {
             assert!(matches!(
                 &initializer.unwrap()[..],
                 [
-                    InitializerItem::Pointer(rhs_ident)
+                    StaticInitializerItem::Pointer(rhs_ident)
                 ] if is_ident_generated(rhs_ident)
             ));
         }
@@ -147,7 +153,7 @@ fn static_string_objs() -> Result<()> {
             assert!(matches!(
                 &initializer.unwrap()[..],
                 [
-                    InitializerItem::Pointer(rhs_ident)
+                    StaticInitializerItem::Pointer(rhs_ident)
                 ] if is_ident_generated(rhs_ident)
             ));
         }
@@ -162,7 +168,7 @@ fn static_string_objs() -> Result<()> {
             assert_eq!(alignment, Alignment::B1);
             assert_eq!(
                 initializer,
-                InitializerItem::String {
+                StaticInitializerItem::String {
                     chars: "aabbb".into(),
                     zeros_sfx_bytelen: ByteLen::new(1)
                 },
@@ -174,7 +180,7 @@ fn static_string_objs() -> Result<()> {
             assert_eq!(alignment, Alignment::B1);
             assert_eq!(
                 initializer,
-                InitializerItem::String {
+                StaticInitializerItem::String {
                     chars: "ccccddddeeeefffff".into(),
                     zeros_sfx_bytelen: ByteLen::new(1)
                 },
@@ -186,7 +192,7 @@ fn static_string_objs() -> Result<()> {
             assert_eq!(alignment, Alignment::B1);
             assert_eq!(
                 initializer,
-                InitializerItem::String {
+                StaticInitializerItem::String {
                     chars: "eefff".into(),
                     zeros_sfx_bytelen: ByteLen::new(1)
                 },
@@ -198,7 +204,7 @@ fn static_string_objs() -> Result<()> {
             assert_eq!(alignment, Alignment::B1);
             assert_eq!(
                 initializer,
-                InitializerItem::String {
+                StaticInitializerItem::String {
                     chars: "gggghhhhiiiijjjjj".into(),
                     zeros_sfx_bytelen: ByteLen::new(1)
                 },
@@ -210,7 +216,7 @@ fn static_string_objs() -> Result<()> {
             assert_eq!(alignment, Alignment::B1);
             assert_eq!(
                 initializer,
-                InitializerItem::String {
+                StaticInitializerItem::String {
                     chars: "kklll".into(),
                     zeros_sfx_bytelen: ByteLen::new(1)
                 },

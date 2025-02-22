@@ -31,27 +31,28 @@ pub enum ObjAttrs {
         initializer: StaticInitializer,
     },
     StaticReadonly {
-        initializer: InitializerItem<Const>,
+        initializer: StaticInitializerItem,
     },
 }
 #[derive(Debug)]
 pub enum StaticInitializer {
-    Concrete(Vec<InitializerItem<Const>>),
+    Concrete(Vec<StaticInitializerItem>),
     Tentative,
     NoInitializer,
 }
 
 #[derive(Debug)]
 #[cfg_attr(test, derive(PartialEq))]
-pub enum InitializerItem<Sngl> {
+pub enum InitializerItem<Sngl, Ptr> {
     Single(Sngl),
     String {
         chars: Vec<u8>,
         zeros_sfx_bytelen: ByteLen, // Count of 0x00 bytes following the chars.
     },
-    Pointer(Rc<SymbolIdentifier>),
+    Pointer(Ptr),
     Zero(ByteLen),
 }
+pub type StaticInitializerItem = InitializerItem<Const, Rc<SymbolIdentifier>>;
 
 #[derive(Debug)]
 pub struct FunAttrs {

@@ -6,7 +6,7 @@ use crate::{
         symbol_table_backend::{
             AsmObj, AsmObjAttrs, StaticReadWriteAsmObjAttrs, StaticReadonlyAsmObjAttrs,
         },
-        symbol_table_frontend::{InitializerItem, StaticVisibility},
+        symbol_table_frontend::{StaticInitializerItem, StaticVisibility},
         types_backend::{Alignment, OperandByteLen},
     },
     utils::noop,
@@ -87,7 +87,7 @@ impl<W: Write> AsmCodeEmitter<W> {
         if let Some(items) = initializer {
             let locality = LabelLocality::OF_STATIC_RW_OBJ;
             let section = match &items[..] {
-                [] | [InitializerItem::Zero(_)] => ".bss",
+                [] | [StaticInitializerItem::Zero(_)] => ".bss",
                 _ => ".data",
             };
             self.write_static_datum(ident, *visibility, locality, section, *alignment, items)?;
@@ -103,7 +103,7 @@ impl<W: Write> AsmCodeEmitter<W> {
         let locality = LabelLocality::OF_STATIC_RO_OBJ;
         let section = if cfg!(target_os = "macos") {
             match initializer {
-                InitializerItem::String { .. } => ".cstring",
+                StaticInitializerItem::String { .. } => ".cstring",
                 _ => match alignment {
                     Alignment::B1 => ".literal1",
                     Alignment::B4 => ".literal4",
@@ -129,7 +129,7 @@ impl<W: Write> AsmCodeEmitter<W> {
         locality: LabelLocality,
         section: &'static str,
         alignment: Alignment,
-        inits: &[InitializerItem<Const>],
+        inits: &[StaticInitializerItem],
     ) -> Result<(), io::Error> {
         self.write_symbol_visibility(ident, visibility, locality)?;
         writeln!(&mut self.w, "{TAB}{section}")?;
@@ -139,11 +139,11 @@ impl<W: Write> AsmCodeEmitter<W> {
         self.write_symbol_decl(ident, locality)?;
         for init in inits {
             match init {
-                InitializerItem::Zero(bytelen) => {
+                StaticInitializerItem::Zero(bytelen) => {
                     let bytelen = bytelen.as_int();
                     writeln!(&mut self.w, "{TAB}.zero {bytelen}")?;
                 }
-                InitializerItem::String { chars, zeros_sfx_bytelen } => {
+                StaticInitializerItem::String { chars, zeros_sfx_bytelen } => {
                     let mut zeros_sfx_bytelen = zeros_sfx_bytelen.as_int();
 
                     let ascii_directive;
@@ -171,7 +171,7 @@ impl<W: Write> AsmCodeEmitter<W> {
                         writeln!(&mut self.w, "{TAB}.zero {zeros_sfx_bytelen}")?;
                     }
                 }
-                InitializerItem::Pointer(ident) => {
+                StaticInitializerItem::Pointer(ident) => {
                     let AsmObj { asm_attrs, .. } =
                         self.backend_symtab.ident_to_obj().get(ident).unwrap();
                     let locality = match asm_attrs {
@@ -184,7 +184,7 @@ impl<W: Write> AsmCodeEmitter<W> {
                     self.write_symbol_name(ident, locality)?;
                     writeln!(&mut self.w)?;
                 }
-                InitializerItem::Single(konst) => {
+                StaticInitializerItem::Single(konst) => {
                     /* Supported formats include:
                         + hexadecimal floating-point: `.double 0x2.8p+3` (LLVM supports it; GAS doesn't)
                         + decimal floating-point: `.double 20.0`, `2e3`
@@ -207,10 +207,10 @@ impl<W: Write> AsmCodeEmitter<W> {
     }
     fn write_fillin_data(
         &mut self,
-        init: &InitializerItem<Const>,
+        init: &StaticInitializerItem,
         alignment: Alignment,
     ) -> Result<(), io::Error> {
-        if let InitializerItem::Single(konst) = init {
+        if let StaticInitializerItem::Single(konst) = init {
             let declared_bytelen = OperandByteLen::from(konst.arithmetic_type());
             match (declared_bytelen, alignment) {
                 (blen, ali) if (blen as u8) == (ali as u8) => noop!(),

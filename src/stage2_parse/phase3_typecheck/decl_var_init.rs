@@ -1,8 +1,7 @@
 use super::TypeChecker;
 use crate::{
     common::{
-        primitive::Const,
-        symbol_table_frontend::{InitializerItem, StaticInitializer},
+        symbol_table_frontend::{InitializerItem, StaticInitializer, StaticInitializerItem},
         types_backend::ByteLen,
         types_frontend::{ObjType, ScalarType, SubObjType},
     },
@@ -16,7 +15,7 @@ use std::borrow::Cow;
 impl TypeChecker {
     pub(super) fn generate_zero_static_initializer(typ: &ObjType) -> StaticInitializer {
         let bytelen = typ.bytelen();
-        let item = InitializerItem::Zero(bytelen);
+        let item = StaticInitializerItem::Zero(bytelen);
         StaticInitializer::Concrete(vec![item])
     }
 
@@ -24,7 +23,7 @@ impl TypeChecker {
         &mut self,
         typ: &Singleton<ObjType>,
         init: VariableInitializer<ResolvedCAst>,
-    ) -> Result<Vec<InitializerItem<Const>>> {
+    ) -> Result<Vec<StaticInitializerItem>> {
         let mut typecheck_single = |typ: SubObjType<ScalarType>, exp: Expression<ResolvedCAst>| {
             self.typecheck_initializer_static_single(typ, exp)
         };
@@ -37,7 +36,7 @@ impl TypeChecker {
         &mut self,
         to: SubObjType<ScalarType>,
         from: Expression<ResolvedCAst>,
-    ) -> Result<InitializerItem<Const>> {
+    ) -> Result<StaticInitializerItem> {
         match &from {
             Expression::R(RExp::Const(_)) => noop!(),
             Expression::L(LExp::String(_)) => noop!(),
@@ -59,18 +58,18 @@ impl TypeChecker {
 
                     if out_konst.is_zero_integer() {
                         let bytelen = ByteLen::from(out_konst.arithmetic_type());
-                        InitializerItem::Zero(bytelen)
+                        StaticInitializerItem::Zero(bytelen)
                     } else {
                         /* If double, even if val==0.0, we encode a Single item.
                         This helps inform us later to write it to `.data` instead of `.bss`. */
-                        InitializerItem::Single(out_konst)
+                        StaticInitializerItem::Single(out_konst)
                     }
                 }
                 RExp::AddrOf(AddrOf(sub_exp)) => match *sub_exp {
                     TypedLExp {
                         exp: LExp::String(static_obj_ident),
                         ..
-                    } => InitializerItem::Pointer(static_obj_ident),
+                    } => StaticInitializerItem::Pointer(static_obj_ident),
                     _ => unreachable!(),
                 },
                 _ => unreachable!(),
@@ -84,10 +83,10 @@ impl TypeChecker {
         &mut self,
         typ: &Singleton<ObjType>,
         init: VariableInitializer<ResolvedCAst>,
-    ) -> Result<Vec<InitializerItem<TypedExp<ScalarType>>>> {
+    ) -> Result<Vec<RuntimeInitializerItem>> {
         let mut typecheck_single = |typ: SubObjType<ScalarType>, exp: Expression<ResolvedCAst>| {
             self.cast_by_assignment(Cow::Owned(typ), exp)
-                .map(InitializerItem::Single)
+                .map(RuntimeInitializerItem::Single)
         };
 
         let mut inits = vec![];
@@ -95,14 +94,17 @@ impl TypeChecker {
         Ok(inits)
     }
 
-    fn typecheck_initializer<F, Sngl>(
+    fn typecheck_initializer<F, Sngl, Ptr>(
         typ: &Singleton<ObjType>,
         init: VariableInitializer<ResolvedCAst>,
         typecheck_single: &mut F,
-        out_items: &mut Vec<InitializerItem<Sngl>>,
+        out_items: &mut Vec<InitializerItem<Sngl, Ptr>>,
     ) -> Result<()>
     where
-        F: FnMut(SubObjType<ScalarType>, Expression<ResolvedCAst>) -> Result<InitializerItem<Sngl>>,
+        F: FnMut(
+            SubObjType<ScalarType>,
+            Expression<ResolvedCAst>,
+        ) -> Result<InitializerItem<Sngl, Ptr>>,
     {
         match (typ.as_ref(), init) {
             (ObjType::Scalar(_), VariableInitializer::Single(exp)) => {
@@ -166,9 +168,9 @@ impl TypeChecker {
         }
         Ok(())
     }
-    fn push_initializer_item<Sngl>(
-        items: &mut Vec<InitializerItem<Sngl>>,
-        item: InitializerItem<Sngl>,
+    fn push_initializer_item<Sngl, Ptr>(
+        items: &mut Vec<InitializerItem<Sngl, Ptr>>,
+        item: InitializerItem<Sngl, Ptr>,
     ) {
         match (items.last_mut(), item) {
             (Some(InitializerItem::Zero(prv_bytelen)), InitializerItem::Zero(cur_bytelen)) => {
@@ -192,13 +194,17 @@ impl TypeChecker {
 mod test {
     use super::*;
     use crate::{
-        common::{types_backend::ByteLen, types_frontend::ArithmeticType},
+        common::{primitive::Const, types_backend::ByteLen, types_frontend::ArithmeticType},
         ds_n_a::singleton::SingletonRepository,
         stage2_parse::phase2_resolve::ResolvedCAst,
         test::utils::{TestDeclaratorItem as Dec, TypeBuilder},
     };
-    use InitializerItem as OutItem;
+
+    use RuntimeInitializerItem as OutRtItem;
+    use StaticInitializerItem as OutStaticItem;
     use VariableInitializer as InNode;
+
+    /* Creating inputs. */
 
     fn in_single_constexpr_int(int: i32) -> InNode<ResolvedCAst> {
         let exp = Expression::R(RExp::Const(Const::Int(int)));
@@ -213,12 +219,11 @@ mod test {
         InNode::Single(exp)
     }
 
-    fn match_out_rt_single_const_int(
-        item: &OutItem<TypedExp<ScalarType>>,
-        expected_int: i32,
-    ) -> bool {
+    /* Checking outputs. */
+
+    fn match_out_rt_single_const_int(item: &OutRtItem, expected_int: i32) -> bool {
         match item {
-            OutItem::Single(TypedExp::R(TypedRExp {
+            OutRtItem::Single(TypedExp::R(TypedRExp {
                 exp: RExp::Const(Const::Int(actual_int)),
                 typ,
             })) => {
@@ -228,31 +233,33 @@ mod test {
             _ => false,
         }
     }
-    fn match_out_rt_single_addrof(item: &OutItem<TypedExp<ScalarType>>) -> bool {
+    fn match_out_rt_single_addrof(item: &OutRtItem) -> bool {
         match item {
-            OutItem::Single(TypedExp::R(TypedRExp { exp: RExp::AddrOf(_), .. })) => true,
+            OutRtItem::Single(TypedExp::R(TypedRExp { exp: RExp::AddrOf(_), .. })) => true,
             _ => false,
         }
     }
     fn match_out_rt_string(
-        item: &OutItem<TypedExp<ScalarType>>,
+        item: &OutRtItem,
         expected_chars: &'static str,
         expected_zeros_sfx_bytelen: u64,
     ) -> bool {
         match item {
-            OutItem::String { chars, zeros_sfx_bytelen } => {
+            OutRtItem::String { chars, zeros_sfx_bytelen } => {
                 (&chars[..] == expected_chars.as_bytes())
                     && (zeros_sfx_bytelen.as_int() == expected_zeros_sfx_bytelen)
             }
             _ => false,
         }
     }
-    fn match_out_rt_zero(item: &OutItem<TypedExp<ScalarType>>, expected_bytelen: u64) -> bool {
+    fn match_out_rt_zero(item: &OutRtItem, expected_bytelen: u64) -> bool {
         match item {
-            OutItem::Zero(actual_bytelen) => actual_bytelen.as_int() == expected_bytelen,
+            OutRtItem::Zero(actual_bytelen) => actual_bytelen.as_int() == expected_bytelen,
             _ => false,
         }
     }
+
+    /* Converting inputs to outputs. */
 
     fn new_typechecker(
         (typ_decls, base_typ): (&[Dec], ArithmeticType),
@@ -268,14 +275,14 @@ mod test {
     fn do_typecheck_static(
         typ: (&[Dec], ArithmeticType),
         init: InNode<ResolvedCAst>,
-    ) -> Result<Vec<OutItem<Const>>> {
+    ) -> Result<Vec<OutStaticItem>> {
         let (mut tc, typ) = new_typechecker(typ);
         tc.typecheck_initializer_static(&typ, init)
     }
     fn do_typecheck_runtime(
         typ: (&[Dec], ArithmeticType),
         init: InNode<ResolvedCAst>,
-    ) -> Result<Vec<OutItem<TypedExp<ScalarType>>>> {
+    ) -> Result<Vec<OutRtItem>> {
         let (mut tc, typ) = new_typechecker(typ);
         tc.typecheck_initializer_runtime(&typ, init)
     }
@@ -288,7 +295,7 @@ mod test {
         fn static_single_nonzero() -> Result<()> {
             let out_items =
                 do_typecheck_static((&[], ArithmeticType::UInt), in_single_constexpr_dbl(41.0))?;
-            assert_eq!(&out_items, &[OutItem::Single(Const::UInt(41))]);
+            assert_eq!(&out_items, &[OutStaticItem::Single(Const::UInt(41))]);
             Ok(())
         }
 
@@ -297,14 +304,14 @@ mod test {
             {
                 let out_items =
                     do_typecheck_static((&[], ArithmeticType::UInt), in_single_constexpr_dbl(0.0))?;
-                assert_eq!(&out_items, &[OutItem::Zero(ByteLen::new(4))]);
+                assert_eq!(&out_items, &[OutStaticItem::Zero(ByteLen::new(4))]);
             }
             {
                 let out_items = do_typecheck_static(
                     (&[Dec::Ptr], ArithmeticType::Double),
                     in_single_constexpr_int(0),
                 )?;
-                assert_eq!(&out_items, &[OutItem::Zero(ByteLen::new(8))]);
+                assert_eq!(&out_items, &[OutStaticItem::Zero(ByteLen::new(8))]);
             }
             Ok(())
         }
@@ -313,7 +320,7 @@ mod test {
         fn static_single_zero_dbl() -> Result<()> {
             let out_items =
                 do_typecheck_static((&[], ArithmeticType::Double), in_single_constexpr_dbl(0.0))?;
-            assert_eq!(&out_items, &[OutItem::Single(Const::Double(0.0))]); // Not Zero item.
+            assert_eq!(&out_items, &[OutStaticItem::Single(Const::Double(0.0))]); // Not Zero item.
             Ok(())
         }
     }
@@ -328,7 +335,7 @@ mod test {
                 (&[Dec::Arr(17), Dec::Arr(7)], ArithmeticType::Int),
                 InNode::Compound(vec![]),
             )?;
-            assert_eq!(&out_items, &[OutItem::Zero(ByteLen::new(4 * 7 * 17))]);
+            assert_eq!(&out_items, &[OutStaticItem::Zero(ByteLen::new(4 * 7 * 17))]);
             Ok(())
             /* Note, our parser grammer forbids an empty initializer, so this scenario is unrealistic. */
         }
@@ -352,11 +359,11 @@ mod test {
             assert_eq!(
                 &out_items,
                 &[
-                    OutItem::Single(Const::Int(10)),
-                    OutItem::Zero(ByteLen::new(4 * ((7 - 1) + 7 * 2 + 1))), // arr[0][1:], arr[1:3][:], arr[3][:1]
-                    OutItem::Single(Const::Int(20)),
-                    OutItem::Single(Const::Int(21)),
-                    OutItem::Zero(ByteLen::new(4 * ((7 - 3) + 7 * (17 - 4)))), // arr[3][3:], arr[4:][:]
+                    OutStaticItem::Single(Const::Int(10)),
+                    OutStaticItem::Zero(ByteLen::new(4 * ((7 - 1) + 7 * 2 + 1))), // arr[0][1:], arr[1:3][:], arr[3][:1]
+                    OutStaticItem::Single(Const::Int(20)),
+                    OutStaticItem::Single(Const::Int(21)),
+                    OutStaticItem::Zero(ByteLen::new(4 * ((7 - 3) + 7 * (17 - 4)))), // arr[3][3:], arr[4:][:]
                 ]
             );
             Ok(())
@@ -383,16 +390,16 @@ mod test {
             assert_eq!(
                 &out_items,
                 &[
-                    OutItem::Single(Const::Double(10.0)),
-                    OutItem::Zero(ByteLen::new(8 * ((7 - 1) + 7))), // arr[0][1:], arr[1][:]
-                    OutItem::Single(Const::Double(20.0)),
-                    OutItem::Single(Const::Double(21.0)),
-                    OutItem::Zero(ByteLen::new(8 * (7 - 2))), // arr[2][2:]
-                    OutItem::Single(Const::Double(0.0)), // Not combined with neighboring Zero items.
-                    OutItem::Zero(ByteLen::new(8 * (7 - 1))), // arr[3][1:]
-                    OutItem::Single(Const::Double(-0.0)), // Not combined with neighboring Zero items.
-                    OutItem::Single(Const::Double(0.0)), // Not combined with neighboring Zero items.
-                    OutItem::Zero(ByteLen::new(8 * ((7 - 2) + 7 * (17 - 5)))), // arr[4][2:], arr[5:][:]
+                    OutStaticItem::Single(Const::Double(10.0)),
+                    OutStaticItem::Zero(ByteLen::new(8 * ((7 - 1) + 7))), // arr[0][1:], arr[1][:]
+                    OutStaticItem::Single(Const::Double(20.0)),
+                    OutStaticItem::Single(Const::Double(21.0)),
+                    OutStaticItem::Zero(ByteLen::new(8 * (7 - 2))), // arr[2][2:]
+                    OutStaticItem::Single(Const::Double(0.0)), // Not combined with neighboring Zero items.
+                    OutStaticItem::Zero(ByteLen::new(8 * (7 - 1))), // arr[3][1:]
+                    OutStaticItem::Single(Const::Double(-0.0)), // Not combined with neighboring Zero items.
+                    OutStaticItem::Single(Const::Double(0.0)), // Not combined with neighboring Zero items.
+                    OutStaticItem::Zero(ByteLen::new(8 * ((7 - 2) + 7 * (17 - 5)))), // arr[4][2:], arr[5:][:]
                 ]
             );
             Ok(())
@@ -440,7 +447,7 @@ mod test {
                 in_single_constexpr_str("aabb"),
             )?;
 
-            assert!(matches!(&out_items[..], &[OutItem::Pointer(_)]));
+            assert!(matches!(&out_items[..], &[OutStaticItem::Pointer(_)]));
             Ok(())
         }
 
@@ -477,7 +484,7 @@ mod test {
 
                 assert_eq!(
                     &out_items,
-                    &[OutItem::String {
+                    &[OutStaticItem::String {
                         chars: "aabb".into(),
                         zeros_sfx_bytelen: ByteLen::new(17 - 4)
                     },]
@@ -519,15 +526,15 @@ mod test {
                 assert_eq!(
                     &out_items,
                     &[
-                        OutItem::String {
+                        OutStaticItem::String {
                             chars: "aabb".into(),
                             zeros_sfx_bytelen: ByteLen::new(7 - 4),
                         },
-                        OutItem::String {
+                        OutStaticItem::String {
                             chars: "ccddeef".into(),
                             zeros_sfx_bytelen: ByteLen::new(7 - 7),
                         },
-                        OutItem::String {
+                        OutStaticItem::String {
                             chars: "gghh".into(),
                             zeros_sfx_bytelen: ByteLen::new((7 - 4) + 7 * (17 - 3)),
                         },

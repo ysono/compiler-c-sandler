@@ -61,8 +61,10 @@ mod declaration {
     #[derive(Debug)]
     pub struct VariableDefinition<C: CAstVariant> {
         pub ident: C::Identifier,
-        pub init: Vec<InitializerItem<C::ScalarExpression>>,
+        pub init: Vec<RuntimeInitializerItem>,
     }
+
+    pub type RuntimeInitializerItem = InitializerItem<TypedExp<ScalarType>, ()>;
 
     #[derive(Debug)]
     pub struct FunctionDeclaration<C: CAstVariant> {

@@ -1,9 +1,6 @@
 use super::FunInstrsGenerator;
 use crate::{
-    common::{
-        identifier::SymbolIdentifier, primitive::Const, symbol_table_frontend::InitializerItem,
-        types_backend::ByteLen,
-    },
+    common::{identifier::SymbolIdentifier, primitive::Const, types_backend::ByteLen},
     stage2_parse::{c_ast as c, phase3_typecheck::TypeCheckedCAst},
     stage3_tacky::tacky_ast::*,
 };
@@ -22,7 +19,7 @@ impl FunInstrsGenerator<'_> {
 
         for item in init {
             match item {
-                InitializerItem::Single(typed_exp) => {
+                c::RuntimeInitializerItem::Single(typed_exp) => {
                     cto_gen.flush(&mut self.instrs);
 
                     let single_bytelen = typed_exp.typ().bytelen();
@@ -31,13 +28,13 @@ impl FunInstrsGenerator<'_> {
 
                     cto_gen.push(val, single_bytelen, &mut self.instrs);
                 }
-                InitializerItem::String { chars, zeros_sfx_bytelen } => {
+                c::RuntimeInitializerItem::String { chars, zeros_sfx_bytelen } => {
                     cto_gen.gen_init_string(chars, zeros_sfx_bytelen, &mut self.instrs)
                 }
-                InitializerItem::Pointer(_) => unreachable!(
+                c::RuntimeInitializerItem::Pointer(()) => unreachable!(
                     "The pointer initializer item is used to initialize static objs only."
                 ),
-                InitializerItem::Zero(zeros_bytelen) => {
+                c::RuntimeInitializerItem::Zero(zeros_bytelen) => {
                     cto_gen.gen_init_zero(zeros_bytelen, &mut self.instrs)
                 }
             }
@@ -171,11 +168,8 @@ mod test {
 
     /* Creating inputs. */
 
-    fn in_single_constexpr_int(
-        i: i32,
-        typ: SubObjType<ScalarType>,
-    ) -> InitializerItem<c::TypedExp<ScalarType>> {
-        InitializerItem::Single(c::TypedExp::R(c::TypedRExp {
+    fn in_single_constexpr_int(i: i32, typ: SubObjType<ScalarType>) -> c::RuntimeInitializerItem {
+        c::RuntimeInitializerItem::Single(c::TypedExp::R(c::TypedRExp {
             exp: c::RExp::Const(Const::Int(i)),
             typ,
         }))
@@ -184,7 +178,7 @@ mod test {
         i: i32,
         j: i32,
         typ: SubObjType<ScalarType>,
-    ) -> InitializerItem<c::TypedExp<ScalarType>> {
+    ) -> c::RuntimeInitializerItem {
         let lhs = c::TypedExp::R(c::TypedRExp {
             exp: c::RExp::Const(Const::Int(i)),
             typ: typ.clone(),
@@ -201,14 +195,12 @@ mod test {
             }),
             typ,
         });
-        InitializerItem::Single(exp)
+        c::RuntimeInitializerItem::Single(exp)
     }
 
     /* Converting inputs to outputs. */
 
-    fn emit_initializer(
-        initializer: Vec<InitializerItem<c::TypedExp<ScalarType>>>,
-    ) -> Vec<Instruction> {
+    fn emit_initializer(initializer: Vec<c::RuntimeInitializerItem>) -> Vec<Instruction> {
         let mut symtab = SymbolTable::default();
         let mut tacky_gen = FunInstrsGenerator::new(&mut symtab);
 
@@ -265,12 +257,12 @@ mod test {
             });
 
         let in_items = vec![
-            InitializerItem::Zero(ByteLen::new(8 * 2 + 4 * 1 + 1 * 3)),
+            c::RuntimeInitializerItem::Zero(ByteLen::new(8 * 2 + 4 * 1 + 1 * 3)),
             in_single_constexpr_int(0x0202_0101, int_typ_as_sca_typ.clone()),
-            InitializerItem::Zero(ByteLen::new(8 * 2 + 4 * 1 + 1 * 3)),
+            c::RuntimeInitializerItem::Zero(ByteLen::new(8 * 2 + 4 * 1 + 1 * 3)),
             in_single_rtexpr_int(0x0404_0000, 0x0000_0303, int_typ_as_sca_typ.clone()),
-            InitializerItem::Zero(ByteLen::new(8 * 2 + 4 * 1 + 1 * 3)),
-            InitializerItem::String {
+            c::RuntimeInitializerItem::Zero(ByteLen::new(8 * 2 + 4 * 1 + 1 * 3)),
+            c::RuntimeInitializerItem::String {
                 chars: "aabbccddeef".into(),
                 zeros_sfx_bytelen: ByteLen::new(5),
             },

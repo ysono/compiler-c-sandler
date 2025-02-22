@@ -2,7 +2,7 @@ use crate::common::{
     identifier::SymbolIdentifier,
     primitive::Const,
     symbol_table_frontend::{
-        InitializerItem, ObjAttrs, StaticInitializer, StaticVisibility, Symbol, SymbolTable,
+        ObjAttrs, StaticInitializer, StaticInitializerItem, StaticVisibility, Symbol, SymbolTable,
     },
     types_backend::{Alignment, AssemblyType, ScalarAssemblyType},
 };
@@ -28,12 +28,12 @@ pub enum AsmObjAttrs {
 pub struct StaticReadWriteAsmObjAttrs {
     pub visibility: StaticVisibility,
     pub alignment: Alignment,
-    pub initializer: Option<Vec<InitializerItem<Const>>>,
+    pub initializer: Option<Vec<StaticInitializerItem>>,
 }
 #[derive(Debug)]
 pub struct StaticReadonlyAsmObjAttrs {
     pub alignment: Alignment,
-    pub initializer: InitializerItem<Const>,
+    pub initializer: StaticInitializerItem,
 }
 
 #[derive(Debug)]
@@ -68,7 +68,7 @@ impl BackendSymbolTable {
                         asm_type: ScalarAssemblyType::from(konst.arithmetic_type()).into(),
                         asm_attrs: StaticReadonlyAsmObjAttrs {
                             alignment,
-                            initializer: InitializerItem::Single(konst),
+                            initializer: StaticInitializerItem::Single(konst),
                         }
                         .into(),
                     },
@@ -94,7 +94,7 @@ impl BackendSymbolTable {
                                 StaticInitializer::Concrete(inits) => Some(inits),
                                 StaticInitializer::Tentative => {
                                     let bytelen = typ.bytelen();
-                                    let init = InitializerItem::Zero(bytelen);
+                                    let init = StaticInitializerItem::Zero(bytelen);
                                     Some(vec![init])
                                 }
                                 StaticInitializer::NoInitializer => None,
@@ -108,7 +108,7 @@ impl BackendSymbolTable {
                         }
                         ObjAttrs::StaticReadonly { initializer } => {
                             let alignment = match initializer {
-                                InitializerItem::String { .. } => {
+                                StaticInitializerItem::String { .. } => {
                                     /* Each static string obj requires 1-byte alignment.
                                     Even if its length is >= 16 bytes, it does _not_ require 16-byte alignment. */
                                     Alignment::B1
