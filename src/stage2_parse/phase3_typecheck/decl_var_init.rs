@@ -11,6 +11,7 @@ use crate::{
     utils::noop,
 };
 use anyhow::{Result, anyhow};
+use std::borrow::Cow;
 
 impl TypeChecker {
     pub(super) fn generate_zero_static_initializer(typ: &ObjType) -> StaticInitializer {
@@ -85,7 +86,7 @@ impl TypeChecker {
         init: VariableInitializer<ResolvedCAst>,
     ) -> Result<Vec<InitializerItem<TypedExp<ScalarType>>>> {
         let mut typecheck_single = |typ: SubObjType<ScalarType>, exp: Expression<ResolvedCAst>| {
-            self.cast_by_assignment(typ, exp)
+            self.cast_by_assignment(Cow::Owned(typ), exp)
                 .map(InitializerItem::Single)
         };
 

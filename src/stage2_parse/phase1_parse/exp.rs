@@ -5,7 +5,6 @@ use crate::{
     stage2_parse::c_ast::*,
 };
 use anyhow::{Context, Result, anyhow};
-use std::borrow::Borrow;
 
 impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
     #[inline]
@@ -254,15 +253,15 @@ mod binary_helpers {
 
     #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
     pub struct BinaryOperatorPrecedence(u8);
-    impl<B: Borrow<BinaryOperatorInfo>> From<B> for BinaryOperatorPrecedence {
-        fn from(boi: B) -> Self {
+    impl From<&BinaryOperatorInfo> for BinaryOperatorPrecedence {
+        fn from(boi: &BinaryOperatorInfo) -> Self {
             use BinaryOperator as CO;
 
             use ArithmeticBinaryOperator as COA;
             use ComparisonBinaryOperator as COC;
             use LogicBinaryOperator as COL;
 
-            match boi.borrow() {
+            match boi {
                 BinaryOperatorInfo::Generic(bo) => match bo {
                     CO::Arith(COA::Mul | COA::Div | COA::Rem) => Self(50),
                     CO::Arith(COA::Sub | COA::Add) => Self(45),

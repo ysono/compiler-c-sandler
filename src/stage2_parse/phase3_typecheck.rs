@@ -24,7 +24,7 @@ use crate::{
     stage2_parse::{c_ast::*, phase2_resolve::ResolvedCAst},
 };
 use anyhow::Result;
-use std::rc::Rc;
+use std::{borrow::Cow, rc::Rc};
 
 #[derive(Debug)]
 pub struct TypeCheckedCAst(());
@@ -144,7 +144,7 @@ impl TypeChecker {
                 // Does transform.
                 let fun_typ = self.curr_fun_type.as_ref().unwrap();
                 let ret_typ = fun_typ.ret.clone();
-                let exp = self.cast_by_assignment(ret_typ, exp)?;
+                let exp = self.cast_by_assignment(Cow::Owned(ret_typ), exp)?;
 
                 Ok(Statement::Return(exp))
             }

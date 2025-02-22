@@ -5,6 +5,7 @@ use crate::{
 };
 use anyhow::{Result, anyhow};
 use owning_ref::OwningRef;
+use std::borrow::Cow;
 
 impl TypeChecker {
     /// + Validate the input types.
@@ -92,7 +93,9 @@ impl TypeChecker {
                     .params
                     .iter()
                     .zip(args.into_iter())
-                    .map(|(param_typ, arg_exp)| self.cast_by_assignment(param_typ, arg_exp))
+                    .map(|(param_typ, arg_exp)| {
+                        self.cast_by_assignment(Cow::Borrowed(param_typ), arg_exp)
+                    })
                     .collect::<Result<Vec<_>>>()?;
 
                 let typ = fun_typ.ret.clone();
@@ -109,7 +112,7 @@ impl TypeChecker {
                 };
 
                 let typ = lhs.typ.clone();
-                let rhs = self.cast_by_assignment(&typ, *rhs)?;
+                let rhs = self.cast_by_assignment(Cow::Borrowed(&typ), *rhs)?;
 
                 let exp = RExp::Assignment(Assignment {
                     lhs: Box::new(lhs),

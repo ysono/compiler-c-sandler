@@ -9,7 +9,7 @@ use crate::{
 };
 use anyhow::{Result, anyhow};
 use owning_ref::OwningRef;
-use std::{borrow::Borrow, cmp::Ordering};
+use std::{borrow::Cow, cmp::Ordering};
 
 /// Common type
 impl TypeChecker {
@@ -22,8 +22,8 @@ impl TypeChecker {
     ) -> Result<(TypedExp<ScalarType>, TypedExp<ScalarType>)> {
         let common_typ = self.derive_common_type(&exp1, &exp2)?;
 
-        let exp1 = Self::maybe_insert_cast_node(&common_typ, exp1);
-        let exp2 = Self::maybe_insert_cast_node(common_typ, exp2);
+        let exp1 = Self::maybe_insert_cast_node(Cow::Borrowed(&common_typ), exp1);
+        let exp2 = Self::maybe_insert_cast_node(Cow::Owned(common_typ), exp2);
 
         Ok((exp1, exp2))
     }
@@ -129,14 +129,14 @@ impl TypeChecker {
 /// Casting "as if by assignment"
 impl TypeChecker {
     /// Cast unidirectionally and implicitly, in various assignment-like contexts.
-    pub(super) fn cast_by_assignment<St: Borrow<SubObjType<ScalarType>>>(
+    pub(super) fn cast_by_assignment(
         &mut self,
-        to: St,
+        to: Cow<'_, SubObjType<ScalarType>>,
         from: Expression<ResolvedCAst>,
     ) -> Result<TypedExp<ScalarType>> {
         let from = self.typecheck_exp_and_convert_to_scalar(from)?;
 
-        let () = Self::can_cast_by_assignment(to.borrow().as_ref(), &from)?;
+        let () = Self::can_cast_by_assignment(to.as_ref(), &from)?;
 
         let typed_exp = Self::maybe_insert_cast_node(to, from);
         Ok(typed_exp)
@@ -179,14 +179,14 @@ impl TypeChecker {
 
 /// Helpers on casting
 impl TypeChecker {
-    pub(super) fn maybe_insert_cast_node<St: Borrow<SubObjType<ScalarType>>>(
-        to: St,
+    pub(super) fn maybe_insert_cast_node(
+        to: Cow<'_, SubObjType<ScalarType>>,
         from: TypedExp<ScalarType>,
     ) -> TypedExp<ScalarType> {
-        if to.borrow() == from.typ() {
+        if to.as_ref() == from.typ() {
             from
         } else {
-            let out_typed_rexp = Self::insert_cast_node(to.borrow().clone(), from);
+            let out_typed_rexp = Self::insert_cast_node(to.into_owned(), from);
             TypedExp::R(out_typed_rexp)
         }
     }

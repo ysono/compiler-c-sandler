@@ -1,15 +1,15 @@
 use crate::common::types_frontend::{ArithmeticType, ArrayType, ObjType, ScalarType};
 use derive_more::{Add, AddAssign, Constructor, From};
-use std::{borrow::Borrow, ops::Mul};
+use std::ops::Mul;
 
 #[derive(From, Debug)]
 pub enum AssemblyType {
     Scalar(ScalarAssemblyType),
     ByteArray(ByteArrayAssemblyType),
 }
-impl<Ot: Borrow<ObjType>> From<Ot> for AssemblyType {
-    fn from(obj_typ: Ot) -> Self {
-        match obj_typ.borrow() {
+impl From<&ObjType> for AssemblyType {
+    fn from(obj_typ: &ObjType) -> Self {
+        match obj_typ {
             ObjType::Scalar(sca_typ) => Self::Scalar(ScalarAssemblyType::from(sca_typ)),
             ObjType::Array(arr_typ) => Self::ByteArray(ByteArrayAssemblyType::from(arr_typ)),
         }
@@ -34,19 +34,17 @@ impl From<ArithmeticType> for ScalarAssemblyType {
         }
     }
 }
-impl<St: Borrow<ScalarType>> From<St> for ScalarAssemblyType {
-    fn from(sca_typ: St) -> Self {
-        let ari_typ = sca_typ.borrow().effective_arithmetic_type();
+impl From<&ScalarType> for ScalarAssemblyType {
+    fn from(sca_typ: &ScalarType) -> Self {
+        let ari_typ = sca_typ.effective_arithmetic_type();
         Self::from(ari_typ)
     }
 }
 
 #[derive(Debug)]
 pub struct ByteArrayAssemblyType(pub ByteLen, pub Alignment);
-impl<At: Borrow<ArrayType>> From<At> for ByteArrayAssemblyType {
-    fn from(arr_typ: At) -> Self {
-        let arr_typ = arr_typ.borrow();
-
+impl From<&ArrayType> for ByteArrayAssemblyType {
+    fn from(arr_typ: &ArrayType) -> Self {
         let bytelen = *arr_typ.bytelen();
         let align = Alignment::of_arr_type(arr_typ);
         Self(bytelen, align)

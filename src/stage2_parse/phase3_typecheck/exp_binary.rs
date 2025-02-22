@@ -6,6 +6,7 @@ use crate::{
 };
 use anyhow::{Result, anyhow};
 use owning_ref::OwningRef;
+use std::borrow::Cow;
 
 /// Binary
 impl TypeChecker {
@@ -102,7 +103,7 @@ impl TypeChecker {
         let op = PointerArithmeticBinaryOperator::PointerPlusInteger;
 
         let long_typ = self.get_scalar_type(ArithmeticType::Long);
-        let integ_exp = Self::maybe_insert_cast_node(long_typ, integ_exp);
+        let integ_exp = Self::maybe_insert_cast_node(Cow::Owned(long_typ), integ_exp);
 
         let ptr_typ = ptr_exp.typ().clone();
 
@@ -127,7 +128,7 @@ impl TypeChecker {
                 let op = PointerArithmeticBinaryOperator::PointerMinusInteger;
 
                 let long_typ = self.get_scalar_type(ArithmeticType::Long);
-                let rhs = Self::maybe_insert_cast_node(long_typ, rhs);
+                let rhs = Self::maybe_insert_cast_node(Cow::Owned(long_typ), rhs);
 
                 let ptr_typ = lhs.typ().clone();
 
@@ -211,7 +212,7 @@ impl TypeChecker {
         };
 
         let long_typ = self.get_scalar_type(ArithmeticType::Long);
-        let idx_exp = Self::maybe_insert_cast_node(long_typ, idx_exp);
+        let idx_exp = Self::maybe_insert_cast_node(Cow::Owned(long_typ), idx_exp);
 
         let typed_lexp = TypedLExp {
             exp: LExp::Subscript(Subscript {
