@@ -112,11 +112,8 @@ impl TypeChecker {
         let from = self.typecheck_exp_and_convert_to_scalar(*from)?;
 
         let ok = match (to.as_ref(), from.typ().as_ref()) {
-            (t2, t1) if t2 == t1 => Ok(()),
-
             (ScalarType::Ptr(_), ScalarType::Arith(ArithmeticType::Double)) => Err(()),
             (ScalarType::Arith(ArithmeticType::Double), ScalarType::Ptr(_)) => Err(()),
-
             _ => Ok(()),
         };
         let () = ok.map_err(|()| anyhow!("Cannot explicitly cast {to:#?} <- {from:#?}"))?;
@@ -146,15 +143,12 @@ impl TypeChecker {
         from: &TypedExp<ScalarType>,
     ) -> Result<()> {
         let ok = match (to, from.typ().as_ref()) {
-            (t2, t1) if t2 == t1 => Ok(()),
-
             (ScalarType::Arith(_), ScalarType::Arith(_)) => Ok(()),
-
+            (ScalarType::Ptr(p2), ScalarType::Ptr(p1)) if p2 == p1 => Ok(()),
             (ScalarType::Ptr(_), _) => match from {
                 TypedExp::R(TypedRExp { exp: RExp::Const(k), .. }) if k.is_zero_integer() => Ok(()),
                 _ => Err(()),
             },
-
             _ => Err(()),
         };
         ok.map_err(|()| anyhow!("Cannot \"convert as if by assignment\" {to:#?} <- {from:#?}"))
@@ -169,8 +163,8 @@ impl TypeChecker {
     ) -> TypedExp<ScalarType> {
         if matches!(in_typed_exp.typ().as_ref(), ScalarType::Arith(a) if a.is_character()) {
             let int_typ = self.get_scalar_type(ArithmeticType::Int);
-            let out_rexp = Self::insert_cast_node(int_typ, in_typed_exp);
-            TypedExp::R(out_rexp)
+            let out_typed_rexp = Self::insert_cast_node(int_typ, in_typed_exp);
+            TypedExp::R(out_typed_rexp)
         } else {
             in_typed_exp
         }
