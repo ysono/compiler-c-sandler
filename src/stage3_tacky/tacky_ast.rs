@@ -186,6 +186,7 @@ mod operand {
 
     /// The "value" concept comprises a bit-sequence and a type; and is readonly.
     #[derive(Clone, Debug)]
+    #[cfg_attr(test, derive(From))]
     pub enum Value {
         /// A value that's contained in a constant (ie somewhere outside the addressable memory).
         Constant(Const),
