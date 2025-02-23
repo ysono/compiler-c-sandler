@@ -7,7 +7,7 @@ mod instr_ary;
 mod instr_cast;
 mod instr_cmp;
 mod instr_copy;
-mod instr_fun;
+mod instr_fun_ifc;
 mod operand;
 
 use crate::{
@@ -51,8 +51,20 @@ impl InstrsGenerator {
             instrs,
         }: t::Function,
     ) -> Function<GeneratedAsmAst> {
-        let instrs = self.gen_fun_instrs(typ, param_idents, instrs);
-        Function { ident, visibility, instrs }
+        let mut asm_instrs = self.gen_fun_copy_incoming_args(typ, param_idents);
+
+        /* Note, it's probably cheaper if each `gen_*()` pushed to a common Vec, rather than allocate its own Vec.
+        In the future, we'll decide whether to
+            use a common Vec,
+            or to stream `Instruction`s between phase 1 and phases 2&3 over an `Iterator`
+                (and using `RefCell<BackendSymbolTableWithDeduper>`). */
+        asm_instrs.extend(self.gen_instructions(instrs));
+
+        Function {
+            ident,
+            visibility,
+            instrs: asm_instrs,
+        }
     }
 
     fn gen_instructions(

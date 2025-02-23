@@ -34,7 +34,7 @@ Chronologically ordered events:
         + Emitted by [`crate::stage4_asm_gen::phase2_finalize::InstrsFinalizer::finalize_instrs()`].
         + RSP points to "d", and is guaranteed to be 16-byte aligned.
     1. Copies incoming args (on registers and on stack at `16(%rbp)`, `24(%rbp)`, etc) into the allocated stack frame.
-        + Emitted by [`crate::stage4_asm_gen::phase1_generate::InstrsGenerator::gen_fun_instrs()`].
+        + Emitted by [`crate::stage4_asm_gen::phase1_generate::InstrsGenerator::gen_fun_copy_incoming_args()`].
     1. Uses local variables within the allocated stack frame.
         + Emitted by [`crate::stage4_asm_gen::phase1_generate::InstrsGenerator::gen_instructions()`].
     + The copied incoming args and the local variables are translated from abstract memory locations to concrete locations by [`crate::stage4_asm_gen::phase2_finalize::var_to_stack_pos::VarToStackPos::resolve_stack_pos()`].

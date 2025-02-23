@@ -13,17 +13,15 @@ use std::rc::Rc;
 
 impl InstrsGenerator {
     /// See documentation at [`crate::stage4_asm_gen`].
-    pub(super) fn gen_fun_instrs(
+    pub(super) fn gen_fun_copy_incoming_args(
         &mut self,
         fun_typ: Singleton<ScalarFunType>,
         param_idents: Vec<Rc<SymbolIdentifier>>,
-        t_instrs: Vec<t::Instruction>,
     ) -> Vec<Instruction<GeneratedAsmAst>> {
-        /* Instructions that copy incoming args into the current function's stack frame. */
         let mut arg_reg_resolver = ArgRegResolver::default();
-        let mut extra_arg_stack_pos = MemoryOffset::new(8);
+        let mut last_onstack_arg_pos = MemoryOffset::new(8);
         let params = fun_typ.params.iter().zip(param_idents);
-        let mut asm_instrs = params
+        params
             .map(|(param_type, param_ident)| {
                 let asm_type = ScalarAssemblyType::from(param_type.as_ref());
                 let arg_reg = arg_reg_resolver.next_reg(asm_type);
@@ -33,19 +31,14 @@ impl InstrsGenerator {
                 let src = match arg_reg {
                     Some(reg) => Operand::Register(reg).into(),
                     None => {
-                        *extra_arg_stack_pos.as_mut() += 8;
-                        Operand::Memory(Register::BP, extra_arg_stack_pos).into()
+                        *last_onstack_arg_pos.as_mut() += 8;
+                        Operand::Memory(Register::BP, last_onstack_arg_pos).into()
                     }
                 };
 
                 Instruction::Mov { asm_type, src, dst }
             })
-            .collect::<Vec<_>>();
-
-        /* The function body's instructions. */
-        asm_instrs.extend(self.gen_instructions(t_instrs));
-
-        asm_instrs
+            .collect()
     }
 
     /// See documentation at [`crate::stage4_asm_gen`].
