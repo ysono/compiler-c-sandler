@@ -17,23 +17,28 @@ use crate::{
 };
 use anyhow::{Context, Result, anyhow};
 use derive_more::Into;
-use std::iter::Peekable;
+use std::{fmt::Debug, iter::Peekable};
 
 #[derive(Debug)]
 pub struct ParsedCAst(());
 impl CAstVariant for ParsedCAst {
+    /* Declarations */
+
     type FileScopeDeclaration = Declaration<Self>;
     type BlockScopeDeclaration = Declaration<Self>;
     type ForInitDeclaration = VariableDeclaration<Self>;
 
-    type Identifier = RawIdentifier;
+    /* IDs */
 
+    type SymbolId = RawIdentifier;
     type LoopId = ();
 
-    type Expression = Expression<Self>;
-    type ScalarExpression = Expression<Self>;
-    type LvalueExpression = Expression<Self>;
-    type ScalarLvalueExpression = Expression<Self>;
+    /* Categories of Expressions */
+
+    type Expression<SubTyp: Debug> = Expression<Self>;
+    type LvalueExpression<SubTyp: Debug> = Expression<Self>;
+
+    /* Specific Expressions ; Operands */
 
     type BinaryOperator = BinaryOperator;
     type StringExpression = Vec<u8>;

@@ -18,29 +18,34 @@ use crate::{
     common::{
         identifier::{LoopId, SymbolIdentifier},
         symbol_table_frontend::FrontendSymbolTableWithDeduper,
-        types_frontend::{ObjType, ScalarFunType, ScalarType},
+        types_frontend::{ObjType, ScalarFunType},
     },
     ds_n_a::singleton::{Singleton, SingletonRepository},
     stage2_parse::{c_ast::*, phase2_resolve::ResolvedCAst},
 };
 use anyhow::Result;
-use std::{borrow::Cow, rc::Rc};
+use std::{borrow::Cow, fmt::Debug, rc::Rc};
 
 #[derive(Debug)]
 pub struct TypeCheckedCAst(());
 impl CAstVariant for TypeCheckedCAst {
+    /* Declarations */
+
     type FileScopeDeclaration = FunctionDefinition<Self>;
     type BlockScopeDeclaration = VariableDefinition<Self>;
     type ForInitDeclaration = VariableDefinition<Self>;
 
-    type Identifier = Rc<SymbolIdentifier>;
+    /* IDs */
 
+    type SymbolId = Rc<SymbolIdentifier>;
     type LoopId = LoopId;
 
-    type Expression = TypedExp<ObjType>;
-    type ScalarExpression = TypedExp<ScalarType>;
-    type LvalueExpression = TypedLExp<ObjType>;
-    type ScalarLvalueExpression = TypedLExp<ScalarType>;
+    /* Categories of Expressions */
+
+    type Expression<SubTyp: Debug> = TypedExp<SubTyp>;
+    type LvalueExpression<SubTyp: Debug> = TypedLExp<SubTyp>;
+
+    /* Specific Expressions ; Operands */
 
     type BinaryOperator = TypeCheckedBinaryOperator;
     type StringExpression = Rc<SymbolIdentifier>;

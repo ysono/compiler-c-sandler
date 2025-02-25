@@ -9,23 +9,28 @@ use crate::{
     stage2_parse::{c_ast::*, phase1_parse::ParsedCAst},
 };
 use anyhow::{Context, Result, anyhow};
-use std::rc::Rc;
+use std::{fmt::Debug, rc::Rc};
 
 #[derive(Debug)]
 pub struct ResolvedCAst(());
 impl CAstVariant for ResolvedCAst {
+    /* Declarations */
+
     type FileScopeDeclaration = Declaration<Self>;
     type BlockScopeDeclaration = Declaration<Self>;
     type ForInitDeclaration = VariableDeclaration<Self>;
 
-    type Identifier = Rc<SymbolIdentifier>;
+    /* IDs */
 
+    type SymbolId = Rc<SymbolIdentifier>;
     type LoopId = LoopId;
 
-    type Expression = Expression<Self>;
-    type ScalarExpression = Expression<Self>;
-    type LvalueExpression = Expression<Self>;
-    type ScalarLvalueExpression = Expression<Self>;
+    /* Categories of Expressions */
+
+    type Expression<SubTyp: Debug> = Expression<Self>;
+    type LvalueExpression<SubTyp: Debug> = Expression<Self>;
+
+    /* Specific Expressions ; Operands */
 
     type BinaryOperator = BinaryOperator;
     type StringExpression = Vec<u8>;
