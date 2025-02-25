@@ -1,5 +1,6 @@
 use derivative::Derivative;
 use derive_more::{Constructor, Deref};
+use getset::Getters;
 use std::{
     rc::Rc,
     sync::atomic::{AtomicU64, Ordering},
@@ -51,6 +52,21 @@ impl Ord for SymbolIdentifier {
     }
 }
 
+#[derive(Getters, Hash, PartialEq, Eq, Debug)]
+#[getset(get = "pub")]
+pub struct LoopId {
+    id: UniqueId,
+}
+impl LoopId {
+    #[allow(clippy::new_without_default)]
+    pub fn new() -> Self {
+        Self { id: UniqueId::new() }
+    }
+    pub fn clone(&self) -> Self {
+        Self { id: self.id.privately_clone() }
+    }
+}
+
 #[derive(Debug)]
 pub struct JumpLabel {
     pub id: UniqueId,
@@ -81,7 +97,7 @@ impl JumpLabel {
 pub struct UniqueId(u64);
 impl UniqueId {
     #[allow(clippy::new_without_default)]
-    pub fn new() -> Self {
+    fn new() -> Self {
         static NEXT_ID: AtomicU64 = AtomicU64::new(0);
         let curr_id = NEXT_ID.fetch_add(1, Ordering::SeqCst);
         Self(curr_id)

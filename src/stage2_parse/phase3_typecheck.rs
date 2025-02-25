@@ -16,7 +16,7 @@ mod obj;
 use self::{decl_fun::FunDeclScope, decl_var::VarDeclScope};
 use crate::{
     common::{
-        identifier::SymbolIdentifier,
+        identifier::{LoopId, SymbolIdentifier},
         symbol_table_frontend::FrontendSymbolTableWithDeduper,
         types_frontend::{ObjType, ScalarFunType, ScalarType},
     },
@@ -35,7 +35,7 @@ impl CAstVariant for TypeCheckedCAst {
 
     type Identifier = Rc<SymbolIdentifier>;
 
-    type LoopId = Rc<LoopId>;
+    type LoopId = LoopId;
 
     type Expression = TypedExp<ObjType>;
     type ScalarExpression = TypedExp<ScalarType>;

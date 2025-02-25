@@ -2,14 +2,12 @@ pub use self::{declaration::*, expression::*, statement::*, typed_expression::*}
 pub use crate::stage1_lex::tokens::StorageClassSpecifier;
 use crate::{
     common::{
-        identifier::UniqueId,
         primitive::Const,
         symbol_table_frontend::{InitializerItem, StaticVisibility},
         types_frontend::{ObjType, ParsedFunType, ScalarFunType, ScalarType, SubObjType},
     },
     ds_n_a::singleton::Singleton,
 };
-use derivative::Derivative;
 use derive_more::From;
 use std::fmt::Debug;
 
@@ -138,21 +136,6 @@ mod statement {
         Decl(C::ForInitDeclaration),
         Exp(C::Expression),
         None,
-    }
-
-    #[derive(Derivative, Debug)]
-    #[derivative(Hash, PartialEq, Eq)]
-    pub struct LoopId {
-        pub id: UniqueId,
-
-        #[derivative(Hash = "ignore", PartialEq = "ignore")]
-        pub descr: &'static str,
-    }
-    impl LoopId {
-        pub fn new(descr: &'static str) -> Self {
-            let id = UniqueId::new();
-            Self { id, descr }
-        }
     }
 }
 

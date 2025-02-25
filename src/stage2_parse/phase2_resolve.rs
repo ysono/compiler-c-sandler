@@ -5,7 +5,7 @@ mod ident_resolver;
 
 use self::ident_resolver::IdentResolver;
 use crate::{
-    common::identifier::SymbolIdentifier,
+    common::identifier::{LoopId, SymbolIdentifier},
     stage2_parse::{c_ast::*, phase1_parse::ParsedCAst},
 };
 use anyhow::{Context, Result, anyhow};
@@ -20,7 +20,7 @@ impl CAstVariant for ResolvedCAst {
 
     type Identifier = Rc<SymbolIdentifier>;
 
-    type LoopId = Rc<LoopId>;
+    type LoopId = LoopId;
 
     type Expression = Expression<Self>;
     type ScalarExpression = Expression<Self>;
@@ -35,7 +35,7 @@ impl CAstVariant for ResolvedCAst {
 pub struct CAstValidator {
     ident_resolver: IdentResolver,
 
-    loop_ids_stack: Vec<Rc<LoopId>>,
+    loop_ids_stack: Vec<LoopId>,
 }
 
 /// Program
@@ -219,16 +219,18 @@ impl CAstValidator {
                     let loop_id = self
                         .loop_ids_stack
                         .last()
-                        .ok_or(anyhow!("Cannot break outside loop scope"))?;
-                    Ok(Statement::Break(Rc::clone(loop_id)))
+                        .ok_or(anyhow!("Cannot break outside loop scope"))?
+                        .clone();
+                    Ok(Statement::Break(loop_id))
                 }
                 Statement::Continue(()) => {
                     // Does transform.
                     let loop_id = self
                         .loop_ids_stack
                         .last()
-                        .ok_or(anyhow!("Cannot continue outside loop scope"))?;
-                    Ok(Statement::Continue(Rc::clone(loop_id)))
+                        .ok_or(anyhow!("Cannot continue outside loop scope"))?
+                        .clone();
+                    Ok(Statement::Continue(loop_id))
                 }
                 Statement::While((), condbody) => self.resolve_stmt_while(condbody), // Does transform.
                 Statement::DoWhile((), condbody) => self.resolve_stmt_dowhile(condbody), // Does transform.
@@ -243,7 +245,7 @@ impl CAstValidator {
         condbody: CondBody<ParsedCAst>,
     ) -> Result<Statement<ResolvedCAst>> {
         let inner = || -> Result<_> {
-            let (loop_id, condbody) = self.resolve_stmt_condbody("while", condbody)?;
+            let (loop_id, condbody) = self.resolve_stmt_condbody(condbody)?;
             Ok(Statement::While(loop_id, condbody))
         };
         inner().context("<statement> while")
@@ -253,20 +255,18 @@ impl CAstValidator {
         condbody: CondBody<ParsedCAst>,
     ) -> Result<Statement<ResolvedCAst>> {
         let inner = || -> Result<_> {
-            let (loop_id, condbody) = self.resolve_stmt_condbody("dowhile", condbody)?;
+            let (loop_id, condbody) = self.resolve_stmt_condbody(condbody)?;
             Ok(Statement::DoWhile(loop_id, condbody))
         };
         inner().context("<statement> dowhile")
     }
     fn resolve_stmt_condbody(
         &mut self,
-        descr: &'static str,
         CondBody { condition, body }: CondBody<ParsedCAst>,
-    ) -> Result<(Rc<LoopId>, CondBody<ResolvedCAst>)> {
+    ) -> Result<(LoopId, CondBody<ResolvedCAst>)> {
         let condition = self.resolve_exp(condition)?;
 
-        let loop_id = Rc::new(LoopId::new(descr));
-        self.loop_ids_stack.push(loop_id);
+        self.loop_ids_stack.push(LoopId::new());
 
         let body = Box::new(self.resolve_stmt(*body)?);
 
@@ -291,8 +291,7 @@ impl CAstValidator {
 
             let post = post.map(|exp| self.resolve_exp(exp)).transpose()?;
 
-            let loop_id = Rc::new(LoopId::new("for"));
-            self.loop_ids_stack.push(loop_id);
+            self.loop_ids_stack.push(LoopId::new());
 
             let body = Box::new(self.resolve_stmt(*body)?);
 
