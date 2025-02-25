@@ -42,23 +42,29 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
         use t::TypeSpecifier as TS;
 
         let mut inner = || -> Result<_> {
-            let mut typs = vec![];
-            let mut scss = vec![];
-            while let t::Token::Type(_) | t::Token::StorageClassSpecifier(_) = self.peek_token()? {
-                match self.next_token()? {
-                    t::Token::Type(t_typ) => typs.push(t_typ),
-                    t::Token::StorageClassSpecifier(scs) => scss.push(scs),
-                    _ => unreachable!(),
+            let mut typ_specs = vec![];
+            let mut sc_specs = vec![];
+            loop {
+                match self.peek_token()? {
+                    t::Token::TypeSpecifier(typ_spec) => {
+                        typ_specs.push(*typ_spec);
+                        self.tokens.next();
+                    }
+                    t::Token::StorageClassSpecifier(sc_spec) => {
+                        sc_specs.push(*sc_spec);
+                        self.tokens.next();
+                    }
+                    _ => break,
                 }
             }
-            if typs.is_empty() && scss.is_empty() {
+            if typ_specs.is_empty() && sc_specs.is_empty() {
                 return Ok(None);
             }
 
-            let expected_max_len = cmp::min(3, typs.len());
-            typs[..expected_max_len].sort();
+            let expected_max_len = cmp::min(3, typ_specs.len());
+            typ_specs[..expected_max_len].sort();
 
-            let ari_type = match &typs[..] {
+            let ari_type = match &typ_specs[..] {
                 [TS::Char] => AT::Char,
                 [TS::Char, TS::Signed] => AT::SChar,
                 [TS::Char, TS::Unsigned] => AT::UChar,
@@ -78,13 +84,13 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
                 /* Void is not supported yet. */
             };
 
-            let scs = match &scss[..] {
+            let sc_spec = match &sc_specs[..] {
                 [] => None,
-                [scs] => Some(*scs),
+                [sc_spec] => Some(*sc_spec),
                 actual => return Err(anyhow!("Invalid storage class specifiers. {actual:#?}")),
             };
 
-            Ok(Some((ari_type, scs)))
+            Ok(Some((ari_type, sc_spec)))
         };
         inner().context("{ <specifier> }")
     }
@@ -159,7 +165,7 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
             }
 
             let params = match self.peek_token()? {
-                t::Token::Type(t::TypeSpecifier::Void) => {
+                t::Token::TypeSpecifier(t::TypeSpecifier::Void) => {
                     self.tokens.next();
                     Vec::with_capacity(0)
                 }
