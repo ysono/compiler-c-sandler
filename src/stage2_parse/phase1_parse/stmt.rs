@@ -92,10 +92,11 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
 
             let body = self.parse_stmt()?;
 
-            Ok(Statement::While(
-                (),
-                CondBody { condition, body: Box::new(body) },
-            ))
+            Ok(Statement::While(CondBody {
+                loop_id: (),
+                condition,
+                body: Box::new(body),
+            }))
         };
         inner().context("<statement> while")
     }
@@ -114,10 +115,11 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
                 t::Demarcator::Semicolon.into(),
             ])?;
 
-            Ok(Statement::DoWhile(
-                (),
-                CondBody { body: Box::new(body), condition },
-            ))
+            Ok(Statement::DoWhile(CondBody {
+                loop_id: (),
+                body: Box::new(body),
+                condition,
+            }))
         };
         inner().context("<statement> dowhile")
     }
@@ -166,15 +168,13 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
 
             let body = self.parse_stmt()?;
 
-            Ok(Statement::For(
-                (),
-                For {
-                    init,
-                    condition,
-                    post,
-                    body: Box::new(body),
-                },
-            ))
+            Ok(Statement::For(For {
+                loop_id: (),
+                init,
+                condition,
+                post,
+                body: Box::new(body),
+            }))
         };
         inner().context("<statement> for")
     }

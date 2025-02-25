@@ -232,9 +232,9 @@ impl CAstValidator {
                         .clone();
                     Ok(Statement::Continue(loop_id))
                 }
-                Statement::While((), condbody) => self.resolve_stmt_while(condbody), // Does transform.
-                Statement::DoWhile((), condbody) => self.resolve_stmt_dowhile(condbody), // Does transform.
-                Statement::For((), foor) => self.resolve_stmt_for(foor), // Does transform.
+                Statement::While(condbody) => self.resolve_stmt_while(condbody), // Does transform.
+                Statement::DoWhile(condbody) => self.resolve_stmt_dowhile(condbody), // Does transform.
+                Statement::For(foor) => self.resolve_stmt_for(foor), // Does transform.
                 Statement::Null => Ok(Statement::Null),
             }
         };
@@ -245,8 +245,8 @@ impl CAstValidator {
         condbody: CondBody<ParsedCAst>,
     ) -> Result<Statement<ResolvedCAst>> {
         let inner = || -> Result<_> {
-            let (loop_id, condbody) = self.resolve_stmt_condbody(condbody)?;
-            Ok(Statement::While(loop_id, condbody))
+            let condbody = self.resolve_stmt_condbody(condbody)?;
+            Ok(Statement::While(condbody))
         };
         inner().context("<statement> while")
     }
@@ -255,15 +255,15 @@ impl CAstValidator {
         condbody: CondBody<ParsedCAst>,
     ) -> Result<Statement<ResolvedCAst>> {
         let inner = || -> Result<_> {
-            let (loop_id, condbody) = self.resolve_stmt_condbody(condbody)?;
-            Ok(Statement::DoWhile(loop_id, condbody))
+            let condbody = self.resolve_stmt_condbody(condbody)?;
+            Ok(Statement::DoWhile(condbody))
         };
         inner().context("<statement> dowhile")
     }
     fn resolve_stmt_condbody(
         &mut self,
-        CondBody { condition, body }: CondBody<ParsedCAst>,
-    ) -> Result<(LoopId, CondBody<ResolvedCAst>)> {
+        CondBody { loop_id: (), condition, body }: CondBody<ParsedCAst>,
+    ) -> Result<CondBody<ResolvedCAst>> {
         let condition = self.resolve_exp(condition)?;
 
         self.loop_ids_stack.push(LoopId::new());
@@ -272,11 +272,17 @@ impl CAstValidator {
 
         let loop_id = self.loop_ids_stack.pop().unwrap();
 
-        Ok((loop_id, CondBody { condition, body }))
+        Ok(CondBody { loop_id, condition, body })
     }
     fn resolve_stmt_for(
         &mut self,
-        For { init, condition, post, body }: For<ParsedCAst>,
+        For {
+            loop_id: (),
+            init,
+            condition,
+            post,
+            body,
+        }: For<ParsedCAst>,
     ) -> Result<Statement<ResolvedCAst>> {
         let inner = || -> Result<_> {
             self.ident_resolver.push_new_scope();
@@ -299,8 +305,14 @@ impl CAstValidator {
 
             self.ident_resolver.pop_scope();
 
-            let foor = For { init, condition, post, body };
-            Ok(Statement::For(loop_id, foor))
+            let foor = For {
+                loop_id,
+                init,
+                condition,
+                post,
+                body,
+            };
+            Ok(Statement::For(foor))
         };
         inner().context("<statement> for")
     }

@@ -127,11 +127,9 @@ impl FunInstrsGenerator<'_> {
             c::Statement::Compound(c_block) => self.gen_block(c_block),
             c::Statement::Break(loop_id) => self.gen_stmt_break(loop_id),
             c::Statement::Continue(loop_id) => self.gen_stmt_continue(loop_id),
-            c::Statement::While(loop_id, c_condbody) => self.gen_stmt_while(loop_id, c_condbody),
-            c::Statement::DoWhile(loop_id, c_condbody) => {
-                self.gen_stmt_dowhile(loop_id, c_condbody)
-            }
-            c::Statement::For(loop_id, foor) => self.gen_stmt_for(loop_id, foor),
+            c::Statement::While(c_condbody) => self.gen_stmt_while(c_condbody),
+            c::Statement::DoWhile(c_condbody) => self.gen_stmt_dowhile(c_condbody),
+            c::Statement::For(foor) => self.gen_stmt_for(foor),
             c::Statement::Null => noop!(),
         }
     }

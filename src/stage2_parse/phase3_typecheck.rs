@@ -161,17 +161,23 @@ impl TypeChecker {
             Statement::Compound(block) => self.typecheck_block(block).map(Statement::Compound),
             Statement::Break(loop_id) => Ok(Statement::Break(loop_id)),
             Statement::Continue(loop_id) => Ok(Statement::Continue(loop_id)),
-            Statement::While(loop_id, CondBody { condition, body }) => {
+            Statement::While(CondBody { loop_id, condition, body }) => {
                 let condition = self.typecheck_exp_and_convert_to_scalar(condition)?;
                 let body = Box::new(self.typecheck_stmt(*body)?);
-                Ok(Statement::While(loop_id, CondBody { condition, body }))
+                Ok(Statement::While(CondBody { loop_id, condition, body }))
             }
-            Statement::DoWhile(loop_id, CondBody { body, condition }) => {
+            Statement::DoWhile(CondBody { loop_id, body, condition }) => {
                 let body = Box::new(self.typecheck_stmt(*body)?);
                 let condition = self.typecheck_exp_and_convert_to_scalar(condition)?;
-                Ok(Statement::DoWhile(loop_id, CondBody { body, condition }))
+                Ok(Statement::DoWhile(CondBody { loop_id, body, condition }))
             }
-            Statement::For(loop_id, For { init, condition, post, body }) => {
+            Statement::For(For {
+                loop_id,
+                init,
+                condition,
+                post,
+                body,
+            }) => {
                 let init = match init {
                     ForInit::Decl(var_decl) => {
                         // Does transform.
@@ -189,7 +195,13 @@ impl TypeChecker {
                     .transpose()?;
                 let post = post.map(|post| self.typecheck_exp(post)).transpose()?;
                 let body = Box::new(self.typecheck_stmt(*body)?);
-                Ok(Statement::For(loop_id, For { init, condition, post, body }))
+                Ok(Statement::For(For {
+                    loop_id,
+                    init,
+                    condition,
+                    post,
+                    body,
+                }))
             }
             Statement::Null => Ok(Statement::Null),
         }

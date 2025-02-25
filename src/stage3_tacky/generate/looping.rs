@@ -23,8 +23,7 @@ impl FunInstrsGenerator<'_> {
     }
     pub(super) fn gen_stmt_while(
         &mut self,
-        loop_id: LoopId,
-        c::CondBody { condition, body }: c::CondBody<TypeCheckedCAst>,
+        c::CondBody { loop_id, condition, body }: c::CondBody<TypeCheckedCAst>,
     ) {
         let ([], lbls) = self
             .loop_id_to_labels
@@ -56,8 +55,7 @@ impl FunInstrsGenerator<'_> {
     }
     pub(super) fn gen_stmt_dowhile(
         &mut self,
-        loop_id: LoopId,
-        c::CondBody { body, condition }: c::CondBody<TypeCheckedCAst>,
+        c::CondBody { loop_id, body, condition }: c::CondBody<TypeCheckedCAst>,
     ) {
         let ([lbl_start], lbls) =
             self.loop_id_to_labels
@@ -90,8 +88,13 @@ impl FunInstrsGenerator<'_> {
     }
     pub(super) fn gen_stmt_for(
         &mut self,
-        loop_id: LoopId,
-        c::For { init, condition, post, body }: c::For<TypeCheckedCAst>,
+        c::For {
+            loop_id,
+            init,
+            condition,
+            post,
+            body,
+        }: c::For<TypeCheckedCAst>,
     ) {
         let ([lbl_start], lbls) =
             self.loop_id_to_labels

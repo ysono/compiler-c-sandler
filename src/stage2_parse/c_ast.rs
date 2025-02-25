@@ -102,9 +102,9 @@ pub enum Statement<C: CAstVariant> {
     Compound(Block<C>),
     Break(C::LoopId),
     Continue(C::LoopId),
-    While(C::LoopId, CondBody<C>),
-    DoWhile(C::LoopId, CondBody<C>),
-    For(C::LoopId, For<C>),
+    While(CondBody<C>),
+    DoWhile(CondBody<C>),
+    For(For<C>),
     Null,
 }
 mod statement {
@@ -119,12 +119,14 @@ mod statement {
 
     #[derive(Debug)]
     pub struct CondBody<C: CAstVariant> {
+        pub loop_id: C::LoopId,
         pub condition: C::ScalarExpression,
         pub body: Box<Statement<C>>,
     }
 
     #[derive(Debug)]
     pub struct For<C: CAstVariant> {
+        pub loop_id: C::LoopId,
         pub init: ForInit<C>,
         pub condition: Option<C::ScalarExpression>,
         pub post: Option<C::Expression>,
