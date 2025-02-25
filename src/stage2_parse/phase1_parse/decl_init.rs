@@ -37,9 +37,9 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
 
     fn parse_var_init(&mut self) -> Result<Option<VariableInitializer<ParsedCAst>>> {
         let mut inner = || -> Result<_> {
-            match self.tokens.next() {
-                Some(Ok(t::Token::Demarcator(t::Demarcator::Semicolon))) => Ok(None),
-                Some(Ok(t::Token::Operator(t::Operator::Assign))) => {
+            match self.next_token()? {
+                t::Token::Demarcator(t::Demarcator::Semicolon) => Ok(None),
+                t::Token::Operator(t::Operator::Assign) => {
                     let init = self.parse_initializer()?;
 
                     self.expect_exact(&[t::Demarcator::Semicolon.into()])?;
@@ -53,22 +53,22 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
     }
     fn parse_initializer(&mut self) -> Result<VariableInitializer<ParsedCAst>> {
         let mut inner = || -> Result<_> {
-            match self.tokens.peek() {
-                Some(Ok(t::Token::Demarcator(t::Demarcator::CurlyOpen))) => {
+            match self.peek_token()? {
+                t::Token::Demarcator(t::Demarcator::CurlyOpen) => {
                     self.tokens.next();
 
                     let init = self.parse_initializer()?;
                     let mut inits = vec![init];
 
                     loop {
-                        match self.tokens.next() {
-                            Some(Ok(t::Token::Demarcator(t::Demarcator::CurlyClose))) => break,
-                            Some(Ok(t::Token::Demarcator(t::Demarcator::Comma))) => noop!(),
+                        match self.next_token()? {
+                            t::Token::Demarcator(t::Demarcator::CurlyClose) => break,
+                            t::Token::Demarcator(t::Demarcator::Comma) => noop!(),
                             actual => return Err(anyhow!("{actual:#?}")),
                         }
 
-                        match self.tokens.peek() {
-                            Some(Ok(t::Token::Demarcator(t::Demarcator::CurlyClose))) => {
+                        match self.peek_token()? {
+                            t::Token::Demarcator(t::Demarcator::CurlyClose) => {
                                 self.tokens.next();
                                 break;
                             }
@@ -89,8 +89,8 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
 
     fn parse_fun_body(&mut self) -> Result<Option<Block<ParsedCAst>>> {
         let mut inner = || -> Result<_> {
-            match self.tokens.peek() {
-                Some(Ok(t::Token::Demarcator(t::Demarcator::Semicolon))) => {
+            match self.peek_token()? {
+                t::Token::Demarcator(t::Demarcator::Semicolon) => {
                     self.tokens.next();
                     Ok(None)
                 }

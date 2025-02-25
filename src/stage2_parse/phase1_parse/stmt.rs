@@ -5,13 +5,13 @@ use anyhow::{Context, Result, anyhow};
 impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
     pub(super) fn parse_stmt(&mut self) -> Result<Statement<ParsedCAst>> {
         let mut inner = || -> Result<_> {
-            match self.tokens.peek() {
-                Some(Ok(t::Token::Demarcator(t::Demarcator::Semicolon))) => {
+            match self.peek_token()? {
+                t::Token::Demarcator(t::Demarcator::Semicolon) => {
                     self.tokens.next();
 
                     Ok(Statement::Null)
                 }
-                Some(Ok(t::Token::Keyword(t::Keyword::Return))) => {
+                t::Token::Keyword(t::Keyword::Return) => {
                     self.tokens.next();
 
                     let exp = self.parse_exp()?;
@@ -20,29 +20,29 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
 
                     Ok(Statement::Return(exp))
                 }
-                Some(Ok(t::Token::Control(t::Control::If))) => self.parse_stmt_if(),
-                Some(Ok(t::Token::Demarcator(t::Demarcator::CurlyOpen))) => {
+                t::Token::Control(t::Control::If) => self.parse_stmt_if(),
+                t::Token::Demarcator(t::Demarcator::CurlyOpen) => {
                     let block = self.parse_block()?;
 
                     Ok(Statement::Compound(block))
                 }
-                Some(Ok(t::Token::Loop(t::Loop::Break))) => {
+                t::Token::Loop(t::Loop::Break) => {
                     self.tokens.next();
 
                     self.expect_exact(&[t::Demarcator::Semicolon.into()])?;
 
                     Ok(Statement::Break(()))
                 }
-                Some(Ok(t::Token::Loop(t::Loop::Continue))) => {
+                t::Token::Loop(t::Loop::Continue) => {
                     self.tokens.next();
 
                     self.expect_exact(&[t::Demarcator::Semicolon.into()])?;
 
                     Ok(Statement::Continue(()))
                 }
-                Some(Ok(t::Token::Loop(t::Loop::While))) => self.parse_stmt_while(),
-                Some(Ok(t::Token::Loop(t::Loop::Do))) => self.parse_stmt_dowhile(),
-                Some(Ok(t::Token::Loop(t::Loop::For))) => self.parse_stmt_for(),
+                t::Token::Loop(t::Loop::While) => self.parse_stmt_while(),
+                t::Token::Loop(t::Loop::Do) => self.parse_stmt_dowhile(),
+                t::Token::Loop(t::Loop::For) => self.parse_stmt_for(),
                 _ => {
                     let exp = self.parse_exp()?;
 
@@ -64,8 +64,8 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
 
             let then = self.parse_stmt()?;
 
-            let elze = match self.tokens.peek() {
-                Some(Ok(t::Token::Control(t::Control::Else))) => {
+            let elze = match self.peek_token()? {
+                t::Token::Control(t::Control::Else) => {
                     self.tokens.next();
 
                     let stmt = self.parse_stmt()?;
@@ -128,8 +128,8 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
             let init = match self.parse_declaration()? {
                 Some(Declaration::Var(vd)) => ForInit::Decl(vd),
                 Some(Declaration::Fun(fd)) => return Err(anyhow!("{fd:#?}")),
-                None => match self.tokens.peek() {
-                    Some(Ok(t::Token::Demarcator(t::Demarcator::Semicolon))) => {
+                None => match self.peek_token()? {
+                    t::Token::Demarcator(t::Demarcator::Semicolon) => {
                         self.tokens.next();
 
                         ForInit::None
@@ -144,8 +144,8 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
                 },
             };
 
-            let condition = match self.tokens.peek() {
-                Some(Ok(t::Token::Demarcator(t::Demarcator::Semicolon))) => None,
+            let condition = match self.peek_token()? {
+                t::Token::Demarcator(t::Demarcator::Semicolon) => None,
                 _ => {
                     let exp = self.parse_exp()?;
                     Some(exp)
@@ -154,8 +154,8 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
 
             self.expect_exact(&[t::Demarcator::Semicolon.into()])?;
 
-            let post = match self.tokens.peek() {
-                Some(Ok(t::Token::Demarcator(t::Demarcator::ParenClose))) => None,
+            let post = match self.peek_token()? {
+                t::Token::Demarcator(t::Demarcator::ParenClose) => None,
                 _ => {
                     let exp = self.parse_exp()?;
                     Some(exp)

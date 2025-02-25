@@ -19,8 +19,8 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
             let mut lhs = self.parse_unary_exp()?;
 
             loop {
-                let boi = match self.tokens.peek() {
-                    Some(Ok(t::Token::Operator(t_op))) => BinaryOperatorInfo::parse(t_op),
+                let boi = match self.peek_token()? {
+                    t::Token::Operator(t_op) => BinaryOperatorInfo::parse(t_op),
                     _ => None,
                 };
                 if let Some(boi) = boi {
@@ -98,15 +98,15 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
     }
     fn parse_unary_exp_head(&mut self) -> Result<UnaryExpHead> {
         let mut inner = || -> Result<_> {
-            let head = match self.tokens.next() {
-                Some(Ok(t::Token::Const(konst))) => {
+            let head = match self.next_token()? {
+                t::Token::Const(konst) => {
                     let primary_exp = RExp::Const(konst).into();
 
                     UnaryExpHead::PrimaryExp(primary_exp)
                 }
-                Some(Ok(t::Token::String(mut chars))) => {
-                    while let Some(Ok(t::Token::String(_))) = self.tokens.peek() {
-                        if let Some(Ok(t::Token::String(mut more_chars))) = self.tokens.next() {
+                t::Token::String(mut chars) => {
+                    while let t::Token::String(_) = self.peek_token()? {
+                        if let t::Token::String(mut more_chars) = self.next_token()? {
                             chars.append(&mut more_chars);
                         }
                     }
@@ -114,9 +114,9 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
 
                     UnaryExpHead::PrimaryExp(primary_exp)
                 }
-                Some(Ok(t::Token::Identifier(ident))) => {
-                    let primary_exp = match self.tokens.peek() {
-                        Some(Ok(t::Token::Demarcator(t::Demarcator::ParenOpen))) => {
+                t::Token::Identifier(ident) => {
+                    let primary_exp = match self.peek_token()? {
+                        t::Token::Demarcator(t::Demarcator::ParenOpen) => {
                             let args = self.parse_arg_list()?;
                             RExp::FunctionCall(FunctionCall { ident, args }).into()
                         }
@@ -125,7 +125,7 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
 
                     UnaryExpHead::PrimaryExp(primary_exp)
                 }
-                Some(Ok(t::Token::Operator(t_op))) => {
+                t::Token::Operator(t_op) => {
                     let op = match t_op {
                         t::Operator::Tilde => ParsedUnaryOp::Op(UnaryOperator::Complement),
                         t::Operator::Minus => ParsedUnaryOp::Op(UnaryOperator::Negate),
@@ -137,22 +137,20 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
 
                     UnaryExpHead::UnaryOp(op)
                 }
-                Some(Ok(t::Token::Demarcator(t::Demarcator::ParenOpen))) => {
-                    match self.parse_cast_type()? {
-                        Some(typ) => {
-                            self.expect_exact(&[t::Demarcator::ParenClose.into()])?;
+                t::Token::Demarcator(t::Demarcator::ParenOpen) => match self.parse_cast_type()? {
+                    Some(typ) => {
+                        self.expect_exact(&[t::Demarcator::ParenClose.into()])?;
 
-                            UnaryExpHead::UnaryOp(ParsedUnaryOp::Cast(typ))
-                        }
-                        None => {
-                            let primary_exp = self.parse_exp()?;
-
-                            self.expect_exact(&[t::Demarcator::ParenClose.into()])?;
-
-                            UnaryExpHead::PrimaryExp(primary_exp)
-                        }
+                        UnaryExpHead::UnaryOp(ParsedUnaryOp::Cast(typ))
                     }
-                }
+                    None => {
+                        let primary_exp = self.parse_exp()?;
+
+                        self.expect_exact(&[t::Demarcator::ParenClose.into()])?;
+
+                        UnaryExpHead::PrimaryExp(primary_exp)
+                    }
+                },
                 actual => return Err(anyhow!("{actual:#?}")),
             };
             Ok(head)
@@ -165,8 +163,8 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
 
             let mut args = vec![];
             loop {
-                match self.tokens.peek() {
-                    Some(Ok(t::Token::Demarcator(t::Demarcator::ParenClose))) => {
+                match self.peek_token()? {
+                    t::Token::Demarcator(t::Demarcator::ParenClose) => {
                         self.tokens.next();
                         break;
                     }
@@ -189,8 +187,7 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
         mut lhs_exp: Expression<ParsedCAst>,
     ) -> Result<Expression<ParsedCAst>> {
         let inner = || -> Result<_> {
-            while let Some(Ok(t::Token::Demarcator(t::Demarcator::SquareOpen))) = self.tokens.peek()
-            {
+            while let t::Token::Demarcator(t::Demarcator::SquareOpen) = self.peek_token()? {
                 self.tokens.next();
 
                 let rhs_exp = self.parse_exp()?;

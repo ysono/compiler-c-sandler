@@ -87,8 +87,8 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
 
             let mut items = vec![];
             loop {
-                match self.tokens.peek() {
-                    Some(Ok(t::Token::Demarcator(t::Demarcator::CurlyClose))) => {
+                match self.peek_token()? {
+                    t::Token::Demarcator(t::Demarcator::CurlyClose) => {
                         self.tokens.next();
                         break;
                     }
@@ -116,6 +116,23 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
 
 /// Helpers
 impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
+    fn next_token(&mut self) -> Result<t::Token> {
+        match self.tokens.next() {
+            Some(res) => res,
+            None => Err(anyhow!("EOF")),
+        }
+    }
+
+    fn peek_token(&mut self) -> Result<&t::Token> {
+        match self.tokens.peek() {
+            Some(res) => match res {
+                Ok(token) => Ok(token),
+                Err(e) => Err(anyhow!(e.to_string())),
+            },
+            None => Err(anyhow!("EOF")),
+        }
+    }
+
     fn expect_exact(&mut self, next_tokens: &[t::Token]) -> Result<()> {
         for expected in next_tokens {
             match self.tokens.next() {

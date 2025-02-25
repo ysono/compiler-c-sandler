@@ -44,10 +44,8 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
         let mut inner = || -> Result<_> {
             let mut typs = vec![];
             let mut scss = vec![];
-            while let Some(Ok(t::Token::Type(_) | t::Token::StorageClassSpecifier(_))) =
-                self.tokens.peek()
-            {
-                match self.tokens.next().unwrap().unwrap() {
+            while let t::Token::Type(_) | t::Token::StorageClassSpecifier(_) = self.peek_token()? {
+                match self.next_token()? {
                     t::Token::Type(t_typ) => typs.push(t_typ),
                     t::Token::StorageClassSpecifier(scs) => scss.push(scs),
                     _ => unreachable!(),
@@ -94,7 +92,7 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
     fn parse_declarator(&mut self) -> Result<Declarator> {
         let mut inner = || -> Result<_> {
             let mut ptr_count = 0;
-            while let Some(Ok(t::Token::Operator(t::Operator::Star))) = self.tokens.peek() {
+            while let t::Token::Operator(t::Operator::Star) = self.peek_token()? {
                 self.tokens.next();
                 ptr_count += 1;
             }
@@ -121,9 +119,9 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
     }
     fn parse_simple_declarator(&mut self) -> Result<Declarator> {
         let mut inner = || -> Result<_> {
-            match self.tokens.next() {
-                Some(Ok(t::Token::Identifier(ident))) => Ok(Declarator::new(ident)),
-                Some(Ok(t::Token::Demarcator(t::Demarcator::ParenOpen))) => {
+            match self.next_token()? {
+                t::Token::Identifier(ident) => Ok(Declarator::new(ident)),
+                t::Token::Demarcator(t::Demarcator::ParenOpen) => {
                     let declarator = self.parse_declarator()?;
 
                     self.expect_exact(&[t::Demarcator::ParenClose.into()])?;
@@ -153,15 +151,15 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
     }
     fn parse_param_list(&mut self) -> Result<Option<Vec<Param>>> {
         let mut inner = || -> Result<_> {
-            match self.tokens.peek() {
-                Some(Ok(t::Token::Demarcator(t::Demarcator::ParenOpen))) => {
+            match self.peek_token()? {
+                t::Token::Demarcator(t::Demarcator::ParenOpen) => {
                     self.tokens.next();
                 }
                 _ => return Ok(None),
             }
 
-            let params = match self.tokens.peek() {
-                Some(Ok(t::Token::Type(t::TypeSpecifier::Void))) => {
+            let params = match self.peek_token()? {
+                t::Token::Type(t::TypeSpecifier::Void) => {
                     self.tokens.next();
                     Vec::with_capacity(0)
                 }
@@ -177,8 +175,8 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
 
                         params.push(Param(param_ari_type, declarator));
 
-                        match self.tokens.peek() {
-                            Some(Ok(t::Token::Demarcator(t::Demarcator::Comma))) => {
+                        match self.peek_token()? {
+                            t::Token::Demarcator(t::Demarcator::Comma) => {
                                 self.tokens.next();
                                 continue;
                             }
@@ -197,15 +195,15 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
     }
     fn parse_arr_elem_count(&mut self) -> Result<Option<ArrayElementCount>> {
         let mut inner = || -> Result<_> {
-            match self.tokens.peek() {
-                Some(Ok(t::Token::Demarcator(t::Demarcator::SquareOpen))) => {
+            match self.peek_token()? {
+                t::Token::Demarcator(t::Demarcator::SquareOpen) => {
                     self.tokens.next();
                 }
                 _ => return Ok(None),
             }
 
-            let elem_count = match self.tokens.next() {
-                Some(Ok(t::Token::Const(konst))) => match konst {
+            let elem_count = match self.next_token()? {
+                t::Token::Const(konst) => match konst {
                     /* Note, the lexer emits integer literals that are >= 0. */
                     Const::Int(i) => i as u64,
                     Const::Long(i) => i as u64,
@@ -316,7 +314,7 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
     fn parse_abstract_declarator(&mut self) -> Result<AbstractDeclarator> {
         let mut inner = || -> Result<_> {
             let mut ptr_count = 0;
-            while let Some(Ok(t::Token::Operator(t::Operator::Star))) = self.tokens.peek() {
+            while let t::Token::Operator(t::Operator::Star) = self.peek_token()? {
                 self.tokens.next();
                 ptr_count += 1;
             }
@@ -335,8 +333,8 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
     }
     fn parse_direct_abstract_declarator(&mut self) -> Result<AbstractDeclarator> {
         let mut inner = || -> Result<_> {
-            let mut declarator = match self.tokens.peek() {
-                Some(Ok(t::Token::Demarcator(t::Demarcator::ParenOpen))) => {
+            let mut declarator = match self.peek_token()? {
+                t::Token::Demarcator(t::Demarcator::ParenOpen) => {
                     self.tokens.next();
 
                     let declarator = self.parse_abstract_declarator()?;
