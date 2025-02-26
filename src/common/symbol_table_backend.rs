@@ -84,6 +84,7 @@ impl BackendSymbolTable {
                                     as implicitly specified by `.ascii` or `.cstring` directive.
                             */
                             let alignment = Alignment::B1;
+                            let initializer = *initializer;
                             let initializer = StaticInitializerItem::String(initializer);
                             StaticReadonlyAsmObjAttrs { alignment, initializer }.into()
                         }

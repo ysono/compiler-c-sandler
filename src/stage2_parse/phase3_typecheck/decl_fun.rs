@@ -125,7 +125,7 @@ impl TypeChecker {
         newly_defined: bool,
         new_typ: &Singleton<ScalarFunType>,
     ) -> Result<StaticVisibility> {
-        match self.frontend_symtab.as_mut().entry(ident) {
+        match self.frontend_symtab.symtab_mut().entry(ident) {
             Entry::Vacant(entry) => {
                 let visibility = match new_viz {
                     Viz::PrevOrGlobal => StaticVisibility::Global,

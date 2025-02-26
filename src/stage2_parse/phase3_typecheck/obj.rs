@@ -2,7 +2,7 @@ use super::TypeChecker;
 use crate::{
     common::{
         identifier::SymbolIdentifier,
-        symbol_table_frontend::{InitializerString, ObjAttrs, Symbol},
+        symbol_table_frontend::InitializerString,
         types_backend::ByteLen,
         types_frontend::{ArithmeticType, ArrayElementCount, ArrayType, ObjType},
     },
@@ -15,21 +15,15 @@ impl TypeChecker {
         &mut self,
         chars: Vec<u8>,
     ) -> (Rc<SymbolIdentifier>, Singleton<ObjType>) {
-        let ident = Rc::new(SymbolIdentifier::new_generated());
-
         /* Unconditionally include one terminating '\0' char. */
         let zeros_sfx_bytelen = ByteLen::new(1);
 
         let typ = self.derive_string_type(&chars, zeros_sfx_bytelen);
         let initializer = InitializerString { chars, zeros_sfx_bytelen };
-        let symbol = Symbol::Obj {
-            typ: typ.clone(),
-            attrs: ObjAttrs::StaticReadonly { initializer },
-        };
 
-        self.frontend_symtab
-            .as_mut()
-            .insert(Rc::clone(&ident), symbol);
+        let ident = self
+            .frontend_symtab
+            .get_or_new_static_readonly_string(initializer, &typ);
 
         (ident, typ)
     }

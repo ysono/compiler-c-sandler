@@ -81,7 +81,7 @@ impl TypeChecker {
                 TypedRExp { typ, exp }
             }
             RExp::FunctionCall(FunctionCall { ident, args }) => {
-                let fun_typ = self.frontend_symtab.get_fun_type(&ident)?;
+                let fun_typ = self.frontend_symtab.symtab().get_fun_type(&ident)?;
                 if fun_typ.params.len() != args.len() {
                     return Err(anyhow!(
                         "Mismatched signature. {ident:#?} : {fun_typ:#?} vs {args:#?}"
@@ -147,7 +147,7 @@ impl TypeChecker {
                 }
             }
             LExp::Var(ident) => {
-                let typ = self.frontend_symtab.get_obj_type(&ident)?.clone();
+                let typ = self.frontend_symtab.symtab().get_obj_type(&ident)?.clone();
                 let typ = OwningRef::new(typ);
                 let exp = LExp::Var(ident);
                 TypedLExp { typ, exp }

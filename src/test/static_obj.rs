@@ -185,9 +185,7 @@ fn static_string_objs() -> Result<()> {
         expect_ro(&mut static_ro_objs, "gggghhhhiiiijjjjj");
         expect_ro(&mut static_ro_objs, "kklllmmnnn");
         expect_ro(&mut static_ro_objs, "AABBB");
-        expect_ro(&mut static_ro_objs, "aabbb");
         expect_ro(&mut static_ro_objs, "EEFFF");
-        expect_ro(&mut static_ro_objs, "eefff");
         assert!(static_ro_objs.is_empty());
     }
 

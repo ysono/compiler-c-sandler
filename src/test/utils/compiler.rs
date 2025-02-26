@@ -1,6 +1,7 @@
 use crate::{
     common::{
-        symbol_table_backend::BackendSymbolTable, symbol_table_frontend::FrontendSymbolTable,
+        symbol_table_backend::BackendSymbolTable,
+        symbol_table_frontend::{FrontendSymbolTable, FrontendSymbolTableWithDeduper},
     },
     driver::{
         CompilationResult, Driver,
@@ -40,7 +41,10 @@ pub fn compile_until_parser(pp: &str) -> Result<c_ast::Program<ParsedCAst>> {
 
 pub fn compile_until_typechecker(
     pp: &str,
-) -> Result<(c_ast::Program<TypeCheckedCAst>, FrontendSymbolTable)> {
+) -> Result<(
+    c_ast::Program<TypeCheckedCAst>,
+    FrontendSymbolTableWithDeduper,
+)> {
     let compil_res = compile(pp, CompilerUntil::ParserValidate)?;
     match compil_res {
         CompilationResult::Validated(prog, fe_symtab) => Ok((prog, fe_symtab)),

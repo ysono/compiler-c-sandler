@@ -17,7 +17,7 @@ use self::{decl_fun::FunDeclScope, decl_var::VarDeclScope};
 use crate::{
     common::{
         identifier::SymbolIdentifier,
-        symbol_table_frontend::FrontendSymbolTable,
+        symbol_table_frontend::FrontendSymbolTableWithDeduper,
         types_frontend::{ObjType, ScalarFunType, ScalarType},
     },
     ds_n_a::singleton::{Singleton, SingletonRepository},
@@ -50,7 +50,7 @@ pub struct TypeChecker {
     obj_type_repo: SingletonRepository<ObjType>,
     fun_type_repo: SingletonRepository<ScalarFunType>,
 
-    frontend_symtab: FrontendSymbolTable,
+    frontend_symtab: FrontendSymbolTableWithDeduper,
 
     curr_fun_type: Option<Singleton<ScalarFunType>>,
 }
@@ -67,7 +67,7 @@ impl TypeChecker {
     pub fn typecheck_prog(
         mut self,
         Program { decls }: Program<ResolvedCAst>,
-    ) -> Result<(Program<TypeCheckedCAst>, FrontendSymbolTable)> {
+    ) -> Result<(Program<TypeCheckedCAst>, FrontendSymbolTableWithDeduper)> {
         let mut fun_defns = Vec::with_capacity(decls.len());
         for decl in decls {
             match decl {

@@ -7,7 +7,8 @@ use self::{
 };
 use crate::{
     common::{
-        symbol_table_backend::BackendSymbolTable, symbol_table_frontend::FrontendSymbolTable,
+        symbol_table_backend::BackendSymbolTable,
+        symbol_table_frontend::{FrontendSymbolTable, FrontendSymbolTableWithDeduper},
     },
     ds_n_a::nonempty::NonEmpty,
     stage1_lex::{lexer::Lexer, tokens::Token},
@@ -120,6 +121,7 @@ impl Driver {
             return Ok(CompilationResult::Validated(c_prog, frontend_symtab));
         }
 
+        let frontend_symtab = frontend_symtab.drop_deduper();
         let tackifier = Tackifier::new(frontend_symtab);
         let (tacky_prog, frontend_symtab) = tackifier.tackify_program(c_prog);
         if self.args.until == DriverUntil::Compiler(CompilerUntil::Tacky) {
@@ -235,7 +237,10 @@ impl Driver {
 pub(crate) enum CompilationResult {
     Lexed(Vec<Token>),
     Parsed(c_ast::Program<ParsedCAst>),
-    Validated(c_ast::Program<TypeCheckedCAst>, FrontendSymbolTable),
+    Validated(
+        c_ast::Program<TypeCheckedCAst>,
+        FrontendSymbolTableWithDeduper,
+    ),
     Tacky(tacky_ast::Program, FrontendSymbolTable),
     AsmCode(asm_ast::Program<FinalizedAsmAst>, BackendSymbolTable),
     AsmFile(AsmFilepath),

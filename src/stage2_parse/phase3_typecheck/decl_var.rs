@@ -90,7 +90,7 @@ impl TypeChecker {
     ) -> Result<()> {
         use StaticInitializer as SI;
 
-        let entry = self.frontend_symtab.as_mut().entry(ident);
+        let entry = self.frontend_symtab.symtab_mut().entry(ident);
         match (entry, new_decl_summary) {
             (Entry::Vacant(entry), new_decl_summary) => {
                 let typ = new_typ.clone();
