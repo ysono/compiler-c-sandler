@@ -14,7 +14,7 @@ use derive_more::From;
 use std::{collections::hash_map::Entry, rc::Rc};
 
 impl TypeChecker {
-    /// Resolve a variable declaration, in the symbol table.
+    /// Resolve a variable declaration, in the frontend symbol table.
     ///
     /// @return `Some(_)` iff the variable is initialized at run-time, rather than at compile-time.
     pub(super) fn typecheck_decl_var(
@@ -90,7 +90,7 @@ impl TypeChecker {
     ) -> Result<()> {
         use StaticInitializer as SI;
 
-        let entry = self.symbol_table.as_mut().entry(ident);
+        let entry = self.frontend_symtab.as_mut().entry(ident);
         match (entry, new_decl_summary) {
             (Entry::Vacant(entry), new_decl_summary) => {
                 let typ = new_typ.clone();

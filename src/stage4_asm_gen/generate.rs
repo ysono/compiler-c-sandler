@@ -1,5 +1,7 @@
 use crate::{
-    common::{symbol_table_backend::BackendSymbolTable, symbol_table_frontend::SymbolTable},
+    common::{
+        symbol_table_backend::BackendSymbolTable, symbol_table_frontend::FrontendSymbolTable,
+    },
     ds_n_a::immutable_owned::ImmutableOwned,
     stage3_tacky::tacky_ast as t,
     stage4_asm_gen::{
@@ -10,10 +12,10 @@ use crate::{
 };
 
 pub struct AsmCodeGenerator {
-    frontend_symtab: ImmutableOwned<SymbolTable>,
+    frontend_symtab: ImmutableOwned<FrontendSymbolTable>,
 }
 impl AsmCodeGenerator {
-    pub fn new(frontend_symtab: SymbolTable) -> Self {
+    pub fn new(frontend_symtab: FrontendSymbolTable) -> Self {
         let frontend_symtab = ImmutableOwned::from(frontend_symtab);
         Self { frontend_symtab }
     }

@@ -69,7 +69,7 @@ impl FunInstrsGenerator<'_> {
 
         let val = Value::Variable(Rc::clone(&ident), PhantomMarker::new(&sca_typ));
 
-        self.symbol_table.as_mut().insert(
+        self.frontend_symtab.as_mut().insert(
             ident,
             Symbol::Obj {
                 typ: sca_typ.into_owner(),

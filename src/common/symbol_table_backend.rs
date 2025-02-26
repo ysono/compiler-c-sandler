@@ -2,7 +2,8 @@ use crate::common::{
     identifier::SymbolIdentifier,
     primitive::Const,
     symbol_table_frontend::{
-        ObjAttrs, StaticInitializer, StaticInitializerItem, StaticVisibility, Symbol, SymbolTable,
+        FrontendSymbolTable, ObjAttrs, StaticInitializer, StaticInitializerItem, StaticVisibility,
+        Symbol,
     },
     types_backend::{Alignment, AssemblyType, ScalarAssemblyType},
 };
@@ -80,9 +81,9 @@ impl BackendSymbolTable {
         }
     }
 
-    pub fn merge_symbols_from(&mut self, c_table: SymbolTable) {
-        let c_table: HashMap<_, _> = c_table.into();
-        for (ident, symbol) in c_table.into_iter() {
+    pub fn merge_symbols_from(&mut self, fe_symtab: FrontendSymbolTable) {
+        let ident_to_symbol: HashMap<_, _> = fe_symtab.into();
+        for (ident, symbol) in ident_to_symbol.into_iter() {
             match symbol {
                 Symbol::Obj { typ, attrs } => {
                     let asm_type = AssemblyType::from(typ.as_ref());

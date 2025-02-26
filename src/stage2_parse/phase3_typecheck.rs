@@ -1,4 +1,4 @@
-//! + Resolve declarations, in the symbol table.
+//! + Resolve declarations, in the frontend symbol table.
 //! + Retain the run-time portion of the C AST:
 //!     function definitions (which are not nested) and
 //!     non-static variable definitions.
@@ -17,7 +17,7 @@ use self::{decl_fun::FunDeclScope, decl_var::VarDeclScope};
 use crate::{
     common::{
         identifier::SymbolIdentifier,
-        symbol_table_frontend::SymbolTable,
+        symbol_table_frontend::FrontendSymbolTable,
         types_frontend::{ObjType, ScalarFunType, ScalarType},
     },
     ds_n_a::singleton::{Singleton, SingletonRepository},
@@ -50,7 +50,7 @@ pub struct TypeChecker {
     obj_type_repo: SingletonRepository<ObjType>,
     fun_type_repo: SingletonRepository<ScalarFunType>,
 
-    symbol_table: SymbolTable,
+    frontend_symtab: FrontendSymbolTable,
 
     curr_fun_type: Option<Singleton<ScalarFunType>>,
 }
@@ -59,7 +59,7 @@ impl TypeChecker {
         Self {
             obj_type_repo,
             fun_type_repo: Default::default(), // New repo, separate from the one that Parser uses.
-            symbol_table: Default::default(),
+            frontend_symtab: Default::default(),
             curr_fun_type: Default::default(),
         }
     }
@@ -67,7 +67,7 @@ impl TypeChecker {
     pub fn typecheck_prog(
         mut self,
         Program { decls }: Program<ResolvedCAst>,
-    ) -> Result<(Program<TypeCheckedCAst>, SymbolTable)> {
+    ) -> Result<(Program<TypeCheckedCAst>, FrontendSymbolTable)> {
         let mut fun_defns = Vec::with_capacity(decls.len());
         for decl in decls {
             match decl {
@@ -88,7 +88,7 @@ impl TypeChecker {
 
         let program = Program { decls: fun_defns };
 
-        Ok((program, self.symbol_table))
+        Ok((program, self.frontend_symtab))
     }
 }
 

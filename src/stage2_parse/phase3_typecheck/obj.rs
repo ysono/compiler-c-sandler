@@ -27,7 +27,9 @@ impl TypeChecker {
             attrs: ObjAttrs::StaticReadonly { initializer },
         };
 
-        self.symbol_table.as_mut().insert(Rc::clone(&ident), symbol);
+        self.frontend_symtab
+            .as_mut()
+            .insert(Rc::clone(&ident), symbol);
 
         (ident, typ)
     }

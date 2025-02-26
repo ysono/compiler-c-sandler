@@ -1,5 +1,7 @@
 use crate::{
-    common::{symbol_table_backend::BackendSymbolTable, symbol_table_frontend::SymbolTable},
+    common::{
+        symbol_table_backend::BackendSymbolTable, symbol_table_frontend::FrontendSymbolTable,
+    },
     driver::{
         CompilationResult, Driver,
         config::{Args, CompilerUntil, DriverUntil},
@@ -38,7 +40,7 @@ pub fn compile_until_parser(pp: &str) -> Result<c_ast::Program<ParsedCAst>> {
 
 pub fn compile_until_typechecker(
     pp: &str,
-) -> Result<(c_ast::Program<TypeCheckedCAst>, SymbolTable)> {
+) -> Result<(c_ast::Program<TypeCheckedCAst>, FrontendSymbolTable)> {
     let compil_res = compile(pp, CompilerUntil::ParserValidate)?;
     match compil_res {
         CompilationResult::Validated(prog, fe_symtab) => Ok((prog, fe_symtab)),
@@ -46,7 +48,7 @@ pub fn compile_until_typechecker(
     }
 }
 
-pub fn compile_until_tacky(pp: &str) -> Result<(tacky_ast::Program, SymbolTable)> {
+pub fn compile_until_tacky(pp: &str) -> Result<(tacky_ast::Program, FrontendSymbolTable)> {
     let compil_res = compile(pp, CompilerUntil::Tacky)?;
     match compil_res {
         CompilationResult::Tacky(prog, fe_symtab) => Ok((prog, fe_symtab)),

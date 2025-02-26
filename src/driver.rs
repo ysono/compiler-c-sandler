@@ -6,7 +6,9 @@ use self::{
     files::{AsmFilepath, ObjectFilepath, ProgramFilepath, SrcFilepath},
 };
 use crate::{
-    common::{symbol_table_backend::BackendSymbolTable, symbol_table_frontend::SymbolTable},
+    common::{
+        symbol_table_backend::BackendSymbolTable, symbol_table_frontend::FrontendSymbolTable,
+    },
     ds_n_a::nonempty::NonEmpty,
     stage1_lex::{lexer::Lexer, tokens::Token},
     stage2_parse::{
@@ -233,8 +235,8 @@ impl Driver {
 pub(crate) enum CompilationResult {
     Lexed(Vec<Token>),
     Parsed(c_ast::Program<ParsedCAst>),
-    Validated(c_ast::Program<TypeCheckedCAst>, SymbolTable),
-    Tacky(tacky_ast::Program, SymbolTable),
+    Validated(c_ast::Program<TypeCheckedCAst>, FrontendSymbolTable),
+    Tacky(tacky_ast::Program, FrontendSymbolTable),
     AsmCode(asm_ast::Program<FinalizedAsmAst>, BackendSymbolTable),
     AsmFile(AsmFilepath),
 }

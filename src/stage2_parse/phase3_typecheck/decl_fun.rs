@@ -13,7 +13,7 @@ use anyhow::{Context, Result, anyhow};
 use std::{collections::hash_map::Entry, rc::Rc};
 
 impl TypeChecker {
-    /// Resolve a function declaration, in the symbol table.
+    /// Resolve a function declaration, in the frontend symbol table.
     ///
     /// @return `Some(_)` iff the function is defined.
     pub(super) fn typecheck_decl_fun(
@@ -125,7 +125,7 @@ impl TypeChecker {
         newly_defined: bool,
         new_typ: &Singleton<ScalarFunType>,
     ) -> Result<StaticVisibility> {
-        match self.symbol_table.as_mut().entry(ident) {
+        match self.frontend_symtab.as_mut().entry(ident) {
             Entry::Vacant(entry) => {
                 let visibility = match new_viz {
                     Viz::PrevOrGlobal => StaticVisibility::Global,

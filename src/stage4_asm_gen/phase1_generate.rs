@@ -11,7 +11,9 @@ mod instr_fun;
 mod operand;
 
 use crate::{
-    common::{symbol_table_backend::BackendSymbolTable, symbol_table_frontend::SymbolTable},
+    common::{
+        symbol_table_backend::BackendSymbolTable, symbol_table_frontend::FrontendSymbolTable,
+    },
     ds_n_a::immutable_owned::ImmutableOwned,
     stage3_tacky::tacky_ast as t,
     stage4_asm_gen::asm_ast::*,
@@ -27,11 +29,11 @@ impl AsmAstVariant for GeneratedAsmAst {
 
 #[derive(Into)]
 pub struct InstrsGenerator {
-    frontend_symtab: ImmutableOwned<SymbolTable>,
+    frontend_symtab: ImmutableOwned<FrontendSymbolTable>,
     backend_symtab: BackendSymbolTable,
 }
 impl InstrsGenerator {
-    pub fn new(frontend_symtab: ImmutableOwned<SymbolTable>) -> Self {
+    pub fn new(frontend_symtab: ImmutableOwned<FrontendSymbolTable>) -> Self {
         Self {
             frontend_symtab,
             backend_symtab: BackendSymbolTable::default(),

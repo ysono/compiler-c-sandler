@@ -71,12 +71,12 @@ pub enum StaticVisibility {
 }
 
 #[derive(Default, Into, Deref, AsMut, Debug)]
-pub struct SymbolTable {
-    symbol_table: HashMap<Rc<SymbolIdentifier>, Symbol>,
+pub struct FrontendSymbolTable {
+    ident_to_symbol: HashMap<Rc<SymbolIdentifier>, Symbol>,
 }
-impl SymbolTable {
+impl FrontendSymbolTable {
     pub fn get(&self, ident: &SymbolIdentifier) -> Result<&Symbol> {
-        self.symbol_table
+        self.ident_to_symbol
             .get(ident)
             .ok_or_else(|| anyhow!("Not declared. {ident:#?}"))
     }

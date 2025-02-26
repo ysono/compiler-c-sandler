@@ -14,7 +14,7 @@ mod ptr;
 
 use self::looping::LoopIdToLabels;
 use crate::{
-    common::{primitive::Const, symbol_table_frontend::SymbolTable},
+    common::{primitive::Const, symbol_table_frontend::FrontendSymbolTable},
     stage2_parse::{c_ast as c, phase3_typecheck::TypeCheckedCAst},
     stage3_tacky::tacky_ast::*,
     utils::noop,
@@ -23,18 +23,18 @@ use derive_more::{Constructor, Into};
 
 #[derive(Constructor, Into)]
 pub struct Tackifier {
-    symbol_table: SymbolTable,
+    frontend_symtab: FrontendSymbolTable,
 }
 impl Tackifier {
     pub fn tackify_program(
         mut self,
         c::Program { decls }: c::Program<TypeCheckedCAst>,
-    ) -> (Program, SymbolTable) {
+    ) -> (Program, FrontendSymbolTable) {
         let funs = self.tackify_funs(decls);
 
         let prog = Program { funs };
 
-        (prog, self.symbol_table)
+        (prog, self.frontend_symtab)
     }
     fn tackify_funs(
         &mut self,
@@ -43,7 +43,7 @@ impl Tackifier {
         c_funs
             .into_iter()
             .map(|c_fun| {
-                let gener = FunInstrsGenerator::new(&mut self.symbol_table);
+                let gener = FunInstrsGenerator::new(&mut self.frontend_symtab);
                 gener.tackify_fun_defn(c_fun)
             })
             .collect()
@@ -52,16 +52,16 @@ impl Tackifier {
 
 // `pub` for rustdoc.
 pub(crate) struct FunInstrsGenerator<'a> {
-    symbol_table: &'a mut SymbolTable,
+    frontend_symtab: &'a mut FrontendSymbolTable,
 
     loop_id_to_labels: LoopIdToLabels,
 
     instrs: Vec<Instruction>,
 }
 impl<'a> FunInstrsGenerator<'a> {
-    fn new(symbol_table: &'a mut SymbolTable) -> Self {
+    fn new(frontend_symtab: &'a mut FrontendSymbolTable) -> Self {
         Self {
-            symbol_table,
+            frontend_symtab,
             loop_id_to_labels: Default::default(),
             instrs: Default::default(),
         }

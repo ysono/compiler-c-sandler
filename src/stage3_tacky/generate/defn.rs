@@ -161,7 +161,7 @@ mod test {
     use super::*;
     use crate::{
         common::{
-            symbol_table_frontend::SymbolTable,
+            symbol_table_frontend::FrontendSymbolTable,
             types_frontend::{ArithmeticType, ObjType, ScalarType, SubObjType},
         },
         ds_n_a::singleton::SingletonRepository,
@@ -205,8 +205,8 @@ mod test {
     /* Converting inputs to outputs. */
 
     fn emit_initializer(initializer: Vec<c::RuntimeInitializerItem>) -> Vec<Instruction> {
-        let mut symtab = SymbolTable::default();
-        let mut tacky_gen = FunInstrsGenerator::new(&mut symtab);
+        let mut fe_symtab = FrontendSymbolTable::default();
+        let mut tacky_gen = FunInstrsGenerator::new(&mut fe_symtab);
 
         let var_defn = c::VariableDefinition {
             ident: Rc::new(SymbolIdentifier::new_generated()),
