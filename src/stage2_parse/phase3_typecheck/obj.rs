@@ -2,7 +2,7 @@ use super::TypeChecker;
 use crate::{
     common::{
         identifier::SymbolIdentifier,
-        symbol_table_frontend::{ObjAttrs, StaticInitializerItem, Symbol},
+        symbol_table_frontend::{InitializerString, ObjAttrs, Symbol},
         types_backend::ByteLen,
         types_frontend::{ArithmeticType, ArrayElementCount, ArrayType, ObjType},
     },
@@ -21,7 +21,7 @@ impl TypeChecker {
         let zeros_sfx_bytelen = ByteLen::new(1);
 
         let typ = self.derive_string_type(&chars, zeros_sfx_bytelen);
-        let initializer = StaticInitializerItem::String { chars, zeros_sfx_bytelen };
+        let initializer = InitializerString { chars, zeros_sfx_bytelen };
         let symbol = Symbol::Obj {
             typ: typ.clone(),
             attrs: ObjAttrs::StaticReadonly { initializer },

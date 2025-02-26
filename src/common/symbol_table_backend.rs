@@ -107,14 +107,14 @@ impl BackendSymbolTable {
                             .into()
                         }
                         ObjAttrs::StaticReadonly { initializer } => {
-                            let alignment = match initializer {
-                                StaticInitializerItem::String { .. } => {
-                                    /* Each static string obj requires 1-byte alignment.
-                                    Even if its length is >= 16 bytes, it does _not_ require 16-byte alignment. */
-                                    Alignment::B1
-                                }
-                                _ => Alignment::default_of_obj_type(&typ),
-                            };
+                            /* In practice, gcc and clang emit asm s.t. each ro string doesn't specify any alignment.
+                            I'm not sure whether
+                                each ro string obj has alignment=1 unconditionally,
+                                or its alignment depends on whether its length >= 16
+                                    as implicitly specified by `.ascii` or `.cstring` directive.
+                            */
+                            let alignment = Alignment::B1;
+                            let initializer = StaticInitializerItem::String(initializer);
                             StaticReadonlyAsmObjAttrs { alignment, initializer }.into()
                         }
                     };

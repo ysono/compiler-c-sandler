@@ -6,7 +6,7 @@ use crate::{
         symbol_table_backend::{
             AsmObj, AsmObjAttrs, StaticReadWriteAsmObjAttrs, StaticReadonlyAsmObjAttrs,
         },
-        symbol_table_frontend::{StaticInitializerItem, StaticVisibility},
+        symbol_table_frontend::{InitializerString, StaticInitializerItem, StaticVisibility},
         types_backend::{Alignment, OperandByteLen},
     },
     utils::noop,
@@ -143,7 +143,7 @@ impl<W: Write> AsmCodeEmitter<W> {
                     let bytelen = bytelen.as_int();
                     writeln!(&mut self.w, "{TAB}.zero {bytelen}")?;
                 }
-                StaticInitializerItem::String { chars, zeros_sfx_bytelen } => {
+                StaticInitializerItem::String(InitializerString { chars, zeros_sfx_bytelen }) => {
                     let mut zeros_sfx_bytelen = zeros_sfx_bytelen.as_int();
 
                     let ascii_directive;

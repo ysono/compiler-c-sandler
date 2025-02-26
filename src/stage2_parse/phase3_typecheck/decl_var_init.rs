@@ -1,7 +1,9 @@
 use super::TypeChecker;
 use crate::{
     common::{
-        symbol_table_frontend::{InitializerItem, StaticInitializer, StaticInitializerItem},
+        symbol_table_frontend::{
+            InitializerItem, InitializerString, StaticInitializer, StaticInitializerItem,
+        },
         types_backend::ByteLen,
         types_frontend::{ObjType, ScalarType, SubObjType},
     },
@@ -150,7 +152,8 @@ impl TypeChecker {
                     }
 
                     let zeros_sfx_bytelen = ByteLen::new(elems_ct - chars_ct);
-                    let item = InitializerItem::String { chars, zeros_sfx_bytelen };
+                    let item =
+                        InitializerItem::String(InitializerString { chars, zeros_sfx_bytelen });
                     out_items.push(item);
                 }
                 _ => {
@@ -177,7 +180,7 @@ impl TypeChecker {
                 *prv_bytelen += cur_bytelen;
             }
             (
-                Some(InitializerItem::String { zeros_sfx_bytelen, .. }),
+                Some(InitializerItem::String(InitializerString { zeros_sfx_bytelen, .. })),
                 InitializerItem::Zero(cur_bytelen),
             ) => {
                 *zeros_sfx_bytelen += cur_bytelen;
@@ -245,7 +248,7 @@ mod test {
         expected_zeros_sfx_bytelen: u64,
     ) -> bool {
         match item {
-            OutRtItem::String { chars, zeros_sfx_bytelen } => {
+            OutRtItem::String(InitializerString { chars, zeros_sfx_bytelen }) => {
                 (&chars[..] == expected_chars.as_bytes())
                     && (zeros_sfx_bytelen.as_int() == expected_zeros_sfx_bytelen)
             }
@@ -484,10 +487,10 @@ mod test {
 
                 assert_eq!(
                     &out_items,
-                    &[OutStaticItem::String {
+                    &[OutStaticItem::String(InitializerString {
                         chars: "aabb".into(),
                         zeros_sfx_bytelen: ByteLen::new(17 - 4)
-                    },]
+                    })]
                 );
             }
             for character_typ in [
@@ -526,18 +529,18 @@ mod test {
                 assert_eq!(
                     &out_items,
                     &[
-                        OutStaticItem::String {
+                        OutStaticItem::String(InitializerString {
                             chars: "aabb".into(),
                             zeros_sfx_bytelen: ByteLen::new(7 - 4),
-                        },
-                        OutStaticItem::String {
+                        }),
+                        OutStaticItem::String(InitializerString {
                             chars: "ccddeef".into(),
                             zeros_sfx_bytelen: ByteLen::new(7 - 7),
-                        },
-                        OutStaticItem::String {
+                        }),
+                        OutStaticItem::String(InitializerString {
                             chars: "gghh".into(),
                             zeros_sfx_bytelen: ByteLen::new((7 - 4) + 7 * (17 - 3)),
-                        },
+                        }),
                     ]
                 );
             }

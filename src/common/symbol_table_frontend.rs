@@ -31,7 +31,7 @@ pub enum ObjAttrs {
         initializer: StaticInitializer,
     },
     StaticReadonly {
-        initializer: StaticInitializerItem,
+        initializer: InitializerString,
     },
 }
 #[derive(Debug)]
@@ -45,14 +45,18 @@ pub enum StaticInitializer {
 #[cfg_attr(test, derive(PartialEq))]
 pub enum InitializerItem<Sngl, Ptr> {
     Single(Sngl),
-    String {
-        chars: Vec<u8>,
-        zeros_sfx_bytelen: ByteLen, // Count of 0x00 bytes following the chars.
-    },
+    String(InitializerString),
     Pointer(Ptr),
     Zero(ByteLen),
 }
 pub type StaticInitializerItem = InitializerItem<Const, Rc<SymbolIdentifier>>;
+
+#[derive(Debug)]
+#[cfg_attr(test, derive(PartialEq))]
+pub struct InitializerString {
+    pub chars: Vec<u8>,
+    pub zeros_sfx_bytelen: ByteLen, // Count of 0x00 bytes following the chars.
+}
 
 #[derive(Debug)]
 pub struct FunAttrs {

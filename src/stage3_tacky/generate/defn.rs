@@ -1,6 +1,9 @@
 use super::FunInstrsGenerator;
 use crate::{
-    common::{identifier::SymbolIdentifier, primitive::Const, types_backend::ByteLen},
+    common::{
+        identifier::SymbolIdentifier, primitive::Const, symbol_table_frontend::InitializerString,
+        types_backend::ByteLen,
+    },
     stage2_parse::{c_ast as c, phase3_typecheck::TypeCheckedCAst},
     stage3_tacky::tacky_ast::*,
 };
@@ -28,9 +31,10 @@ impl FunInstrsGenerator<'_> {
 
                     cto_gen.push(val, single_bytelen, &mut self.instrs);
                 }
-                c::RuntimeInitializerItem::String { chars, zeros_sfx_bytelen } => {
-                    cto_gen.gen_init_string(chars, zeros_sfx_bytelen, &mut self.instrs)
-                }
+                c::RuntimeInitializerItem::String(InitializerString {
+                    chars,
+                    zeros_sfx_bytelen,
+                }) => cto_gen.gen_init_string(chars, zeros_sfx_bytelen, &mut self.instrs),
                 c::RuntimeInitializerItem::Pointer(()) => unreachable!(
                     "The pointer initializer item is used to initialize static objs only."
                 ),
@@ -262,10 +266,10 @@ mod test {
             c::RuntimeInitializerItem::Zero(ByteLen::new(8 * 2 + 4 * 1 + 1 * 3)),
             in_single_rtexpr_int(0x0404_0000, 0x0000_0303, int_typ_as_sca_typ.clone()),
             c::RuntimeInitializerItem::Zero(ByteLen::new(8 * 2 + 4 * 1 + 1 * 3)),
-            c::RuntimeInitializerItem::String {
+            c::RuntimeInitializerItem::String(InitializerString {
                 chars: "aabbccddeef".into(),
                 zeros_sfx_bytelen: ByteLen::new(5),
-            },
+            }),
         ]; // Note, this series of items is unrealistic as an output of the typechecker.
 
         let actual_instrs = emit_initializer(in_items);

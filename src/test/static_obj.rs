@@ -5,7 +5,7 @@ use crate::{
         symbol_table_backend::{
             StaticReadWriteAsmObjAttrs as RWAttrs, StaticReadonlyAsmObjAttrs as ROAttrs,
         },
-        symbol_table_frontend::StaticInitializerItem,
+        symbol_table_frontend::{InitializerString, StaticInitializerItem},
         types_backend::{Alignment, ByteLen},
     },
     test::utils,
@@ -117,10 +117,10 @@ fn static_string_objs() -> Result<()> {
             assert_eq!(alignment, Alignment::B1);
             assert_eq!(
                 initializer,
-                Some(vec![StaticInitializerItem::String {
+                Some(vec![StaticInitializerItem::String(InitializerString {
                     chars: "AABBB".into(),
                     zeros_sfx_bytelen: ByteLen::new(0)
-                },])
+                })])
             );
         }
         {
@@ -129,10 +129,10 @@ fn static_string_objs() -> Result<()> {
             assert_eq!(alignment, Alignment::B16);
             assert_eq!(
                 initializer,
-                Some(vec![StaticInitializerItem::String {
+                Some(vec![StaticInitializerItem::String(InitializerString {
                     chars: "CCDDD".into(),
                     zeros_sfx_bytelen: ByteLen::new(21 - 5)
-                },])
+                })])
             );
         }
         {
@@ -168,10 +168,10 @@ fn static_string_objs() -> Result<()> {
             assert_eq!(alignment, Alignment::B1);
             assert_eq!(
                 initializer,
-                StaticInitializerItem::String {
+                StaticInitializerItem::String(InitializerString {
                     chars: "aabbb".into(),
                     zeros_sfx_bytelen: ByteLen::new(1)
-                },
+                }),
             );
         }
         {
@@ -180,10 +180,10 @@ fn static_string_objs() -> Result<()> {
             assert_eq!(alignment, Alignment::B1);
             assert_eq!(
                 initializer,
-                StaticInitializerItem::String {
+                StaticInitializerItem::String(InitializerString {
                     chars: "ccccddddeeeefffff".into(),
                     zeros_sfx_bytelen: ByteLen::new(1)
-                },
+                }),
             );
         }
         {
@@ -192,10 +192,10 @@ fn static_string_objs() -> Result<()> {
             assert_eq!(alignment, Alignment::B1);
             assert_eq!(
                 initializer,
-                StaticInitializerItem::String {
+                StaticInitializerItem::String(InitializerString {
                     chars: "eefff".into(),
                     zeros_sfx_bytelen: ByteLen::new(1)
-                },
+                }),
             );
         }
         {
@@ -204,10 +204,10 @@ fn static_string_objs() -> Result<()> {
             assert_eq!(alignment, Alignment::B1);
             assert_eq!(
                 initializer,
-                StaticInitializerItem::String {
+                StaticInitializerItem::String(InitializerString {
                     chars: "gggghhhhiiiijjjjj".into(),
                     zeros_sfx_bytelen: ByteLen::new(1)
-                },
+                }),
             );
         }
         {
@@ -216,10 +216,10 @@ fn static_string_objs() -> Result<()> {
             assert_eq!(alignment, Alignment::B1);
             assert_eq!(
                 initializer,
-                StaticInitializerItem::String {
+                StaticInitializerItem::String(InitializerString {
                     chars: "kklll".into(),
                     zeros_sfx_bytelen: ByteLen::new(1)
-                },
+                }),
             );
         }
         assert!(static_ro_objs.next().is_none());
