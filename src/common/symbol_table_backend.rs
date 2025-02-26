@@ -48,39 +48,8 @@ pub struct AsmFun {
 pub struct BackendSymbolTable {
     ident_to_obj: HashMap<Rc<SymbolIdentifier>, AsmObj>,
     ident_to_fun: HashMap<Rc<SymbolIdentifier>, AsmFun>,
-
-    static_readonly_to_ident: HashMap<(Alignment, Const), Rc<SymbolIdentifier>>,
 }
 impl BackendSymbolTable {
-    pub fn get_or_new_static_readonly(
-        &mut self,
-        alignment: Alignment,
-        konst: Const,
-    ) -> Rc<SymbolIdentifier> {
-        match self.static_readonly_to_ident.entry((alignment, konst)) {
-            Entry::Vacant(entry) => {
-                let ident = Rc::new(SymbolIdentifier::new_generated());
-
-                entry.insert(Rc::clone(&ident));
-
-                self.ident_to_obj.insert(
-                    Rc::clone(&ident),
-                    AsmObj {
-                        asm_type: ScalarAssemblyType::from(konst.arithmetic_type()).into(),
-                        asm_attrs: StaticReadonlyAsmObjAttrs {
-                            alignment,
-                            initializer: StaticInitializerItem::Single(konst),
-                        }
-                        .into(),
-                    },
-                );
-
-                ident
-            }
-            Entry::Occupied(entry) => Rc::clone(entry.get()),
-        }
-    }
-
     pub fn merge_symbols_from(&mut self, fe_symtab: FrontendSymbolTable) {
         let ident_to_symbol: HashMap<_, _> = fe_symtab.into();
         for (ident, symbol) in ident_to_symbol.into_iter() {
@@ -128,5 +97,47 @@ impl BackendSymbolTable {
                 }
             }
         }
+    }
+}
+
+#[derive(Default)]
+pub struct BackendSymbolTableWithDeduper {
+    backend_symtab: BackendSymbolTable,
+
+    static_ro_scalar_to_ident: HashMap<(Alignment, Const), Rc<SymbolIdentifier>>,
+}
+impl BackendSymbolTableWithDeduper {
+    pub fn get_or_new_static_readonly_scalar(
+        &mut self,
+        alignment: Alignment,
+        konst: Const,
+    ) -> Rc<SymbolIdentifier> {
+        match self.static_ro_scalar_to_ident.entry((alignment, konst)) {
+            Entry::Vacant(entry) => {
+                let ident = Rc::new(SymbolIdentifier::new_generated());
+
+                entry.insert(Rc::clone(&ident));
+
+                self.backend_symtab.ident_to_obj.insert(
+                    Rc::clone(&ident),
+                    AsmObj {
+                        asm_type: ScalarAssemblyType::from(konst.arithmetic_type()).into(),
+                        asm_attrs: StaticReadonlyAsmObjAttrs {
+                            alignment,
+                            initializer: StaticInitializerItem::Single(konst),
+                        }
+                        .into(),
+                    },
+                );
+
+                ident
+            }
+            Entry::Occupied(entry) => Rc::clone(entry.get()),
+        }
+    }
+
+    pub fn drop_deduper(self) -> BackendSymbolTable {
+        drop(self.static_ro_scalar_to_ident);
+        self.backend_symtab
     }
 }

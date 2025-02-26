@@ -83,7 +83,7 @@ impl InstrsGenerator {
 
         let ident = self
             .backend_symtab
-            .get_or_new_static_readonly(alignment, konst);
+            .get_or_new_static_readonly_scalar(alignment, konst);
 
         Operand::ReadonlyData(ident).into()
     }

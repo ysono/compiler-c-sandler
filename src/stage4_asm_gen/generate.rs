@@ -45,10 +45,11 @@ impl AsmCodeGenerator {
             .into_iter()
             .map(|t_fun| gener.convert_fun(t_fun))
             .collect::<Vec<_>>();
-        let (frontend_symtab, mut backend_symtab) = gener.into();
+        let (frontend_symtab, backend_symtab) = gener.into();
 
         /* Preparing for instrs phase 2 and 3 */
 
+        let mut backend_symtab = backend_symtab.drop_deduper();
         backend_symtab.merge_symbols_from(frontend_symtab.into_inner());
         let mut backend_symtab = ImmutableOwned::from(backend_symtab);
 

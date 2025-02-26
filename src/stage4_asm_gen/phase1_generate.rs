@@ -12,7 +12,8 @@ mod operand;
 
 use crate::{
     common::{
-        symbol_table_backend::BackendSymbolTable, symbol_table_frontend::FrontendSymbolTable,
+        symbol_table_backend::BackendSymbolTableWithDeduper,
+        symbol_table_frontend::FrontendSymbolTable,
     },
     ds_n_a::immutable_owned::ImmutableOwned,
     stage3_tacky::tacky_ast as t,
@@ -30,13 +31,13 @@ impl AsmAstVariant for GeneratedAsmAst {
 #[derive(Into)]
 pub struct InstrsGenerator {
     frontend_symtab: ImmutableOwned<FrontendSymbolTable>,
-    backend_symtab: BackendSymbolTable,
+    backend_symtab: BackendSymbolTableWithDeduper,
 }
 impl InstrsGenerator {
     pub fn new(frontend_symtab: ImmutableOwned<FrontendSymbolTable>) -> Self {
         Self {
             frontend_symtab,
-            backend_symtab: BackendSymbolTable::default(),
+            backend_symtab: BackendSymbolTableWithDeduper::default(),
         }
     }
 

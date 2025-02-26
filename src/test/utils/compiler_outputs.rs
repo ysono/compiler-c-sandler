@@ -72,7 +72,7 @@ pub fn be_symtab_into_static_objs(
 ) {
     let mut static_rw_objs = vec![];
     let mut static_ro_objs = vec![];
-    let (ident_to_obj, _, _) = be_symtab.into();
+    let (ident_to_obj, _) = be_symtab.into();
     for (ident, obj) in ident_to_obj.into_iter() {
         let AsmObj { asm_type: _, asm_attrs } = obj;
         match asm_attrs {
