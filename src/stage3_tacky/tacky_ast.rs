@@ -178,12 +178,6 @@ mod operator {
 mod operand {
     use super::*;
 
-    #[derive(From)]
-    pub(in crate::stage3_tacky) enum ExpResult<LTyp> {
-        Value(Value),
-        Object(Object<LTyp>),
-    }
-
     /// The "value" concept comprises a bit-sequence and a type; and is readonly.
     #[derive(Clone, Debug)]
     #[cfg_attr(test, derive(From))]

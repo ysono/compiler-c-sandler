@@ -13,12 +13,38 @@ use std::rc::Rc;
 
 /// Expression
 impl FunInstrsGenerator<'_> {
-    pub(super) fn gen_exp<LTyp>(&mut self, typed_exp: c::TypedExp<LTyp>) -> ExpResult<LTyp> {
+    pub(super) fn gen_exp<LTyp>(&mut self, typed_exp: c::TypedExp<LTyp>) {
         match typed_exp {
-            c::TypedExp::R(typed_rexp) => self.gen_rexp(typed_rexp).into(),
-            c::TypedExp::L(typed_lexp) => self.gen_lexp(typed_lexp).into(),
+            c::TypedExp::R(typed_rexp) => {
+                self.gen_rexp(typed_rexp);
+            }
+            c::TypedExp::L(typed_lexp) => {
+                self.gen_lexp(typed_lexp);
+            }
         }
     }
+
+    /// 1. Generate tacky instructions; and get as the result either a value or an object.
+    /// 1. If the given expression was an lvalue-expression, ie if the expression designated an object,
+    ///     then lvalue-convert the expression, ie extract the value out of the object.
+    pub(super) fn gen_exp_and_get_value(&mut self, typed_exp: c::TypedExp<ScalarType>) -> Value {
+        match typed_exp {
+            c::TypedExp::R(typed_rexp) => self.gen_rexp(typed_rexp),
+            c::TypedExp::L(typed_lexp) => {
+                let obj = self.gen_lexp(typed_lexp);
+                match obj {
+                    Object::Direct(ident, sca_typ_marker) => Value::Variable(ident, sca_typ_marker),
+                    Object::Pointee { addr, typ } => {
+                        let dst = self.register_new_value(typ);
+                        self.instrs
+                            .push(Instruction::Load(Load { src_addr: addr, dst: dst.clone() }));
+                        dst
+                    }
+                }
+            }
+        }
+    }
+
     pub(super) fn gen_rexp(&mut self, c::TypedRExp { exp, typ }: c::TypedRExp) -> Value {
         match exp {
             c::RExp::Const(konst) => Value::Constant(konst),
@@ -31,6 +57,7 @@ impl FunInstrsGenerator<'_> {
             c::RExp::AddrOf(c_addrof) => self.gen_exp_addrof(c_addrof, typ),
         }
     }
+
     pub(super) fn gen_lexp<LTyp>(
         &mut self,
         c::TypedLExp { exp, typ }: c::TypedLExp<LTyp>,
@@ -40,24 +67,6 @@ impl FunInstrsGenerator<'_> {
             c::LExp::Var(ident) => Object::Direct(ident, PhantomMarker::new(&typ)),
             c::LExp::Dereference(c_deref) => self.gen_exp_deref(c_deref, typ),
             c::LExp::Subscript(c_subscr) => self.gen_exp_subscript(c_subscr, typ),
-        }
-    }
-
-    /// 1. Generate tacky instructions; and get as the result either a value or an object.
-    /// 1. If the given expression was an lvalue-expression, ie if the expression designated an object,
-    ///     then lvalue-convert the expression, ie extract the value out of the object.
-    pub(super) fn gen_exp_and_get_value(&mut self, typed_exp: c::TypedExp<ScalarType>) -> Value {
-        match self.gen_exp(typed_exp) {
-            ExpResult::Value(val) => val,
-            ExpResult::Object(obj) => match obj {
-                Object::Direct(ident, sca_typ_marker) => Value::Variable(ident, sca_typ_marker),
-                Object::Pointee { addr, typ } => {
-                    let dst = self.register_new_value(typ);
-                    self.instrs
-                        .push(Instruction::Load(Load { src_addr: addr, dst: dst.clone() }));
-                    dst
-                }
-            },
         }
     }
 }
