@@ -1,3 +1,5 @@
+pub(super) use self::non_abstract_declarator::DeclaratorResult;
+use self::{abstract_declarator::*, non_abstract_declarator::*};
 use super::Parser;
 use crate::{
     common::{
@@ -396,55 +398,59 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
     }
 }
 
-/* Non-abstract declarator */
+mod non_abstract_declarator {
+    use super::*;
 
-#[derive(Debug)]
-struct Declarator {
-    ident: RawIdentifier,
-    items_baseward: Vec<DeclaratorItem>,
-    _dummy: (), // Help clarify where we're constructing.
-}
-impl Declarator {
-    fn new(ident: RawIdentifier) -> Self {
-        Self {
-            ident,
-            items_baseward: vec![],
-            _dummy: (),
+    #[derive(Debug)]
+    pub struct Declarator {
+        pub ident: RawIdentifier,
+        pub items_baseward: Vec<DeclaratorItem>,
+        _dummy: (), // Help clarify where we're constructing.
+    }
+    impl Declarator {
+        pub fn new(ident: RawIdentifier) -> Self {
+            Self {
+                ident,
+                items_baseward: vec![],
+                _dummy: (),
+            }
         }
     }
-}
-#[derive(Debug)]
-enum DeclaratorItem {
-    Ptr(u64), // The u64 = repetition.
-    Arr(ArrayElementCount),
-    Fun(Vec<Param>),
-}
-#[derive(Debug)]
-struct Param(ArithmeticType, Declarator);
+    #[derive(Debug)]
+    pub enum DeclaratorItem {
+        Ptr(u64), // The u64 = repetition.
+        Arr(ArrayElementCount),
+        Fun(Vec<Param>),
+    }
+    #[derive(Debug)]
+    pub struct Param(pub ArithmeticType, pub Declarator);
 
-#[derive(Debug)]
-pub(super) enum DeclaratorResult {
-    Var(RawIdentifier, Singleton<ObjType>),
-    Fun(RawIdentifier, Singleton<ParsedFunType>, Vec<RawIdentifier>),
-}
-
-/* Abstract declarator */
-
-struct AbstractDeclarator {
-    items_baseward: Vec<AbstractDeclaratorItem>,
-    _dummy: (), // Help clarify where we're constructing.
-}
-impl AbstractDeclarator {
-    pub fn new() -> Self {
-        Self {
-            items_baseward: vec![],
-            _dummy: (),
-        }
+    #[derive(Debug)]
+    pub enum DeclaratorResult {
+        Var(RawIdentifier, Singleton<ObjType>),
+        Fun(RawIdentifier, Singleton<ParsedFunType>, Vec<RawIdentifier>),
     }
 }
 
-#[derive(Debug)]
-enum AbstractDeclaratorItem {
-    Ptr(u64), // The u64 = repetition.
-    Arr(ArrayElementCount),
+mod abstract_declarator {
+    use super::*;
+
+    pub struct AbstractDeclarator {
+        pub items_baseward: Vec<AbstractDeclaratorItem>,
+        _dummy: (), // Help clarify where we're constructing.
+    }
+    impl AbstractDeclarator {
+        pub fn new() -> Self {
+            Self {
+                items_baseward: vec![],
+                _dummy: (),
+            }
+        }
+    }
+
+    #[derive(Debug)]
+    pub enum AbstractDeclaratorItem {
+        Ptr(u64), // The u64 = repetition.
+        Arr(ArrayElementCount),
+    }
 }
