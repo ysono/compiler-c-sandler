@@ -13,11 +13,18 @@ impl TypeChecker {
         Assignment { lhs, rhs }: Assignment<ResolvedCAst>,
     ) -> Result<TypedRExp> {
         let lhs = {
+            /*
+            The conceptual flow:
+                1. If the LHS expression is array-typed, it's converted into the pointer-to-the-zeroth-element expression, which is an rvalue-expression.
+                1. Assert that the LHS is an lvalue expression.
+            The equivalent condensed flow:
+                1. Assert that the LHS expression is scalar-typed.
+            */
             let lexp = extract_lexp(*lhs)?;
-            let obj_typed_lexp = self.typecheck_lexp(lexp)?;
-            let sca_typed_exp = self.convert_lexp_to_scalar(obj_typed_lexp);
-            let sca_typed_lexp = extract_typed_lexp(sca_typed_exp)?;
-            sca_typed_lexp
+            let TypedLExp { typ, exp } = self.typecheck_lexp(lexp)?;
+            let typ = Self::extract_scalar_type(typ.into_owner())
+                .map_err(|typ| anyhow!("Cannot assign to {typ:#?}"))?;
+            TypedLExp { typ, exp }
         };
 
         let typ = lhs.typ.clone();
@@ -51,7 +58,7 @@ impl TypeChecker {
         &mut self,
         Dereference(sub_exp): Dereference<ResolvedCAst>,
     ) -> Result<TypedLExp<ObjType>> {
-        let sub_exp = Box::new(self.typecheck_exp_and_convert_to_scalar(*sub_exp)?);
+        let sub_exp = self.typecheck_exp_and_convert_to_scalar(*sub_exp)?;
 
         let typ = match sub_exp.typ().as_ref() {
             ScalarType::Ptr(PointerType { pointee_type }) => pointee_type.clone(),
@@ -59,6 +66,7 @@ impl TypeChecker {
         };
         let typ = OwningRef::new(typ);
 
+        let sub_exp = Box::new(sub_exp);
         let exp = LExp::Dereference(Dereference(sub_exp));
         Ok(TypedLExp { typ, exp })
     }
@@ -68,13 +76,5 @@ fn extract_lexp(exp: Expression<ResolvedCAst>) -> Result<LExp<ResolvedCAst>> {
     match exp {
         Expression::R(rexp) => Err(anyhow!("Expected lvalue expression, but found {rexp:#?}")),
         Expression::L(lexp) => Ok(lexp),
-    }
-}
-fn extract_typed_lexp<LTyp>(typed_exp: TypedExp<LTyp>) -> Result<TypedLExp<LTyp>> {
-    match typed_exp {
-        TypedExp::R(typed_rexp) => Err(anyhow!(
-            "Expected lvalue expression, but found {typed_rexp:#?}"
-        )),
-        TypedExp::L(typed_lexp) => Ok(typed_lexp),
     }
 }

@@ -19,6 +19,9 @@ impl TypeChecker {
         }
     }
 
+    /// 1. Typecheck the given expression.
+    /// 1. If the expression is typed array, then transform it into
+    ///     an expression that evaluates to a pointer to the zeroth element (_not_ a pointer to the array).
     pub(super) fn typecheck_exp_and_convert_to_scalar(
         &mut self,
         exp: Expression<ResolvedCAst>,
@@ -27,34 +30,28 @@ impl TypeChecker {
 
         let sca_typed_exp = match obj_typed_exp {
             TypedExp::R(sca_typed_rexp) => TypedExp::R(sca_typed_rexp),
-            TypedExp::L(obj_typed_lexp) => self.convert_lexp_to_scalar(obj_typed_lexp),
+            TypedExp::L(obj_typed_lexp) => {
+                match Self::extract_scalar_type(obj_typed_lexp.typ.as_owner().clone()) {
+                    Ok(sca_typ) => {
+                        let sca_typed_lexp = TypedLExp {
+                            exp: obj_typed_lexp.exp,
+                            typ: sca_typ,
+                        };
+                        TypedExp::L(sca_typed_lexp)
+                    }
+                    Err(arr_typ) => {
+                        let ptr_typ = arr_typ.as_ptr_to_elem();
+                        let sca_typ = self.get_scalar_type(ptr_typ);
+                        let sca_typed_rexp = TypedRExp {
+                            exp: RExp::AddrOf(AddrOf(Box::new(obj_typed_lexp))),
+                            typ: sca_typ,
+                        };
+                        TypedExp::R(sca_typed_rexp)
+                    }
+                }
+            }
         };
         Ok(sca_typed_exp)
-    }
-    /// Transforms an expression with type=array
-    /// into an expression that evaluates to a pointer to the first element (_not_ a pointer to the array).
-    pub(super) fn convert_lexp_to_scalar(
-        &mut self,
-        obj_typed_lexp: TypedLExp<ObjType>,
-    ) -> TypedExp<ScalarType> {
-        match Self::extract_scalar_type(obj_typed_lexp.typ.as_owner().clone()) {
-            Ok(sca_typ) => {
-                let sca_typed_lexp = TypedLExp {
-                    exp: obj_typed_lexp.exp,
-                    typ: sca_typ,
-                };
-                TypedExp::L(sca_typed_lexp)
-            }
-            Err(arr_typ) => {
-                let ptr_typ = arr_typ.as_ptr_to_elem();
-                let sca_typ = self.get_scalar_type(ptr_typ);
-                let sca_typed_rexp = TypedRExp {
-                    exp: RExp::AddrOf(AddrOf(Box::new(obj_typed_lexp))),
-                    typ: sca_typ,
-                };
-                TypedExp::R(sca_typed_rexp)
-            }
-        }
     }
 
     fn typecheck_rexp(&mut self, rexp: RExp<ResolvedCAst>) -> Result<TypedRExp> {
