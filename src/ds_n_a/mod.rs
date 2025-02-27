@@ -3,6 +3,6 @@
 
 pub mod immutable_owned;
 pub mod nonempty;
-pub mod phantom_marker;
 pub mod singleton;
 pub mod weak_ptr;
+pub mod witness;

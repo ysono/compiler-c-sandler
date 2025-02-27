@@ -7,7 +7,7 @@ use crate::{
         types_backend::ByteLen,
         types_frontend::{ScalarFunType, ScalarType, SubObjType},
     },
-    ds_n_a::{phantom_marker::PhantomMarker, singleton::Singleton},
+    ds_n_a::{singleton::Singleton, witness::Witness},
 };
 use derive_more::From;
 use std::rc::Rc;
@@ -190,7 +190,7 @@ mod operand {
         ///     a variable identifier that's declared in the C src code, or
         ///     an anonymous identifier that's dynamically generated during the Tacky stage.
         /// The memory location can have any storage duration: automatic or static.
-        Variable(Rc<SymbolIdentifier>, PhantomMarker<SubObjType<ScalarType>>),
+        Variable(Rc<SymbolIdentifier>, Witness<SubObjType<ScalarType>>),
     }
     #[cfg(test)]
     impl PartialEq for Value {
@@ -206,7 +206,7 @@ mod operand {
     /// The "object" concept comprises a memory location that contains a "value"; and is mutable.
     pub(in crate::stage3_tacky) enum Object<LTyp> {
         /// An object whose memory location is identified directly.
-        Direct(Rc<SymbolIdentifier>, PhantomMarker<SubObjType<LTyp>>),
+        Direct(Rc<SymbolIdentifier>, Witness<SubObjType<LTyp>>),
 
         /// An object whose memory location is contained in a separate value.
         Pointee {

@@ -5,7 +5,7 @@ use crate::{
         symbol_table_frontend::{ObjAttrs, Symbol},
         types_frontend::{ScalarType, SubObjType},
     },
-    ds_n_a::phantom_marker::PhantomMarker,
+    ds_n_a::witness::Witness,
     stage2_parse::c_ast as c,
     stage3_tacky::tacky_ast::*,
 };
@@ -33,7 +33,9 @@ impl FunInstrsGenerator<'_> {
             c::TypedExp::L(typed_lexp) => {
                 let obj = self.gen_lexp(typed_lexp);
                 match obj {
-                    Object::Direct(ident, sca_typ_marker) => Value::Variable(ident, sca_typ_marker),
+                    Object::Direct(ident, sca_typ_witness) => {
+                        Value::Variable(ident, sca_typ_witness)
+                    }
                     Object::Pointee { addr, typ } => {
                         let dst = self.register_new_value(typ);
                         self.instrs
@@ -63,8 +65,8 @@ impl FunInstrsGenerator<'_> {
         c::TypedLExp { exp, typ }: c::TypedLExp<LTyp>,
     ) -> Object<LTyp> {
         match exp {
-            c::LExp::String(ident) => Object::Direct(ident, PhantomMarker::new(&typ)),
-            c::LExp::Var(ident) => Object::Direct(ident, PhantomMarker::new(&typ)),
+            c::LExp::String(ident) => Object::Direct(ident, Witness::new(&typ)),
+            c::LExp::Var(ident) => Object::Direct(ident, Witness::new(&typ)),
             c::LExp::Dereference(c_deref) => self.gen_exp_deref(c_deref, typ),
             c::LExp::Subscript(c_subscr) => self.gen_exp_subscript(c_subscr, typ),
         }
@@ -76,7 +78,7 @@ impl FunInstrsGenerator<'_> {
     pub(super) fn register_new_value(&mut self, sca_typ: SubObjType<ScalarType>) -> Value {
         let ident = Rc::new(SymbolIdentifier::new_generated());
 
-        let val = Value::Variable(Rc::clone(&ident), PhantomMarker::new(&sca_typ));
+        let val = Value::Variable(Rc::clone(&ident), Witness::new(&sca_typ));
 
         self.frontend_symtab.as_mut().insert(
             ident,

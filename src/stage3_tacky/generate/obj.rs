@@ -17,8 +17,8 @@ impl FunInstrsGenerator<'_> {
     }
     pub(super) fn gen_assignment(&mut self, dst_obj: Object<ScalarType>, src_val: Value) -> Value {
         match dst_obj {
-            Object::Direct(ident, sca_typ_marker) => {
-                let dst_val = Value::Variable(ident, sca_typ_marker);
+            Object::Direct(ident, sca_typ_witness) => {
+                let dst_val = Value::Variable(ident, sca_typ_witness);
                 self.instrs.push(Instruction::Copy(SrcDst {
                     src: src_val,
                     dst: dst_val.clone(),
@@ -52,7 +52,7 @@ impl FunInstrsGenerator<'_> {
         pointer_type: SubObjType<ScalarType>,
     ) -> Value {
         match self.gen_lexp(*sub_exp) {
-            Object::Direct(ident, _obj_typ_marker) => {
+            Object::Direct(ident, _obj_typ_witness) => {
                 let dst = self.register_new_value(pointer_type);
                 self.instrs.push(Instruction::GetAddress(GetAddress {
                     src_obj: ident,

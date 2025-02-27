@@ -28,7 +28,7 @@ impl InstrsGenerator {
                 let asm_type = ScalarAssemblyType::from(ari_type);
                 (ari_type, asm_type)
             }
-            t::Value::Variable(ident, _sca_typ_marker) => {
+            t::Value::Variable(ident, _sca_typ_witness) => {
                 let obj_type = self.frontend_symtab.get_obj_type(ident).unwrap();
                 let sca_type = match obj_type.as_ref() {
                     ObjType::Scalar(s) => s,
@@ -56,7 +56,7 @@ impl InstrsGenerator {
                     self.get_or_new_static_readonly_operand(None, konst)
                 }
             },
-            t::Value::Variable(ident, _sca_typ_marker) => PreFinalOperand::PseudoRegOrMem(ident),
+            t::Value::Variable(ident, _sca_typ_witness) => PreFinalOperand::PseudoRegOrMem(ident),
         }
     }
 
