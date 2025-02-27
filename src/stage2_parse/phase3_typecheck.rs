@@ -11,6 +11,8 @@ mod decl_var_init;
 mod exp;
 mod exp_binary;
 mod exp_cast;
+mod exp_misc;
+mod exp_obj;
 mod obj;
 
 use self::{decl_fun::FunDeclScope, decl_var::VarDeclScope};
