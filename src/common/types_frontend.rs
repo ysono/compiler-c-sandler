@@ -1,3 +1,4 @@
+pub use self::{fun_type::*, obj_type::*, obj_type_node::*};
 use crate::{common::types_backend::ByteLen, ds_n_a::singleton::Singleton};
 use derivative::Derivative;
 use derive_more::{Constructor, From};
@@ -5,143 +6,158 @@ use getset::Getters;
 use owning_ref::OwningRef;
 use std::hash::Hash;
 
-pub type SubObjType<SubTyp> = OwningRef<Singleton<ObjType>, SubTyp>;
+/// Object type variants
+mod obj_type {
+    use super::*;
 
-#[derive(Hash, PartialEq, Eq, Debug)]
-pub enum ObjType {
-    Scalar(ScalarType),
-    Array(ArrayType),
-}
-impl<St: Into<ScalarType>> From<St> for ObjType {
-    fn from(sca_typ: St) -> Self {
-        Self::Scalar(sca_typ.into())
+    #[derive(Hash, PartialEq, Eq, Debug)]
+    pub enum ObjType {
+        Scalar(ScalarType),
+        Array(ArrayType),
     }
-}
-impl From<ArrayType> for ObjType {
-    fn from(arr_typ: ArrayType) -> Self {
-        Self::Array(arr_typ)
+    impl<St: Into<ScalarType>> From<St> for ObjType {
+        fn from(sca_typ: St) -> Self {
+            Self::Scalar(sca_typ.into())
+        }
     }
-}
-impl ObjType {
-    pub fn bytelen(&self) -> ByteLen {
-        match self {
-            Self::Scalar(s) => s.bytelen(),
-            Self::Array(a) => *a.bytelen(),
+    impl From<ArrayType> for ObjType {
+        fn from(arr_typ: ArrayType) -> Self {
+            Self::Array(arr_typ)
+        }
+    }
+    impl ObjType {
+        pub fn bytelen(&self) -> ByteLen {
+            match self {
+                Self::Scalar(s) => s.bytelen(),
+                Self::Array(a) => *a.bytelen(),
+            }
+        }
+    }
+
+    #[derive(From, Hash, PartialEq, Eq, Debug)]
+    pub enum ScalarType {
+        Arith(ArithmeticType),
+        Ptr(PointerType),
+    }
+    impl ScalarType {
+        pub fn effective_arithmetic_type(&self) -> ArithmeticType {
+            match self {
+                Self::Arith(a) => *a,
+                Self::Ptr(_) => ArithmeticType::ULong,
+            }
+        }
+        pub fn bytelen(&self) -> ByteLen {
+            ByteLen::from(self.effective_arithmetic_type())
+        }
+    }
+
+    #[derive(Clone, Copy, Hash, PartialEq, Eq, Debug)]
+    pub enum ArithmeticType {
+        Char,
+        SChar,
+        UChar,
+        Int,
+        Long,
+        UInt,
+        ULong,
+        Double,
+    }
+    impl ArithmeticType {
+        pub fn is_character(&self) -> bool {
+            match self {
+                Self::Char | Self::SChar | Self::UChar => true,
+                Self::Int | Self::Long | Self::UInt | Self::ULong | Self::Double => false,
+            }
+        }
+        pub fn is_integer(&self) -> bool {
+            match self {
+                Self::Char
+                | Self::SChar
+                | Self::UChar
+                | Self::Int
+                | Self::Long
+                | Self::UInt
+                | Self::ULong => true,
+                Self::Double => false,
+            }
+        }
+        pub fn is_signed(&self) -> bool {
+            match self {
+                Self::Char | Self::SChar | Self::Int | Self::Long | Self::Double => true,
+                Self::UChar | Self::UInt | Self::ULong => false,
+            }
+        }
+    }
+
+    #[derive(Hash, PartialEq, Eq, Debug)]
+    pub struct PointerType {
+        pub pointee_type: Singleton<ObjType>, // We don't support function-pointers.
+    }
+
+    #[derive(Getters, Derivative, Debug)]
+    #[getset(get = "pub")]
+    #[derivative(Hash, PartialEq, Eq)]
+    pub struct ArrayType {
+        elem_type: Singleton<ObjType>,
+        elem_count: ArrayElementCount,
+
+        /// Even though the semantic information is [`ScalarType`], we encode [`ArithmeticType`],
+        ///     b/c that's all that our use cases need and it's cheaper to represent.
+        #[derivative(Hash = "ignore", PartialEq = "ignore")]
+        single_type: ArithmeticType,
+
+        #[derivative(Hash = "ignore", PartialEq = "ignore")]
+        bytelen: ByteLen,
+    }
+    impl ArrayType {
+        pub fn new(elem_type: Singleton<ObjType>, elem_count: ArrayElementCount) -> Self {
+            let single_type = match elem_type.as_ref() {
+                ObjType::Scalar(s) => s.effective_arithmetic_type(),
+                ObjType::Array(a) => a.single_type,
+            };
+            let bytelen = elem_type.bytelen() * elem_count.as_int();
+            Self {
+                elem_type,
+                elem_count,
+                single_type,
+                bytelen,
+            }
+        }
+
+        pub fn as_ptr_to_elem(&self) -> PointerType {
+            let pointee_type = self.elem_type.clone();
+            PointerType { pointee_type }
+        }
+    }
+
+    #[derive(Constructor, Clone, Copy, Hash, PartialEq, Eq, Debug)]
+    pub struct ArrayElementCount(u64);
+    impl ArrayElementCount {
+        pub fn as_int(&self) -> u64 {
+            self.0
         }
     }
 }
 
-#[derive(From, Hash, PartialEq, Eq, Debug)]
-pub enum ScalarType {
-    Arith(ArithmeticType),
-    Ptr(PointerType),
-}
-impl ScalarType {
-    pub fn effective_arithmetic_type(&self) -> ArithmeticType {
-        match self {
-            Self::Arith(a) => *a,
-            Self::Ptr(_) => ArithmeticType::ULong,
-        }
-    }
-    pub fn bytelen(&self) -> ByteLen {
-        ByteLen::from(self.effective_arithmetic_type())
-    }
+/// Trie nodes representing object types
+mod obj_type_node {
+    use super::*;
+
+    pub type SubObjType<SubTyp> = OwningRef<Singleton<ObjType>, SubTyp>;
 }
 
-#[derive(Clone, Copy, Hash, PartialEq, Eq, Debug)]
-pub enum ArithmeticType {
-    Char,
-    SChar,
-    UChar,
-    Int,
-    Long,
-    UInt,
-    ULong,
-    Double,
-}
-impl ArithmeticType {
-    pub fn is_character(&self) -> bool {
-        match self {
-            Self::Char | Self::SChar | Self::UChar => true,
-            Self::Int | Self::Long | Self::UInt | Self::ULong | Self::Double => false,
-        }
+/// Function type
+mod fun_type {
+    use super::*;
+
+    #[derive(Hash, PartialEq, Eq, Debug)]
+    pub struct FunType<Typ> {
+        pub params: Vec<Typ>,
+        pub ret: Typ,
     }
-    pub fn is_integer(&self) -> bool {
-        match self {
-            Self::Char
-            | Self::SChar
-            | Self::UChar
-            | Self::Int
-            | Self::Long
-            | Self::UInt
-            | Self::ULong => true,
-            Self::Double => false,
-        }
-    }
-    pub fn is_signed(&self) -> bool {
-        match self {
-            Self::Char | Self::SChar | Self::Int | Self::Long | Self::Double => true,
-            Self::UChar | Self::UInt | Self::ULong => false,
-        }
-    }
+    pub type ParsedFunType = FunType<Singleton<ObjType>>;
+    pub type ScalarFunType = FunType<SubObjType<ScalarType>>;
 }
-
-#[derive(Hash, PartialEq, Eq, Debug)]
-pub struct PointerType {
-    pub pointee_type: Singleton<ObjType>, // We don't support function-pointers.
-}
-
-#[derive(Getters, Derivative, Debug)]
-#[getset(get = "pub")]
-#[derivative(Hash, PartialEq, Eq)]
-pub struct ArrayType {
-    elem_type: Singleton<ObjType>,
-    elem_count: ArrayElementCount,
-
-    /// Even though the semantic information is [`ScalarType`], we encode [`ArithmeticType`],
-    ///     b/c that's all that our use cases need and it's cheaper to represent.
-    #[derivative(Hash = "ignore", PartialEq = "ignore")]
-    single_type: ArithmeticType,
-
-    #[derivative(Hash = "ignore", PartialEq = "ignore")]
-    bytelen: ByteLen,
-}
-impl ArrayType {
-    pub fn new(elem_type: Singleton<ObjType>, elem_count: ArrayElementCount) -> Self {
-        let single_type = match elem_type.as_ref() {
-            ObjType::Scalar(s) => s.effective_arithmetic_type(),
-            ObjType::Array(a) => a.single_type,
-        };
-        let bytelen = elem_type.bytelen() * elem_count.as_int();
-        Self {
-            elem_type,
-            elem_count,
-            single_type,
-            bytelen,
-        }
-    }
-
-    pub fn as_ptr_to_elem(&self) -> PointerType {
-        let pointee_type = self.elem_type.clone();
-        PointerType { pointee_type }
-    }
-}
-
-#[derive(Constructor, Clone, Copy, Hash, PartialEq, Eq, Debug)]
-pub struct ArrayElementCount(u64);
-impl ArrayElementCount {
-    pub fn as_int(&self) -> u64 {
-        self.0
-    }
-}
-
-#[derive(Hash, PartialEq, Eq, Debug)]
-pub struct FunType<Typ> {
-    pub params: Vec<Typ>,
-    pub ret: Typ,
-}
-pub type ParsedFunType = FunType<Singleton<ObjType>>;
-pub type ScalarFunType = FunType<SubObjType<ScalarType>>;
 
 #[cfg(test)]
 mod test {
