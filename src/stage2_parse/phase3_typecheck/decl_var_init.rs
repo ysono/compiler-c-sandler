@@ -109,6 +109,7 @@ impl TypeChecker {
         ) -> Result<InitializerItem<Sngl, Ptr>>,
     {
         match (typ.as_ref(), init) {
+            (ObjType::Void, _) => todo!(),
             (ObjType::Scalar(_), VariableInitializer::Single(exp)) => {
                 let sca_typ = Self::extract_scalar_type(typ.clone()).unwrap();
                 let item = typecheck_single(sca_typ, exp)?;

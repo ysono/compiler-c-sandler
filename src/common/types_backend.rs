@@ -10,6 +10,7 @@ pub enum AssemblyType {
 impl From<&ObjType> for AssemblyType {
     fn from(obj_typ: &ObjType) -> Self {
         match obj_typ {
+            ObjType::Void => todo!(),
             ObjType::Scalar(sca_typ) => Self::Scalar(ScalarAssemblyType::from(sca_typ)),
             ObjType::Array(arr_typ) => Self::ByteArray(ByteArrayAssemblyType::from(arr_typ)),
         }
@@ -75,6 +76,7 @@ impl Alignment {
 
     pub fn default_of_obj_type(obj_typ: &ObjType) -> Self {
         match obj_typ {
+            ObjType::Void => todo!(),
             ObjType::Scalar(sca_typ) => Self::default_of_scalar(ScalarAssemblyType::from(sca_typ)),
             ObjType::Array(arr_typ) => Self::of_arr_type(arr_typ),
         }

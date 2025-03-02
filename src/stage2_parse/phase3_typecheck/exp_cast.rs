@@ -208,6 +208,7 @@ impl TypeChecker {
         obj_typ: Singleton<ObjType>,
     ) -> Result<SubObjType<ScalarType>, SubObjType<ArrayType>> {
         match obj_typ.as_ref() {
+            ObjType::Void => todo!(),
             ObjType::Scalar(sca_typ) => {
                 let sca_typ = sca_typ as *const ScalarType;
                 let sca_typ = unsafe { &*sca_typ };

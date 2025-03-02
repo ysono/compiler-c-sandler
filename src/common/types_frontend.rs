@@ -12,6 +12,7 @@ mod obj_type {
 
     #[derive(Hash, PartialEq, Eq, Debug)]
     pub enum ObjType {
+        Void,
         Scalar(ScalarType),
         Array(ArrayType),
     }
@@ -28,6 +29,7 @@ mod obj_type {
     impl ObjType {
         pub fn bytelen(&self) -> ByteLen {
             match self {
+                ObjType::Void => todo!(),
                 Self::Scalar(s) => s.bytelen(),
                 Self::Array(a) => *a.bytelen(),
             }
@@ -112,6 +114,7 @@ mod obj_type {
     impl ArrayType {
         pub fn new(elem_type: Singleton<ObjType>, elem_count: ArrayElementCount) -> Self {
             let single_type = match elem_type.as_ref() {
+                ObjType::Void => todo!(),
                 ObjType::Scalar(s) => s.effective_arithmetic_type(),
                 ObjType::Array(a) => a.single_type,
             };
@@ -176,6 +179,7 @@ mod test {
             let obj_typ = typ_bld.build_obj_type(items_baseward, base_typ);
 
             let single_typ = match obj_typ.as_ref() {
+                ObjType::Void => todo!(),
                 ObjType::Scalar(_) => None,
                 ObjType::Array(a) => Some(*a.single_type()),
             };
