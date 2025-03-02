@@ -105,7 +105,7 @@ pub enum BlockItem<C: CAstVariant> {
 
 #[derive(Debug)]
 pub enum Statement<C: CAstVariant> {
-    Return(C::Expression<ScalarType>),
+    Return(Option<C::Expression<ScalarType>>),
     Expression(C::Expression<ObjType>),
     If(If<C>),
     Compound(Block<C>),

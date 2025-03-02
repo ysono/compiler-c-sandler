@@ -152,9 +152,15 @@ impl TypeChecker {
                 // Does transform.
                 let fun_typ = self.curr_fun_type.as_ref().unwrap();
                 let ret_typ = fun_typ.ret.clone();
-                let exp = self.cast_by_assignment(Cow::Owned(ret_typ), exp)?;
 
-                Ok(Statement::Return(exp))
+                match exp {
+                    Some(exp) => {
+                        let exp = self.cast_by_assignment(Cow::Owned(ret_typ), exp)?;
+
+                        Ok(Statement::Return(Some(exp)))
+                    }
+                    None => todo!(),
+                }
             }
             Statement::Expression(exp) => self.typecheck_exp(exp).map(Statement::Expression),
             Statement::If(If { condition, then, elze }) => {

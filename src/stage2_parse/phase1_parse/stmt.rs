@@ -14,7 +14,13 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
                 t::Token::Keyword(t::Keyword::Return) => {
                     self.tokens.next();
 
-                    let exp = self.parse_exp()?;
+                    let exp = match self.peek_token()? {
+                        t::Token::Demarcator(t::Demarcator::Semicolon) => None,
+                        _ => {
+                            let exp = self.parse_exp()?;
+                            Some(exp)
+                        }
+                    };
 
                     self.expect_exact(&[t::Demarcator::Semicolon.into()])?;
 

@@ -116,10 +116,13 @@ impl FunInstrsGenerator<'_> {
 impl FunInstrsGenerator<'_> {
     fn gen_stmt(&mut self, c_stmt: c::Statement<TypeCheckedCAst>) {
         match c_stmt {
-            c::Statement::Return(c_exp) => {
-                let val = self.gen_exp_and_get_value(c_exp);
-                self.instrs.push(Instruction::Return(val));
-            }
+            c::Statement::Return(c_exp) => match c_exp {
+                Some(c_exp) => {
+                    let val = self.gen_exp_and_get_value(c_exp);
+                    self.instrs.push(Instruction::Return(val));
+                }
+                None => todo!(),
+            },
             c::Statement::Expression(c_exp) => {
                 self.gen_exp(c_exp);
             }

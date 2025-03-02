@@ -208,7 +208,10 @@ impl CAstValidator {
     fn resolve_stmt(&mut self, stmt: Statement<ParsedCAst>) -> Result<Statement<ResolvedCAst>> {
         let inner = || -> Result<_> {
             match stmt {
-                Statement::Return(exp) => self.resolve_exp(exp).map(Statement::Return),
+                Statement::Return(exp) => exp
+                    .map(|exp| self.resolve_exp(exp))
+                    .transpose()
+                    .map(Statement::Return),
                 Statement::Expression(exp) => self.resolve_exp(exp).map(Statement::Expression),
                 Statement::If(If { condition, then, elze }) => {
                     let condition = self.resolve_exp(condition)?;

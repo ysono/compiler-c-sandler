@@ -21,10 +21,10 @@ fn return_const() -> Result<()> {
     match &items[..] {
         // No redundant casting "as if by assignment".
         [
-            c::BlockItem::Statement(c::Statement::Return(c::TypedExp::R(c::TypedRExp {
+            c::BlockItem::Statement(c::Statement::Return(Some(c::TypedExp::R(c::TypedRExp {
                 exp: c::RExp::Const(Const::Int(42)),
                 typ,
-            }))),
+            })))),
         ] => {
             assert_eq!(
                 typ.as_owner().as_ref(),
