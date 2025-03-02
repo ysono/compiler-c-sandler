@@ -27,15 +27,6 @@ mod obj_type {
             Self::Array(arr_typ)
         }
     }
-    impl ObjType {
-        pub fn bytelen(&self) -> ByteLen {
-            match self {
-                ObjType::Void => todo!(),
-                Self::Scalar(s) => s.bytelen(),
-                Self::Array(a) => *a.bytelen(),
-            }
-        }
-    }
 
     #[derive(From, Hash, PartialEq, Eq, Debug)]
     pub enum ScalarType {
@@ -148,7 +139,7 @@ mod obj_type_node {
 
     pub type SubObjType<SubTyp> = OwningRef<Singleton<ObjType>, SubTyp>;
 
-    #[derive(Clone, Hash, PartialEq, Eq, Debug)]
+    #[derive(From, Clone, Hash, PartialEq, Eq, Debug)]
     pub enum NonVoidType {
         Scalar(SubObjType<ScalarType>),
         Array(SubObjType<ArrayType>),
@@ -257,33 +248,40 @@ mod test {
             let obj_typ = typ_bld.build_obj_type(items_baseward, base_typ);
 
             let single_typ = match obj_typ.as_ref() {
-                ObjType::Void => todo!(),
+                ObjType::Void => None,
                 ObjType::Scalar(_) => None,
                 ObjType::Array(a) => Some(*a.single_type()),
             };
 
-            let bytelen = obj_typ.bytelen().as_int();
+            let bytelen = match obj_typ.as_ref() {
+                ObjType::Void => None,
+                ObjType::Scalar(s) => Some(s.bytelen().as_int()),
+                ObjType::Array(a) => Some(a.bytelen().as_int()),
+            };
 
             (single_typ, bytelen)
         };
 
-        assert_eq!(get_properties(&[], ArithmeticType::Int), (None, 4));
-        assert_eq!(get_properties(&[Dec::Ptr], ArithmeticType::Int), (None, 8));
+        assert_eq!(get_properties(&[], ArithmeticType::Int), (None, Some(4)));
+        assert_eq!(
+            get_properties(&[Dec::Ptr], ArithmeticType::Int),
+            (None, Some(8))
+        );
         assert_eq!(
             get_properties(&[Dec::Ptr, Dec::Arr(17), Dec::Ptr], ArithmeticType::Int),
-            (None, 8)
+            (None, Some(8))
         );
         assert_eq!(
             get_properties(&[Dec::Arr(17)], ArithmeticType::Int),
-            (Some(ArithmeticType::Int), 17 * 4)
+            (Some(ArithmeticType::Int), Some(17 * 4))
         );
         assert_eq!(
             get_properties(&[Dec::Arr(17), Dec::Arr(7)], ArithmeticType::Int),
-            (Some(ArithmeticType::Int), 17 * 7 * 4)
+            (Some(ArithmeticType::Int), Some(17 * 7 * 4))
         );
         assert_eq!(
             get_properties(&[Dec::Arr(17), Dec::Ptr, Dec::Arr(7)], ArithmeticType::Int),
-            (Some(ArithmeticType::ULong), 17 * 8)
+            (Some(ArithmeticType::ULong), Some(17 * 8))
         );
     }
 }

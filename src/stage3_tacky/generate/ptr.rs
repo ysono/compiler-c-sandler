@@ -3,7 +3,9 @@ use crate::{
     common::{
         primitive::Const,
         types_backend::ByteLen,
-        types_frontend::{ArithmeticType, ObjType, PointerType, ScalarType, SubObjType},
+        types_frontend::{
+            ArithmeticType, NonVoidType, ObjType, PointerType, ScalarType, SubObjType,
+        },
     },
     stage2_parse::{c_ast as c, phase3_typecheck::TypeCheckedCAst},
     stage3_tacky::tacky_ast::*,
@@ -120,11 +122,11 @@ impl FunInstrsGenerator<'_> {
 
 /// Subscript
 impl FunInstrsGenerator<'_> {
-    pub(super) fn gen_exp_subscript<LSubTyp>(
+    pub(super) fn gen_exp_subscript<LTyp: Clone + Into<NonVoidType>>(
         &mut self,
         c::Subscript { exp1: ptr_exp, exp2: idx_exp }: c::Subscript<TypeCheckedCAst>,
-        pointee_type: SubObjType<LSubTyp>,
-    ) -> Object<SubObjType<LSubTyp>> {
+        pointee_type: LTyp,
+    ) -> Object<LTyp> {
         debug_assert!(extract_pointer_type(ptr_exp.typ()).is_ok());
         debug_assert_eq!(
             extract_arithmetic_type(idx_exp.typ().as_owner()),
@@ -134,6 +136,8 @@ impl FunInstrsGenerator<'_> {
         let ptr_typ = ptr_exp.typ().clone();
         let addr = self.register_new_value(ptr_typ);
 
+        let scale = pointee_type.clone().into().bytelen();
+
         /* Begin instructions */
 
         let ptr = self.gen_exp_and_get_value(*ptr_exp);
@@ -142,7 +146,7 @@ impl FunInstrsGenerator<'_> {
         self.instrs.push(Instruction::AddPtr(AddPtr {
             ptr,
             idx,
-            scale: pointee_type.as_owner().bytelen(),
+            scale,
             dst: addr.clone(),
         }));
 
@@ -154,6 +158,7 @@ impl FunInstrsGenerator<'_> {
 
 fn extract_pointee_bytelen(sca_typ: &ScalarType) -> Result<ByteLen, ()> {
     let PointerType { pointee_type } = extract_pointer_type(sca_typ)?;
+    let pointee_type = NonVoidType::try_from(pointee_type.clone()).unwrap();
     Ok(pointee_type.bytelen())
 }
 

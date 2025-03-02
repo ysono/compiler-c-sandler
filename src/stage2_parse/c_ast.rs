@@ -301,7 +301,7 @@ mod typed_expression {
         R(TypedRExp),
         L(TypedLExp<LTyp>),
     }
-    pub type AnyExp = TypedExp<SubObjType<ObjType>>;
+    pub type AnyExp = TypedExp<NonVoidType>;
     pub type ScalarExp = TypedExp<SubObjType<ScalarType>>;
     impl ScalarExp {
         pub fn typ(&self) -> &SubObjType<ScalarType> {

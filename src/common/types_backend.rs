@@ -1,4 +1,4 @@
-use crate::common::types_frontend::{ArithmeticType, ArrayType, ObjType, ScalarType};
+use crate::common::types_frontend::{ArithmeticType, ArrayType, NonVoidType, ScalarType};
 use derive_more::{Add, AddAssign, Constructor, From};
 use std::ops::Mul;
 
@@ -7,12 +7,11 @@ pub enum AssemblyType {
     Scalar(ScalarAssemblyType),
     ByteArray(ByteArrayAssemblyType),
 }
-impl From<&ObjType> for AssemblyType {
-    fn from(obj_typ: &ObjType) -> Self {
-        match obj_typ {
-            ObjType::Void => todo!(),
-            ObjType::Scalar(sca_typ) => Self::Scalar(ScalarAssemblyType::from(sca_typ)),
-            ObjType::Array(arr_typ) => Self::ByteArray(ByteArrayAssemblyType::from(arr_typ)),
+impl From<&NonVoidType> for AssemblyType {
+    fn from(nonvoid_typ: &NonVoidType) -> Self {
+        match nonvoid_typ {
+            NonVoidType::Scalar(s) => Self::Scalar(ScalarAssemblyType::from(s.as_ref())),
+            NonVoidType::Array(a) => Self::ByteArray(ByteArrayAssemblyType::from(a.as_ref())),
         }
     }
 }
@@ -74,11 +73,10 @@ impl Alignment {
         }
     }
 
-    pub fn default_of_obj_type(obj_typ: &ObjType) -> Self {
-        match obj_typ {
-            ObjType::Void => todo!(),
-            ObjType::Scalar(sca_typ) => Self::default_of_scalar(ScalarAssemblyType::from(sca_typ)),
-            ObjType::Array(arr_typ) => Self::of_arr_type(arr_typ),
+    pub fn default_of_nonvoid_type(nonvoid_typ: &NonVoidType) -> Self {
+        match nonvoid_typ {
+            NonVoidType::Scalar(s) => Self::default_of_scalar(ScalarAssemblyType::from(s.as_ref())),
+            NonVoidType::Array(a) => Self::of_arr_type(a),
         }
     }
 

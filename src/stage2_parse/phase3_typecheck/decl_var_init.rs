@@ -5,9 +5,8 @@ use crate::{
             InitializerItem, InitializerString, StaticInitializer, StaticInitializerItem,
         },
         types_backend::ByteLen,
-        types_frontend::{NonVoidType, ObjType, ScalarType, SubObjType},
+        types_frontend::{NonVoidType, ScalarType, SubObjType},
     },
-    ds_n_a::singleton::Singleton,
     stage2_parse::{c_ast::*, phase2_resolve::ResolvedCAst},
     utils::noop,
 };
@@ -15,7 +14,7 @@ use anyhow::{Result, anyhow};
 use std::borrow::Cow;
 
 impl TypeChecker {
-    pub(super) fn generate_zero_static_initializer(typ: &ObjType) -> StaticInitializer {
+    pub(super) fn generate_zero_static_initializer(typ: &NonVoidType) -> StaticInitializer {
         let bytelen = typ.bytelen();
         let item = StaticInitializerItem::Zero(bytelen);
         StaticInitializer::Concrete(vec![item])
@@ -23,10 +22,10 @@ impl TypeChecker {
 
     pub(super) fn typecheck_initializer_static(
         &mut self,
-        typ: &Singleton<ObjType>,
+        typ: &NonVoidType,
         init: VariableInitializer<ResolvedCAst>,
     ) -> Result<Vec<StaticInitializerItem>> {
-        let mut typecheck_single = |typ: SubObjType<ScalarType>, exp: Expression<ResolvedCAst>| {
+        let mut typecheck_single = |typ: &SubObjType<ScalarType>, exp: Expression<ResolvedCAst>| {
             self.typecheck_initializer_static_single(typ, exp)
         };
 
@@ -36,7 +35,7 @@ impl TypeChecker {
     }
     fn typecheck_initializer_static_single(
         &mut self,
-        to: SubObjType<ScalarType>,
+        to: &SubObjType<ScalarType>,
         from: Expression<ResolvedCAst>,
     ) -> Result<StaticInitializerItem> {
         match &from {
@@ -51,12 +50,12 @@ impl TypeChecker {
 
         let from = self.typecheck_exp_and_convert_to_scalar(from)?;
 
-        let () = Self::can_cast_by_assignment(&to, &from)?;
+        let () = Self::can_cast_by_assignment(to, &from)?;
 
         let item = match from {
             TypedExp::R(TypedRExp { exp, .. }) => match exp {
                 RExp::Const(in_konst) => {
-                    let out_konst = in_konst.cast_at_compile_time(&to);
+                    let out_konst = in_konst.cast_at_compile_time(to);
 
                     if out_konst.is_zero_integer() {
                         let bytelen = ByteLen::from(out_konst.arithmetic_type());
@@ -83,11 +82,11 @@ impl TypeChecker {
 
     pub(super) fn typecheck_initializer_runtime(
         &mut self,
-        typ: &Singleton<ObjType>,
+        typ: &NonVoidType,
         init: VariableInitializer<ResolvedCAst>,
     ) -> Result<Vec<RuntimeInitializerItem>> {
-        let mut typecheck_single = |typ: SubObjType<ScalarType>, exp: Expression<ResolvedCAst>| {
-            self.cast_by_assignment(Cow::Owned(typ), exp)
+        let mut typecheck_single = |typ: &SubObjType<ScalarType>, exp: Expression<ResolvedCAst>| {
+            self.cast_by_assignment(Cow::Borrowed(typ), exp)
                 .map(RuntimeInitializerItem::Single)
         };
 
@@ -97,25 +96,23 @@ impl TypeChecker {
     }
 
     fn typecheck_initializer<F, Sngl, Ptr>(
-        typ: &Singleton<ObjType>,
+        typ: &NonVoidType,
         init: VariableInitializer<ResolvedCAst>,
         typecheck_single: &mut F,
         out_items: &mut Vec<InitializerItem<Sngl, Ptr>>,
     ) -> Result<()>
     where
         F: FnMut(
-            SubObjType<ScalarType>,
+            &SubObjType<ScalarType>,
             Expression<ResolvedCAst>,
         ) -> Result<InitializerItem<Sngl, Ptr>>,
     {
-        match (typ.as_ref(), init) {
-            (ObjType::Void, _) => todo!(),
-            (ObjType::Scalar(_), VariableInitializer::Single(exp)) => {
-                let sca_typ = Self::extract_scalar_type(typ.clone()).unwrap();
+        match (typ, init) {
+            (NonVoidType::Scalar(sca_typ), VariableInitializer::Single(exp)) => {
                 let item = typecheck_single(sca_typ, exp)?;
                 Self::push_initializer_item(out_items, item);
             }
-            (ObjType::Array(arr_typ), VariableInitializer::Compound(sub_inits)) => {
+            (NonVoidType::Array(arr_typ), VariableInitializer::Compound(sub_inits)) => {
                 let elems_ct = arr_typ.elem_count().as_int();
                 let sub_inits_ct = sub_inits.len() as u64;
                 if elems_ct < sub_inits_ct {
@@ -125,8 +122,12 @@ impl TypeChecker {
                 }
 
                 for sub_init in sub_inits {
-                    let elem_type: Singleton<ObjType> = arr_typ.elem_type().clone().into();
-                    Self::typecheck_initializer(&elem_type, sub_init, typecheck_single, out_items)?;
+                    Self::typecheck_initializer(
+                        arr_typ.elem_type(),
+                        sub_init,
+                        typecheck_single,
+                        out_items,
+                    )?;
                 }
 
                 if elems_ct > sub_inits_ct {
@@ -136,7 +137,7 @@ impl TypeChecker {
                 }
             }
             (
-                ObjType::Array(arr_typ),
+                NonVoidType::Array(arr_typ),
                 VariableInitializer::Single(Expression::L(LExp::String(chars))),
             ) => {
                 let ok = match arr_typ.elem_type() {
@@ -162,8 +163,8 @@ impl TypeChecker {
                 let item = InitializerItem::String(InitializerString { chars, zeros_sfx_bytelen });
                 out_items.push(item);
             }
-            (ObjType::Scalar(_), init @ VariableInitializer::Compound(..))
-            | (ObjType::Array(_), init @ VariableInitializer::Single(_)) => {
+            (NonVoidType::Scalar(_), init @ VariableInitializer::Compound(..))
+            | (NonVoidType::Array(_), init @ VariableInitializer::Single(_)) => {
                 return Err(anyhow!(
                     "Advanced compound initializers aren't supported. {typ:#?} vs {init:#?}"
                 ));
@@ -266,12 +267,13 @@ mod test {
 
     fn new_typechecker(
         (typ_decls, base_typ): (&[Dec], ArithmeticType),
-    ) -> (TypeChecker, Singleton<ObjType>) {
+    ) -> (TypeChecker, NonVoidType) {
         let obj_type_repo = SingletonRepository::default();
         let mut tc = TypeChecker::new(obj_type_repo);
 
         let mut typ_bld = TypeBuilder::new(&mut tc.obj_type_repo);
         let typ = typ_bld.build_obj_type(&typ_decls, base_typ);
+        let typ = NonVoidType::try_from(typ).unwrap();
 
         (tc, typ)
     }

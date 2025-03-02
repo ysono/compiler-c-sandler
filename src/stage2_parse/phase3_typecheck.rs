@@ -20,7 +20,7 @@ use crate::{
     common::{
         identifier::{LoopId, SymbolIdentifier},
         symbol_table_frontend::FrontendSymbolTableWithDeduper,
-        types_frontend::{ObjType, ScalarFunType, ScalarType, SubObjType},
+        types_frontend::{NonVoidType, ObjType, ScalarFunType, ScalarType, SubObjType},
     },
     ds_n_a::singleton::{Singleton, SingletonRepository},
     stage2_parse::{c_ast::*, phase2_resolve::ResolvedCAst},
@@ -46,7 +46,7 @@ impl CAstVariant for TypeCheckedCAst {
 
     type Expression_AnyType = AnyExp;
     type Expression_ScalarType = ScalarExp;
-    type Expression_Lvalue_AnyType = TypedLExp<SubObjType<ObjType>>;
+    type Expression_Lvalue_AnyType = TypedLExp<NonVoidType>;
     type Expression_Lvalue_ScalarType = TypedLExp<SubObjType<ScalarType>>;
 
     /* Specific Expressions ; Operands */

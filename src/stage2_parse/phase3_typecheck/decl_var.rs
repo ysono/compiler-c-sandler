@@ -3,9 +3,8 @@ use crate::{
     common::{
         identifier::SymbolIdentifier,
         symbol_table_frontend::{ObjAttrs, StaticInitializer, StaticVisibility, Symbol},
-        types_frontend::ObjType,
+        types_frontend::NonVoidType,
     },
-    ds_n_a::singleton::Singleton,
     stage2_parse::{c_ast::*, phase2_resolve::ResolvedCAst},
     utils::noop,
 };
@@ -23,6 +22,8 @@ impl TypeChecker {
         scope: VarDeclScope,
     ) -> Result<Option<VariableDefinition<TypeCheckedCAst>>> {
         let typ = typ.into_res()?;
+        let typ = NonVoidType::try_from(typ)
+            .map_err(|typ| anyhow!("Var decl must have a complete type. {typ:#?}"))?;
 
         let decl_summary = self.derive_var_decl_summary(scope, storage_class, init, &typ)?;
 
@@ -46,7 +47,7 @@ impl TypeChecker {
         new_scope: VarDeclScope,
         new_sc: Option<StorageClassSpecifier>,
         new_init: Option<VariableInitializer<ResolvedCAst>>,
-        new_typ: &Singleton<ObjType>,
+        new_typ: &NonVoidType,
     ) -> Result<Decl<Option<VariableInitializer<ResolvedCAst>>>> {
         use StaticInitializer as SI;
         use StorageClassSpecifier as SCS;
@@ -88,7 +89,7 @@ impl TypeChecker {
         &mut self,
         ident: Rc<SymbolIdentifier>,
         new_decl_summary: Decl<()>,
-        new_typ: &Singleton<ObjType>,
+        new_typ: &NonVoidType,
     ) -> Result<()> {
         use StaticInitializer as SI;
 

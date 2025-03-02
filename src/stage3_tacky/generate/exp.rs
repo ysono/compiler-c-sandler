@@ -3,7 +3,7 @@ use crate::{
     common::{
         identifier::SymbolIdentifier,
         symbol_table_frontend::{ObjAttrs, Symbol},
-        types_frontend::{ScalarType, SubObjType},
+        types_frontend::{NonVoidType, ScalarType, SubObjType},
     },
     ds_n_a::witness::Witness,
     stage2_parse::c_ast as c,
@@ -62,10 +62,10 @@ impl FunInstrsGenerator<'_> {
         }
     }
 
-    pub(super) fn gen_lexp<LSubTyp>(
+    pub(super) fn gen_lexp<LTyp: Clone + Into<NonVoidType>>(
         &mut self,
-        c::TypedLExp { exp, typ }: c::TypedLExp<SubObjType<LSubTyp>>,
-    ) -> Object<SubObjType<LSubTyp>> {
+        c::TypedLExp { exp, typ }: c::TypedLExp<LTyp>,
+    ) -> Object<LTyp> {
         match exp {
             c::LExp::String(ident) => Object::Direct(ident, Witness::new(&typ)),
             c::LExp::Var(ident) => Object::Direct(ident, Witness::new(&typ)),
@@ -85,7 +85,7 @@ impl FunInstrsGenerator<'_> {
         self.frontend_symtab.as_mut().insert(
             ident,
             Symbol::Obj {
-                typ: sca_typ.into_owner(),
+                typ: NonVoidType::Scalar(sca_typ),
                 attrs: ObjAttrs::AutomaticStorageDuration,
             },
         );

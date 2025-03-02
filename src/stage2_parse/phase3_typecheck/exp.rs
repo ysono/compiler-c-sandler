@@ -1,10 +1,9 @@
 use super::TypeChecker;
 use crate::{
-    common::types_frontend::{ObjType, SubObjType},
+    common::types_frontend::NonVoidType,
     stage2_parse::{c_ast::*, phase2_resolve::ResolvedCAst},
 };
 use anyhow::Result;
-use owning_ref::OwningRef;
 
 impl TypeChecker {
     /// + Validate the input types.
@@ -23,32 +22,27 @@ impl TypeChecker {
         &mut self,
         exp: Expression<ResolvedCAst>,
     ) -> Result<ScalarExp> {
-        let obj_typed_exp = self.typecheck_exp(exp)?;
-
-        let sca_typed_exp = match obj_typed_exp {
-            TypedExp::R(sca_typed_rexp) => TypedExp::R(sca_typed_rexp),
-            TypedExp::L(obj_typed_lexp) => {
-                match Self::extract_scalar_type(obj_typed_lexp.typ.as_owner().clone()) {
-                    Ok(sca_typ) => {
-                        let sca_typed_lexp = TypedLExp {
-                            exp: obj_typed_lexp.exp,
-                            typ: sca_typ,
-                        };
-                        TypedExp::L(sca_typed_lexp)
-                    }
-                    Err(arr_typ) => {
+        match exp {
+            Expression::R(rexp) => self.typecheck_rexp(rexp).map(TypedExp::R),
+            Expression::L(lexp) => {
+                let nonvoid_lexp = self.typecheck_lexp(lexp)?;
+                let sca_exp = match &nonvoid_lexp.typ {
+                    NonVoidType::Scalar(sca_typ) => TypedExp::L(TypedLExp {
+                        exp: nonvoid_lexp.exp,
+                        typ: sca_typ.clone(),
+                    }),
+                    NonVoidType::Array(arr_typ) => {
                         let ptr_typ = arr_typ.as_ptr_to_elem();
                         let sca_typ = self.get_scalar_type(ptr_typ);
-                        let sca_typed_rexp = TypedRExp {
-                            exp: RExp::AddrOf(AddrOf(Box::new(obj_typed_lexp))),
+                        TypedExp::R(TypedRExp {
+                            exp: RExp::AddrOf(AddrOf(Box::new(nonvoid_lexp))),
                             typ: sca_typ,
-                        };
-                        TypedExp::R(sca_typed_rexp)
+                        })
                     }
-                }
+                };
+                Ok(sca_exp)
             }
-        };
-        Ok(sca_typed_exp)
+        }
     }
 
     fn typecheck_rexp(&mut self, rexp: RExp<ResolvedCAst>) -> Result<TypedRExp> {
@@ -73,18 +67,15 @@ impl TypeChecker {
     pub(super) fn typecheck_lexp(
         &mut self,
         lexp: LExp<ResolvedCAst>,
-    ) -> Result<TypedLExp<SubObjType<ObjType>>> {
+    ) -> Result<TypedLExp<NonVoidType>> {
         match lexp {
             LExp::String(chars) => {
                 let (ident, typ) = self.define_static_readonly_string(chars);
-                Ok(TypedLExp {
-                    typ: OwningRef::new(typ),
-                    exp: LExp::String(ident),
-                })
+                let exp = LExp::String(ident);
+                Ok(TypedLExp { typ, exp })
             }
             LExp::Var(ident) => {
                 let typ = self.frontend_symtab.symtab().get_obj_type(&ident)?.clone();
-                let typ = OwningRef::new(typ);
                 let exp = LExp::Var(ident);
                 Ok(TypedLExp { typ, exp })
             }

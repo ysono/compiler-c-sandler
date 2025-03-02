@@ -55,11 +55,11 @@ impl BackendSymbolTable {
         for (ident, symbol) in ident_to_symbol.into_iter() {
             match symbol {
                 Symbol::Obj { typ, attrs } => {
-                    let asm_type = AssemblyType::from(typ.as_ref());
+                    let asm_type = AssemblyType::from(&typ);
                     let asm_attrs = match attrs {
                         ObjAttrs::AutomaticStorageDuration => AsmObjAttrs::Stack,
                         ObjAttrs::StaticReadWrite { visibility, initializer } => {
-                            let alignment = Alignment::default_of_obj_type(&typ);
+                            let alignment = Alignment::default_of_nonvoid_type(&typ);
                             let initializer = match initializer {
                                 StaticInitializer::Concrete(inits) => Some(inits),
                                 StaticInitializer::Tentative => {

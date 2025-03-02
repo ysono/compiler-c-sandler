@@ -4,7 +4,7 @@ use crate::{
         identifier::SymbolIdentifier,
         primitive::Const,
         types_backend::{Alignment, ByteLen, ScalarAssemblyType},
-        types_frontend::{ArithmeticType, ObjType},
+        types_frontend::{ArithmeticType, NonVoidType},
     },
     stage3_tacky::tacky_ast as t,
     stage4_asm_gen::asm_ast::*,
@@ -28,12 +28,11 @@ impl InstrsGenerator {
                 let asm_type = ScalarAssemblyType::from(ari_type);
                 (ari_type, asm_type)
             }
-            t::Value::Variable(ident, _sca_typ_witness) => {
-                let obj_type = self.frontend_symtab.get_obj_type(ident).unwrap();
-                let sca_type = match obj_type.as_ref() {
-                    ObjType::Void => todo!(),
-                    ObjType::Scalar(s) => s,
-                    ObjType::Array(_) => unreachable!(),
+            t::Value::Variable(ident, sca_typ_witness) => {
+                let nonvoid_type = self.frontend_symtab.get_obj_type(ident).unwrap();
+                let sca_type = match nonvoid_type {
+                    NonVoidType::Scalar(s) => s,
+                    NonVoidType::Array(_) => unreachable!("{sca_typ_witness:#?}"),
                 };
                 let ari_type = sca_type.effective_arithmetic_type();
                 let asm_type = ScalarAssemblyType::from(ari_type);
@@ -62,10 +61,9 @@ impl InstrsGenerator {
     }
 
     pub(super) fn object_to_operand(&self, ident: Rc<SymbolIdentifier>) -> PreFinalOperand {
-        match self.frontend_symtab.get_obj_type(&ident).unwrap().as_ref() {
-            ObjType::Void => todo!(),
-            ObjType::Scalar(_) => PreFinalOperand::PseudoRegOrMem(ident),
-            ObjType::Array(_) => PreFinalOperand::PseudoMem {
+        match self.frontend_symtab.get_obj_type(&ident).unwrap() {
+            NonVoidType::Scalar(_) => PreFinalOperand::PseudoRegOrMem(ident),
+            NonVoidType::Array(_) => PreFinalOperand::PseudoMem {
                 obj: ident,
                 offset: ByteLen::new(0),
             },

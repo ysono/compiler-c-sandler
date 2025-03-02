@@ -1,10 +1,10 @@
 use super::TypeChecker;
 use crate::{
-    common::types_frontend::{ObjType, PointerType, ScalarType, SubObjType},
+    common::types_frontend::{NonVoidType, ObjType, PointerType, ScalarType},
+    ds_n_a::singleton::Singleton,
     stage2_parse::{c_ast::*, phase2_resolve::ResolvedCAst},
 };
 use anyhow::{Result, anyhow};
-use owning_ref::OwningRef;
 use std::borrow::Cow;
 
 impl TypeChecker {
@@ -22,8 +22,10 @@ impl TypeChecker {
             */
             let lexp = extract_lexp(*lhs)?;
             let TypedLExp { typ, exp } = self.typecheck_lexp(lexp)?;
-            let typ = Self::extract_scalar_type(typ.into_owner())
-                .map_err(|typ| anyhow!("Cannot assign to {typ:#?}"))?;
+            let typ = match typ {
+                NonVoidType::Scalar(s) => s,
+                NonVoidType::Array(a) => return Err(anyhow!("Cannot assign to {a:#?}")),
+            };
             TypedLExp { typ, exp }
         };
 
@@ -43,11 +45,11 @@ impl TypeChecker {
     ) -> Result<TypedRExp> {
         let sub_exp = {
             let lexp = extract_lexp(*sub_exp)?;
-            let obj_typed_lexp = self.typecheck_lexp(lexp)?;
-            obj_typed_lexp
+            let nonvoid_lexp = self.typecheck_lexp(lexp)?;
+            nonvoid_lexp
         };
 
-        let pointee_type = sub_exp.typ.as_owner().clone();
+        let pointee_type: Singleton<ObjType> = sub_exp.typ.clone().into();
         let typ = self.get_scalar_type(PointerType { pointee_type });
 
         let exp = RExp::AddrOf(AddrOf(Box::new(sub_exp)));
@@ -57,14 +59,18 @@ impl TypeChecker {
     pub(super) fn typecheck_exp_deref(
         &mut self,
         Dereference(sub_exp): Dereference<ResolvedCAst>,
-    ) -> Result<TypedLExp<SubObjType<ObjType>>> {
+    ) -> Result<TypedLExp<NonVoidType>> {
         let sub_exp = self.typecheck_exp_and_convert_to_scalar(*sub_exp)?;
 
         let typ = match sub_exp.typ().as_ref() {
-            ScalarType::Ptr(PointerType { pointee_type }) => pointee_type.clone(),
-            _ => return Err(anyhow!("Cannot dereference {sub_exp:#?}")),
+            ScalarType::Ptr(PointerType { pointee_type }) => {
+                NonVoidType::try_from(pointee_type.clone()).map_err(|_typ| ())
+            }
+            _ => Err(()),
         };
-        let typ = OwningRef::new(typ);
+        let typ = typ.map_err(|()| anyhow!("Cannot dereference {sub_exp:#?}"))?;
+        /* Note, disallowing deref(ptr_to_void) also disallows addrof(deref(ptr_to_void)).
+        This is non-compliant with the C standard. */
 
         let sub_exp = Box::new(sub_exp);
         let exp = LExp::Dereference(Dereference(sub_exp));

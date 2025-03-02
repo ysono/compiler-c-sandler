@@ -3,7 +3,7 @@ use crate::{
         identifier::SymbolIdentifier,
         primitive::Const,
         types_backend::ByteLen,
-        types_frontend::{ObjType, ScalarFunType},
+        types_frontend::{NonVoidType, ScalarFunType},
     },
     ds_n_a::{singleton::Singleton, weak_ptr::WeakPtr},
 };
@@ -14,7 +14,7 @@ use std::{collections::HashMap, rc::Rc};
 #[derive(Debug)]
 pub enum Symbol {
     Obj {
-        typ: Singleton<ObjType>,
+        typ: NonVoidType,
         attrs: ObjAttrs,
     },
     Fun {
@@ -79,11 +79,11 @@ impl FrontendSymbolTable {
             .get(ident)
             .ok_or_else(|| anyhow!("Not declared. {ident:#?}"))
     }
-    pub fn get_obj_type(&self, ident: &SymbolIdentifier) -> Result<&Singleton<ObjType>> {
+    pub fn get_obj_type(&self, ident: &SymbolIdentifier) -> Result<&NonVoidType> {
         let symbol = self.get(ident)?;
         match symbol {
             Symbol::Obj { typ, .. } => Ok(typ),
-            _ => Err(anyhow!("Not variable. {ident:#?} {symbol:#?}")),
+            _ => Err(anyhow!("Not object. {ident:#?} {symbol:#?}")),
         }
     }
     pub fn get_fun_type(&self, ident: &SymbolIdentifier) -> Result<&Singleton<ScalarFunType>> {
@@ -112,7 +112,7 @@ impl FrontendSymbolTableWithDeduper {
     pub fn get_or_new_static_readonly_string(
         &mut self,
         initializer: InitializerString,
-        typ: &Singleton<ObjType>,
+        typ: &NonVoidType,
     ) -> Rc<SymbolIdentifier> {
         match self.static_ro_string_to_ident.get(&initializer) {
             None => {

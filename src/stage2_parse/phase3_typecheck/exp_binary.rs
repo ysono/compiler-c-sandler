@@ -1,11 +1,10 @@
 use self::helpers_binary::*;
 use super::TypeChecker;
 use crate::{
-    common::types_frontend::{ArithmeticType, ObjType, PointerType, ScalarType, SubObjType},
+    common::types_frontend::{ArithmeticType, NonVoidType, PointerType, ScalarType, SubObjType},
     stage2_parse::{c_ast::*, phase2_resolve::ResolvedCAst},
 };
 use anyhow::{Result, anyhow};
-use owning_ref::OwningRef;
 use std::borrow::Cow;
 
 /// Binary
@@ -181,7 +180,7 @@ impl TypeChecker {
     pub(super) fn typecheck_exp_subscript(
         &mut self,
         Subscript { exp1, exp2 }: Subscript<ResolvedCAst>,
-    ) -> Result<TypedLExp<SubObjType<ObjType>>> {
+    ) -> Result<TypedLExp<NonVoidType>> {
         let exp1 = self.typecheck_exp_and_convert_to_scalar(*exp1)?;
         let exp2 = self.typecheck_exp_and_convert_to_scalar(*exp2)?;
 
@@ -198,6 +197,10 @@ impl TypeChecker {
             }
             _ => return Err(anyhow!("Can't subscript {exp1:#?} and {exp2:#?}")),
         };
+        let pointee_typ = match NonVoidType::try_from(pointee_typ) {
+            Ok(nv) => nv,
+            Err(_) => todo!(),
+        };
 
         let long_typ = self.get_scalar_type(ArithmeticType::Long);
         let idx_exp = Self::maybe_insert_cast_node(Cow::Owned(long_typ), idx_exp);
@@ -207,7 +210,7 @@ impl TypeChecker {
                 exp1: Box::new(ptr_exp),
                 exp2: Box::new(idx_exp),
             }),
-            typ: OwningRef::new(pointee_typ),
+            typ: pointee_typ,
         };
         Ok(typed_lexp)
     }
