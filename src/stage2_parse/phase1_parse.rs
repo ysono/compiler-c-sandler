@@ -8,7 +8,7 @@ mod stmt;
 use crate::{
     common::{
         identifier::RawIdentifier,
-        types_frontend::{ObjType, ParsedFunType},
+        types_frontend::{ObjType, ParsedFunType, ParsedObjType},
     },
     ds_n_a::singleton::SingletonRepository,
     stage1_lex::tokens as t,
@@ -42,6 +42,7 @@ impl CAstVariant for ParsedCAst {
 
     type BinaryOperator = BinaryOperator;
     type StringExpression = Vec<u8>;
+    type TypeOperand<Typ: Debug> = ParsedObjType;
 }
 
 #[derive(Into)]

@@ -1,6 +1,6 @@
 use crate::{
     common::types_frontend::{
-        ArithmeticType, ArrayElementCount, ArrayType, ObjType, PointerType, ScalarType,
+        ArithmeticType, ArrayElementCount, ArrayType, NonVoidType, ObjType, PointerType, ScalarType,
     },
     ds_n_a::singleton::{Singleton, SingletonRepository},
 };
@@ -38,7 +38,11 @@ impl<'a> TypeBuilder<'a> {
                 }
                 TestDeclaratorItem::Arr(elem_count) => {
                     cur_typ = self.obj_typ_repo.get_or_new(
-                        ArrayType::new(cur_typ, ArrayElementCount::new(*elem_count)).into(),
+                        ArrayType::new(
+                            NonVoidType::try_from(cur_typ).unwrap(),
+                            ArrayElementCount::new(*elem_count),
+                        )
+                        .into(),
                     );
                 }
             }
@@ -70,7 +74,10 @@ impl PartialEq<ProtoType> for &ObjType {
                 (ObjType::Array(arr_typ), Some(TestDeclaratorItem::Arr(elem_count)))
                     if arr_typ.elem_count().as_int() == *elem_count =>
                 {
-                    obj_typ = arr_typ.elem_type();
+                    obj_typ = match arr_typ.elem_type() {
+                        NonVoidType::Scalar(s) => s.as_owner(),
+                        NonVoidType::Array(a) => a.as_owner(),
+                    };
                 }
                 _ => return false,
             }

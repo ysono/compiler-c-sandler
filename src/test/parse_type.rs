@@ -1,5 +1,5 @@
 use crate::{
-    common::types_frontend::ArithmeticType,
+    common::types_frontend::{ArithmeticType, ParsedObjType},
     stage2_parse::c_ast as c,
     test::utils::{self, ProtoType, TestDeclaratorItem as Dec, fail},
 };
@@ -11,7 +11,7 @@ fn do_test(pp: &'static str, expected_type: ProtoType) -> Result<()> {
         c::Declaration::Var(c::VariableDeclaration { typ, .. }) => typ,
         _ => fail!("{c_prog:#?}"),
     };
-    assert_eq!(typ.as_ref(), expected_type);
+    assert!(matches!(typ, ParsedObjType(Ok(obj_typ)) if obj_typ.as_ref() == expected_type));
     Ok(())
 }
 

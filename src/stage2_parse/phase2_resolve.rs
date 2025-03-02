@@ -5,7 +5,10 @@ mod ident_resolver;
 
 use self::ident_resolver::IdentResolver;
 use crate::{
-    common::identifier::{LoopId, SymbolIdentifier},
+    common::{
+        identifier::{LoopId, SymbolIdentifier},
+        types_frontend::ParsedObjType,
+    },
     stage2_parse::{c_ast::*, phase1_parse::ParsedCAst},
 };
 use anyhow::{Context, Result, anyhow};
@@ -34,6 +37,7 @@ impl CAstVariant for ResolvedCAst {
 
     type BinaryOperator = BinaryOperator;
     type StringExpression = Vec<u8>;
+    type TypeOperand<Typ: Debug> = ParsedObjType;
 }
 
 #[derive(Default)]

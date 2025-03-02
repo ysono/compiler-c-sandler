@@ -4,7 +4,9 @@ use crate::{
     common::{
         primitive::Const,
         symbol_table_frontend::{InitializerItem, StaticVisibility},
-        types_frontend::{ObjType, ParsedFunType, ScalarFunType, ScalarType, SubObjType},
+        types_frontend::{
+            ObjType, ParsedFunType, ParsedObjType, ScalarFunType, ScalarType, SubObjType,
+        },
     },
     ds_n_a::singleton::Singleton,
 };
@@ -32,6 +34,7 @@ pub trait CAstVariant {
 
     type BinaryOperator: Debug;
     type StringExpression: Debug;
+    type TypeOperand<Typ: Debug>: Debug;
 }
 
 #[derive(Debug)]
@@ -50,7 +53,7 @@ mod declaration {
     #[derive(Debug)]
     pub struct VariableDeclaration<C: CAstVariant> {
         pub ident: C::SymbolId,
-        pub typ: Singleton<ObjType>,
+        pub typ: ParsedObjType,
         pub storage_class: Option<StorageClassSpecifier>,
         pub init: Option<VariableInitializer<C>>,
     }
@@ -176,7 +179,7 @@ mod expression {
 
     #[derive(Debug)]
     pub struct Cast<C: CAstVariant> {
-        pub typ: Singleton<ObjType>,
+        pub typ: C::TypeOperand<Singleton<ObjType>>,
         pub sub_exp: Box<C::Expression<ScalarType>>,
     }
 

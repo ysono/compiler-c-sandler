@@ -3,7 +3,7 @@ use crate::{
     common::{
         identifier::SymbolIdentifier,
         symbol_table_frontend::{FunAttrs, StaticVisibility, Symbol},
-        types_frontend::{ParsedFunType, ScalarFunType, ScalarType, SubObjType},
+        types_frontend::{ParsedFunType, ParsedObjType, ScalarFunType, ScalarType, SubObjType},
     },
     ds_n_a::singleton::Singleton,
     stage2_parse::{c_ast::*, phase2_resolve::ResolvedCAst},
@@ -59,18 +59,21 @@ impl TypeChecker {
     ) -> Result<Singleton<ScalarFunType>> {
         let ParsedFunType { params, ret } = in_fun_typ.as_ref();
 
-        let ret = Self::extract_scalar_type(ret.clone())
+        let ret = ret.as_res()?;
+        let ret = Self::extract_scalar_type(ret)
             .map_err(|typ| anyhow!("In C, a function can't return {typ:#?}"))?;
 
         let params = params
             .iter()
-            .map(
-                |param_typ| match Self::extract_scalar_type(param_typ.clone()) {
+            .map(|param_typ| {
+                let param_typ = param_typ.as_res()?;
+                let param_typ = match Self::extract_scalar_type(param_typ.clone()) {
                     Ok(sca_typ) => sca_typ,
                     Err(arr_typ) => self.get_scalar_type(arr_typ.as_ptr_to_elem()),
-                },
-            )
-            .collect::<Vec<_>>();
+                };
+                Ok(param_typ)
+            })
+            .collect::<Result<Vec<_>>>()?;
 
         let out_fun_typ = self.fun_type_repo.get_or_new(ScalarFunType { params, ret });
         Ok(out_fun_typ)
@@ -180,7 +183,7 @@ impl TypeChecker {
         for (param_ident, param_typ) in param_idents.iter().zip(param_types.iter()) {
             let mock_var_decl = VariableDeclaration {
                 ident: Rc::clone(param_ident),
-                typ: param_typ.as_owner().clone(),
+                typ: ParsedObjType(Ok(param_typ.as_owner().clone())),
                 storage_class: None,
                 init: None,
             };

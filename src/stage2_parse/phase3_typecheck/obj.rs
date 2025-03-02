@@ -4,7 +4,7 @@ use crate::{
         identifier::SymbolIdentifier,
         symbol_table_frontend::InitializerString,
         types_backend::ByteLen,
-        types_frontend::{ArithmeticType, ArrayElementCount, ArrayType, ObjType},
+        types_frontend::{ArithmeticType, ArrayElementCount, ArrayType, NonVoidType, ObjType},
     },
     ds_n_a::singleton::Singleton,
 };
@@ -29,10 +29,11 @@ impl TypeChecker {
     }
     fn derive_string_type(&mut self, chars: &[u8], tail_bytelen: ByteLen) -> Singleton<ObjType> {
         let char_typ = self.obj_type_repo.get_or_new(ArithmeticType::Char.into());
+        let nonvoid_typ = NonVoidType::try_from(char_typ).unwrap();
 
         let elem_ct = ArrayElementCount::new(chars.len() as u64 + tail_bytelen.as_int());
 
         self.obj_type_repo
-            .get_or_new(ArrayType::new(char_typ, elem_ct).into())
+            .get_or_new(ArrayType::new(nonvoid_typ, elem_ct).into())
     }
 }

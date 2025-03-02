@@ -106,6 +106,7 @@ impl TypeChecker {
         &mut self,
         Cast { typ: to, sub_exp: from }: Cast<ResolvedCAst>,
     ) -> Result<TypedRExp> {
+        let to = to.into_res()?;
         let to = Self::extract_scalar_type(to)
             .map_err(|typ| anyhow!("Cannot explicitly cast to {typ:#?}"))?;
 

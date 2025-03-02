@@ -6,7 +6,8 @@ use crate::{
         identifier::RawIdentifier,
         primitive::Const,
         types_frontend::{
-            ArithmeticType, ArrayElementCount, ArrayType, ObjType, ParsedFunType, PointerType,
+            ArithmeticType, ArrayElementCount, ArrayType, NonVoidType, ObjType, ParsedFunType,
+            ParsedObjType, ParsedObjTypeError, PointerType,
         },
     },
     ds_n_a::singleton::Singleton,
@@ -255,9 +256,16 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
                             noop!("Happy path.")
                         }
                     }
-                    cur_type = self
-                        .obj_type_repo
-                        .get_or_new(ArrayType::new(cur_type, elem_count).into());
+
+                    match self.parse_array_type(cur_type, elem_count) {
+                        Ok(obj_type) => {
+                            cur_type = obj_type;
+                        }
+                        Err(err) => {
+                            let parsed_obj_type = ParsedObjType(Err(err));
+                            return Ok(DeclaratorResult::Var(ident, parsed_obj_type));
+                        }
+                    }
                 }
                 DeclaratorItem::Fun(params) => match items_baseward.last() {
                     Some(DeclaratorItem::Fun(_)) => {
@@ -285,9 +293,10 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
                             }
                         }
 
+                        let parsed_obj_type = ParsedObjType(Ok(cur_type));
                         let fun_type = ParsedFunType {
                             params: param_types,
-                            ret: cur_type,
+                            ret: parsed_obj_type,
                         };
                         let fun_type = self.fun_type_repo.get_or_new(fun_type);
 
@@ -297,13 +306,14 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
             }
         }
 
-        Ok(DeclaratorResult::Var(ident, cur_type))
+        let parsed_obj_type = ParsedObjType(Ok(cur_type));
+        Ok(DeclaratorResult::Var(ident, parsed_obj_type))
     }
 }
 
 /// Abstract declarator
 impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
-    pub(super) fn parse_cast_type(&mut self) -> Result<Option<Singleton<ObjType>>> {
+    pub(super) fn parse_cast_type(&mut self) -> Result<Option<ParsedObjType>> {
         let mut inner = || -> Result<_> {
             let base_type = match self.parse_specifiers()? {
                 None => return Ok(None),
@@ -374,7 +384,7 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
         &mut self,
         base_type: ArithmeticType,
         AbstractDeclarator { mut items_baseward, .. }: AbstractDeclarator,
-    ) -> Singleton<ObjType> {
+    ) -> ParsedObjType {
         let mut cur_type = self.obj_type_repo.get_or_new(base_type.into());
 
         while let Some(item) = items_baseward.pop() {
@@ -387,14 +397,48 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
                     }
                 }
                 AbstractDeclaratorItem::Arr(elem_count) => {
-                    cur_type = self
-                        .obj_type_repo
-                        .get_or_new(ArrayType::new(cur_type, elem_count).into());
+                    match self.parse_array_type(cur_type, elem_count) {
+                        Ok(obj_type) => {
+                            cur_type = obj_type;
+                        }
+                        Err(err) => {
+                            return ParsedObjType(Err(err));
+                        }
+                    }
                 }
             }
         }
 
-        cur_type
+        ParsedObjType(Ok(cur_type))
+    }
+}
+
+/// Helpers
+impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
+    /// The official tester requires us to allow invalid array types at the parser stage.
+    ///
+    /// In addition, any types that are derived from invalid array types must also be unconditionally allowed.
+    ///     + pointer_to(array), array_of(array), and any combination thereof, are valid in C.
+    ///     + function(return=array) is invalid in C,
+    ///         but the parser grammer doesn't validate this, and the official tester requires us to allow these types.
+    ///
+    /// Hence, at each code site that calls this helper,
+    ///     given each invalid array type,
+    ///     we immediately return the invalid result,
+    ///     without applying further validations using the remaining leafward declarator items.
+    fn parse_array_type(
+        &mut self,
+        elem_type: Singleton<ObjType>,
+        elem_count: ArrayElementCount,
+    ) -> Result<Singleton<ObjType>, ParsedObjTypeError> {
+        match NonVoidType::try_from(elem_type) {
+            Err(_) => Err(ParsedObjTypeError::ArrayElemNonCompletableType),
+            Ok(nonvoid_type) => {
+                let arr_type = ArrayType::new(nonvoid_type, elem_count);
+                let arr_type = self.obj_type_repo.get_or_new(arr_type.into());
+                Ok(arr_type)
+            }
+        }
     }
 }
 
@@ -427,7 +471,7 @@ mod non_abstract_declarator {
 
     #[derive(Debug)]
     pub enum DeclaratorResult {
-        Var(RawIdentifier, Singleton<ObjType>),
+        Var(RawIdentifier, ParsedObjType),
         Fun(RawIdentifier, Singleton<ParsedFunType>, Vec<RawIdentifier>),
     }
 }

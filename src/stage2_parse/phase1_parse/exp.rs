@@ -1,8 +1,7 @@
 use self::{binary_helpers::*, unary_helpers::*};
 use super::{ParsedCAst, Parser};
 use crate::{
-    common::types_frontend::ObjType, ds_n_a::singleton::Singleton, stage1_lex::tokens as t,
-    stage2_parse::c_ast::*,
+    common::types_frontend::ParsedObjType, stage1_lex::tokens as t, stage2_parse::c_ast::*,
 };
 use anyhow::{Context, Result, anyhow};
 
@@ -294,6 +293,6 @@ mod unary_helpers {
         Op(UnaryOperator),
         Deref,
         AddrOf,
-        Cast(Singleton<ObjType>),
+        Cast(ParsedObjType),
     }
 }

@@ -1,5 +1,6 @@
-pub use self::{fun_type::*, obj_type::*, obj_type_node::*};
+pub use self::{fun_type::*, obj_type::*, obj_type_node::*, obj_type_parsed::*};
 use crate::{common::types_backend::ByteLen, ds_n_a::singleton::Singleton};
+use anyhow::anyhow;
 use derivative::Derivative;
 use derive_more::{Constructor, From};
 use getset::Getters;
@@ -100,7 +101,7 @@ mod obj_type {
     #[getset(get = "pub")]
     #[derivative(Hash, PartialEq, Eq)]
     pub struct ArrayType {
-        elem_type: Singleton<ObjType>,
+        elem_type: NonVoidType,
         elem_count: ArrayElementCount,
 
         /// Even though the semantic information is [`ScalarType`], we encode [`ArithmeticType`],
@@ -112,11 +113,10 @@ mod obj_type {
         bytelen: ByteLen,
     }
     impl ArrayType {
-        pub fn new(elem_type: Singleton<ObjType>, elem_count: ArrayElementCount) -> Self {
-            let single_type = match elem_type.as_ref() {
-                ObjType::Void => todo!(),
-                ObjType::Scalar(s) => s.effective_arithmetic_type(),
-                ObjType::Array(a) => a.single_type,
+        pub fn new(elem_type: NonVoidType, elem_count: ArrayElementCount) -> Self {
+            let single_type = match &elem_type {
+                NonVoidType::Scalar(s) => s.effective_arithmetic_type(),
+                NonVoidType::Array(a) => a.single_type,
             };
             let bytelen = elem_type.bytelen() * elem_count.as_int();
             Self {
@@ -128,7 +128,7 @@ mod obj_type {
         }
 
         pub fn as_ptr_to_elem(&self) -> PointerType {
-            let pointee_type = self.elem_type.clone();
+            let pointee_type = self.elem_type.clone().into();
             PointerType { pointee_type }
         }
     }
@@ -147,18 +147,96 @@ mod obj_type_node {
     use super::*;
 
     pub type SubObjType<SubTyp> = OwningRef<Singleton<ObjType>, SubTyp>;
+
+    #[derive(Clone, Hash, PartialEq, Eq, Debug)]
+    pub enum NonVoidType {
+        Scalar(SubObjType<ScalarType>),
+        Array(SubObjType<ArrayType>),
+    }
+    impl TryFrom<Singleton<ObjType>> for NonVoidType {
+        type Error = Singleton<ObjType>;
+        fn try_from(o: Singleton<ObjType>) -> Result<Self, Self::Error> {
+            match o.as_ref() {
+                ObjType::Void => Err(o),
+                ObjType::Scalar(s) => {
+                    let s = unsafe { &*(s as *const _) };
+                    let ownref = OwningRef::new(o).map(|_| s);
+                    Ok(Self::Scalar(ownref))
+                }
+                ObjType::Array(a) => {
+                    let a = unsafe { &*(a as *const _) };
+                    let ownref = OwningRef::new(o).map(|_| a);
+                    Ok(Self::Array(ownref))
+                }
+            }
+        }
+    }
+    impl From<NonVoidType> for Singleton<ObjType> {
+        fn from(nonvoid: NonVoidType) -> Self {
+            match nonvoid {
+                NonVoidType::Scalar(s) => s.into_owner(),
+                NonVoidType::Array(a) => a.into_owner(),
+            }
+        }
+    }
+    impl NonVoidType {
+        pub fn bytelen(&self) -> ByteLen {
+            match self {
+                Self::Scalar(s) => s.bytelen(),
+                Self::Array(a) => *a.bytelen(),
+            }
+        }
+    }
+}
+
+/// Intermediary parsing result of object types
+mod obj_type_parsed {
+    use super::*;
+
+    /// The official tester expects some object type variants to
+    ///     be valid at the Parse phase
+    ///     and invalid at the Typecheck phase.
+    /// We choose to represent object types in their valid forms only,
+    ///     and represent delayed invalid results as errors.
+    #[derive(Clone, Hash, PartialEq, Eq, Debug)]
+    pub struct ParsedObjType(pub Result<Singleton<ObjType>, ParsedObjTypeError>);
+    impl ParsedObjType {
+        pub fn into_res(self) -> Result<Singleton<ObjType>, ParsedObjTypeError> {
+            self.0
+        }
+        pub fn as_res(&self) -> Result<Singleton<ObjType>, ParsedObjTypeError> {
+            self.0.clone()
+        }
+    }
+
+    #[derive(Clone, Hash, PartialEq, Eq, Debug)]
+    pub enum ParsedObjTypeError {
+        ArrayElemNonCompletableType,
+    }
+    impl From<ParsedObjTypeError> for anyhow::Error {
+        fn from(err: ParsedObjTypeError) -> Self {
+            match err {
+                ParsedObjTypeError::ArrayElemNonCompletableType => {
+                    anyhow!("In C, an array's elem type must be a completable type.")
+                }
+            }
+        }
+    }
 }
 
 /// Function type
 mod fun_type {
     use super::*;
 
+    /// The official tester expects function types to have component types (params and return) that are
+    ///     unchecked at the Parse phase
+    ///     and validated at the Typecheck phase.
     #[derive(Hash, PartialEq, Eq, Debug)]
     pub struct FunType<Typ> {
         pub params: Vec<Typ>,
         pub ret: Typ,
     }
-    pub type ParsedFunType = FunType<Singleton<ObjType>>;
+    pub type ParsedFunType = FunType<ParsedObjType>;
     pub type ScalarFunType = FunType<SubObjType<ScalarType>>;
 }
 

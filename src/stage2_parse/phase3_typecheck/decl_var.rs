@@ -22,6 +22,8 @@ impl TypeChecker {
         VariableDeclaration { ident, typ, storage_class, init }: VariableDeclaration<ResolvedCAst>,
         scope: VarDeclScope,
     ) -> Result<Option<VariableDefinition<TypeCheckedCAst>>> {
+        let typ = typ.into_res()?;
+
         let decl_summary = self.derive_var_decl_summary(scope, storage_class, init, &typ)?;
 
         let (decl_summary, run_time_init) = match decl_summary {

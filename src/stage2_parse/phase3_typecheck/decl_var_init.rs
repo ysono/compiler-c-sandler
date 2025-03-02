@@ -5,7 +5,7 @@ use crate::{
             InitializerItem, InitializerString, StaticInitializer, StaticInitializerItem,
         },
         types_backend::ByteLen,
-        types_frontend::{ObjType, ScalarType, SubObjType},
+        types_frontend::{NonVoidType, ObjType, ScalarType, SubObjType},
     },
     ds_n_a::singleton::Singleton,
     stage2_parse::{c_ast::*, phase2_resolve::ResolvedCAst},
@@ -125,12 +125,8 @@ impl TypeChecker {
                 }
 
                 for sub_init in sub_inits {
-                    Self::typecheck_initializer(
-                        arr_typ.elem_type(),
-                        sub_init,
-                        typecheck_single,
-                        out_items,
-                    )?;
+                    let elem_type: Singleton<ObjType> = arr_typ.elem_type().clone().into();
+                    Self::typecheck_initializer(&elem_type, sub_init, typecheck_single, out_items)?;
                 }
 
                 if elems_ct > sub_inits_ct {
@@ -142,27 +138,30 @@ impl TypeChecker {
             (
                 ObjType::Array(arr_typ),
                 VariableInitializer::Single(Expression::L(LExp::String(chars))),
-            ) => match arr_typ.elem_type().as_ref() {
-                ObjType::Scalar(ScalarType::Arith(ari_typ)) if ari_typ.is_character() => {
-                    let elems_ct = arr_typ.elem_count().as_int();
-                    let chars_ct = chars.len() as u64;
-                    if elems_ct < chars_ct {
-                        return Err(anyhow!(
-                            "Too many chars in initializer. {arr_typ:#?} vs {chars:#?}"
-                        ));
-                    }
+            ) => {
+                let ok = match arr_typ.elem_type() {
+                    NonVoidType::Scalar(sca_typ) => match sca_typ.as_ref() {
+                        ScalarType::Arith(ari_typ) if ari_typ.is_character() => Ok(()),
+                        _ => Err(()),
+                    },
+                    _ => Err(()),
+                };
+                let () = ok.map_err(|()| {
+                    anyhow!("Cannot initialize {arr_typ:#?} using string literal.")
+                })?;
 
-                    let zeros_sfx_bytelen = ByteLen::new(elems_ct - chars_ct);
-                    let item =
-                        InitializerItem::String(InitializerString { chars, zeros_sfx_bytelen });
-                    out_items.push(item);
-                }
-                _ => {
+                let elems_ct = arr_typ.elem_count().as_int();
+                let chars_ct = chars.len() as u64;
+                if elems_ct < chars_ct {
                     return Err(anyhow!(
-                        "Cannot initialize {arr_typ:#?} using string literal."
+                        "Too many chars in initializer. {arr_typ:#?} vs {chars:#?}"
                     ));
                 }
-            },
+
+                let zeros_sfx_bytelen = ByteLen::new(elems_ct - chars_ct);
+                let item = InitializerItem::String(InitializerString { chars, zeros_sfx_bytelen });
+                out_items.push(item);
+            }
             (ObjType::Scalar(_), init @ VariableInitializer::Compound(..))
             | (ObjType::Array(_), init @ VariableInitializer::Single(_)) => {
                 return Err(anyhow!(

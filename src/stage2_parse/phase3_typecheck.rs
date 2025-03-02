@@ -51,6 +51,7 @@ impl CAstVariant for TypeCheckedCAst {
 
     type BinaryOperator = TypeCheckedBinaryOperator;
     type StringExpression = Rc<SymbolIdentifier>;
+    type TypeOperand<Typ: Debug> = Typ;
 }
 
 pub struct TypeChecker {
