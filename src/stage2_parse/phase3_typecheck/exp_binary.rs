@@ -1,4 +1,4 @@
-use self::helpers_binary::*;
+use self::helpers::*;
 use super::TypeChecker;
 use crate::{
     common::types_frontend::{ArithmeticType, NonVoidType, PointerType, ScalarType, SubObjType},
@@ -81,10 +81,10 @@ impl TypeChecker {
 
                 Ok(new_binary_exp(op, lhs, rhs, common_typ))
             }
-            (ScalarType::Ptr(_), ScalarType::Arith(a)) if a.is_integer() => {
+            (ScalarType::Ptr(p), ScalarType::Arith(a)) if can_addsub_ptr_and_arith(p, a) => {
                 Ok(self.typecheck_arith_add_ptr(lhs, rhs))
             }
-            (ScalarType::Arith(a), ScalarType::Ptr(_)) if a.is_integer() => {
+            (ScalarType::Arith(a), ScalarType::Ptr(p)) if can_addsub_ptr_and_arith(p, a) => {
                 Ok(self.typecheck_arith_add_ptr(rhs, lhs))
             }
             _ => Err(anyhow!("Can't add {lhs:#?} and {rhs:#?}")),
@@ -111,7 +111,7 @@ impl TypeChecker {
 
                 Ok(new_binary_exp(op, lhs, rhs, common_typ))
             }
-            (ScalarType::Ptr(_), ScalarType::Arith(a)) if a.is_integer() => {
+            (ScalarType::Ptr(p), ScalarType::Arith(a)) if can_addsub_ptr_and_arith(p, a) => {
                 let op = PointerArithmeticBinaryOperator::PointerMinusInteger;
 
                 let long_typ = self.get_scalar_type(ArithmeticType::Long);
@@ -121,7 +121,7 @@ impl TypeChecker {
 
                 Ok(new_binary_exp(op, lhs, rhs, ptr_typ))
             }
-            (ScalarType::Ptr(p1), ScalarType::Ptr(p2)) if p1 == p2 => {
+            (ScalarType::Ptr(p1), ScalarType::Ptr(p2)) if can_sub_ptr_and_ptr(p1, p2) => {
                 let op = PointerArithmeticBinaryOperator::PointerMinusPointer;
 
                 let long_typ = self.get_scalar_type(ArithmeticType::Long);
@@ -154,9 +154,36 @@ impl TypeChecker {
     }
 }
 
-/// Helpers on binary expressions
-mod helpers_binary {
+/// Helpers
+mod helpers {
     use super::*;
+
+    pub fn can_addsub_ptr_and_arith(
+        PointerType { pointee_type }: &PointerType,
+        arith_typ: &ArithmeticType,
+    ) -> bool {
+        NonVoidType::is_nonvoid(pointee_type.as_ref()) && (arith_typ.is_integer())
+    }
+    pub fn validate_addsub_ptr_and_arith(
+        PointerType { pointee_type }: &PointerType,
+        arith_typ: &ArithmeticType,
+    ) -> Result<NonVoidType, ()> {
+        if arith_typ.is_integer() {
+            match NonVoidType::try_from(pointee_type.clone()) {
+                Ok(nv) => Ok(nv),
+                Err(_) => Err(()),
+            }
+        } else {
+            Err(())
+        }
+    }
+
+    pub fn can_sub_ptr_and_ptr(
+        PointerType { pointee_type: t1 }: &PointerType,
+        PointerType { pointee_type: t2 }: &PointerType,
+    ) -> bool {
+        (t1 == t2) && NonVoidType::is_nonvoid(t1)
+    }
 
     pub fn new_binary_exp<Op: Into<TypeCheckedBinaryOperator>>(
         op: Op,
@@ -184,23 +211,23 @@ impl TypeChecker {
         let exp1 = self.typecheck_exp_and_convert_to_scalar(*exp1)?;
         let exp2 = self.typecheck_exp_and_convert_to_scalar(*exp2)?;
 
-        let (pointee_typ, ptr_exp, idx_exp) = match (exp1.typ().as_ref(), exp2.typ().as_ref()) {
-            (ScalarType::Ptr(PointerType { pointee_type }), ScalarType::Arith(a))
-                if a.is_integer() =>
-            {
-                (pointee_type.clone(), exp1, exp2)
+        let res = match (exp1.typ().as_ref(), exp2.typ().as_ref()) {
+            (ScalarType::Ptr(p), ScalarType::Arith(a)) => {
+                match validate_addsub_ptr_and_arith(p, a) {
+                    Ok(pointee_typ) => Ok((exp1, exp2, pointee_typ)),
+                    Err(()) => Err((exp1, exp2)),
+                }
             }
-            (ScalarType::Arith(a), ScalarType::Ptr(PointerType { pointee_type }))
-                if a.is_integer() =>
-            {
-                (pointee_type.clone(), exp2, exp1)
+            (ScalarType::Arith(a), ScalarType::Ptr(p)) => {
+                match validate_addsub_ptr_and_arith(p, a) {
+                    Ok(pointee_typ) => Ok((exp2, exp1, pointee_typ)),
+                    Err(()) => Err((exp1, exp2)),
+                }
             }
-            _ => return Err(anyhow!("Can't subscript {exp1:#?} and {exp2:#?}")),
+            _ => Err((exp1, exp2)),
         };
-        let pointee_typ = match NonVoidType::try_from(pointee_typ) {
-            Ok(nv) => nv,
-            Err(_) => todo!(),
-        };
+        let (ptr_exp, idx_exp, pointee_typ) =
+            res.map_err(|(exp1, exp2)| anyhow!("Can't subscript {exp1:#?} and {exp2:#?}"))?;
 
         let long_typ = self.get_scalar_type(ArithmeticType::Long);
         let idx_exp = Self::maybe_insert_cast_node(Cow::Owned(long_typ), idx_exp);

@@ -171,6 +171,12 @@ mod obj_type_node {
         }
     }
     impl NonVoidType {
+        pub fn is_nonvoid(o: &ObjType) -> bool {
+            match o {
+                ObjType::Void => false,
+                ObjType::Scalar(_) | ObjType::Array(_) => true,
+            }
+        }
         pub fn bytelen(&self) -> ByteLen {
             match self {
                 Self::Scalar(s) => s.bytelen(),
