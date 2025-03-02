@@ -7,7 +7,7 @@
 <function-declaration> ::= { <specifier> }+ <declarator> ( <block> | ";" )
 
 <specifier> ::= <type-specifier> | "static" | "extern"
-<type-specifier> ::= "int" | "long" | "unsigned" | "signed" | "double" | "char"
+<type-specifier> ::= "int" | "long" | "unsigned" | "signed" | "double" | "char" | "void"
 
 <declarator> ::= "*" <declarator> | <direct-declarator>
 <direct-declarator> ::= <simple-declarator> [ <declarator-suffix> ]
@@ -21,7 +21,7 @@
 <block> ::= "{" { <block-item> } "}"
 <block-item> ::= <statement> | <declaration>
 
-<statement> ::= "return" <exp> ";"
+<statement> ::= "return" [ <exp> ] ";"
               | <exp> ";"
               | "if" "(" <exp> ")" <statement> [ "else" <statement> ]
               | <block>
@@ -33,10 +33,14 @@
               | ";"
 <for-init> ::= <variable-declaration> | [ <exp> ] ";"
 
-<exp> ::= <unary-exp> | <exp> <binop> <exp> | <exp> "?" <exp> ":" <exp>
-<unary-exp> ::= <unop> <unary-exp>
-              | "(" { <type-specifier> }+ [ <abstract-declarator> ] ")" <unary-exp>
+<exp> ::= <cast-or-unary-exp> | <exp> <binop> <exp> | <exp> "?" <exp> ":" <exp>
+<cast-or-unary-exp> ::= "(" <type-name> ")" <cast-or-unary-exp>
+                      | <unary-exp>
+<unary-exp> ::= <unop> <cast-or-unary-exp>
+              | "sizeof" <unary-exp>
+              | "sizeof" "(" <type-name> ")"
               | <postfix-exp>
+<type-name> ::= { <type-specifier> }+ [ <abstract-declarator> ]
 <postfix-exp> ::= <primary-exp> { "[" <exp> "]" }
 <primary-exp> ::= <const>
                 | <identifier>

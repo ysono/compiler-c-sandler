@@ -38,9 +38,7 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
         inner().context("[ { <specifier> }+ <declarator> ]")
     }
 
-    fn parse_specifiers(
-        &mut self,
-    ) -> Result<Option<(ArithmeticType, Option<StorageClassSpecifier>)>> {
+    fn parse_specifiers(&mut self) -> Result<Option<(ObjType, Option<StorageClassSpecifier>)>> {
         use ArithmeticType as AT;
         use t::TypeSpecifier as TS;
 
@@ -67,24 +65,24 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
             let expected_max_len = cmp::min(3, typ_specs.len());
             typ_specs[..expected_max_len].sort();
 
-            let ari_type = match &typ_specs[..] {
-                [TS::Char] => AT::Char,
-                [TS::Char, TS::Signed] => AT::SChar,
-                [TS::Char, TS::Unsigned] => AT::UChar,
-                [TS::Int] => AT::Int,
-                [TS::Int, TS::Long] => AT::Long,
-                [TS::Int, TS::Long, TS::Signed] => AT::Long,
-                [TS::Int, TS::Long, TS::Unsigned] => AT::ULong,
-                [TS::Int, TS::Signed] => AT::Int,
-                [TS::Int, TS::Unsigned] => AT::UInt,
-                [TS::Long] => AT::Long,
-                [TS::Long, TS::Signed] => AT::Long,
-                [TS::Long, TS::Unsigned] => AT::ULong,
-                [TS::Signed] => AT::Int,
-                [TS::Unsigned] => AT::UInt,
-                [TS::Double] => AT::Double,
+            let base_type = match &typ_specs[..] {
+                [TS::Void] => ObjType::Void,
+                [TS::Char] => AT::Char.into(),
+                [TS::Char, TS::Signed] => AT::SChar.into(),
+                [TS::Char, TS::Unsigned] => AT::UChar.into(),
+                [TS::Int] => AT::Int.into(),
+                [TS::Int, TS::Long] => AT::Long.into(),
+                [TS::Int, TS::Long, TS::Signed] => AT::Long.into(),
+                [TS::Int, TS::Long, TS::Unsigned] => AT::ULong.into(),
+                [TS::Int, TS::Signed] => AT::Int.into(),
+                [TS::Int, TS::Unsigned] => AT::UInt.into(),
+                [TS::Long] => AT::Long.into(),
+                [TS::Long, TS::Signed] => AT::Long.into(),
+                [TS::Long, TS::Unsigned] => AT::ULong.into(),
+                [TS::Signed] => AT::Int.into(),
+                [TS::Unsigned] => AT::UInt.into(),
+                [TS::Double] => AT::Double.into(),
                 actual => return Err(anyhow!("Invalid types. {actual:#?}")),
-                /* Void is not supported yet. */
             };
 
             let sc_spec = match &sc_specs[..] {
@@ -93,7 +91,7 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
                 actual => return Err(anyhow!("Invalid storage class specifiers. {actual:#?}")),
             };
 
-            Ok(Some((ari_type, sc_spec)))
+            Ok(Some((base_type, sc_spec)))
         };
         inner().context("{ <specifier> }")
     }
@@ -167,34 +165,35 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
                 _ => return Ok(None),
             }
 
-            let params = match self.peek_token()? {
-                t::Token::TypeSpecifier(t::TypeSpecifier::Void) => {
-                    self.tokens.next();
-                    Vec::with_capacity(0)
+            let mut params = vec![];
+            loop {
+                let param_base_type = match self.parse_specifiers()? {
+                    Some((t, None)) => t,
+                    actual => return Err(anyhow!("{actual:#?}")),
+                };
+
+                let is_empty_params = params.is_empty()
+                    && matches!(param_base_type, ObjType::Void)
+                    && matches!(
+                        self.peek_token()?,
+                        t::Token::Demarcator(t::Demarcator::ParenClose)
+                    );
+                if is_empty_params {
+                    break;
                 }
-                _ => {
-                    let mut params = vec![];
-                    loop {
-                        let param_ari_type = match self.parse_specifiers()? {
-                            Some((t, None)) => t,
-                            actual => return Err(anyhow!("{actual:#?}")),
-                        };
 
-                        let declarator = self.parse_declarator()?;
+                let declarator = self.parse_declarator()?;
 
-                        params.push(Param(param_ari_type, declarator));
+                params.push(Param(param_base_type, declarator));
 
-                        match self.peek_token()? {
-                            t::Token::Demarcator(t::Demarcator::Comma) => {
-                                self.tokens.next();
-                                continue;
-                            }
-                            _ => break,
-                        }
+                match self.peek_token()? {
+                    t::Token::Demarcator(t::Demarcator::Comma) => {
+                        self.tokens.next();
+                        continue;
                     }
-                    params
+                    _ => break,
                 }
-            };
+            }
 
             self.expect_exact(&[t::Demarcator::ParenClose.into()])?;
 
@@ -232,10 +231,10 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
 
     fn derive_declared_type(
         &mut self,
-        base_type: ArithmeticType,
+        base_type: ObjType,
         Declarator { ident, mut items_baseward, .. }: Declarator,
     ) -> Result<DeclaratorResult> {
-        let mut cur_type = self.obj_type_repo.get_or_new(base_type.into());
+        let mut cur_type = self.obj_type_repo.get_or_new(base_type);
 
         while let Some(item) = items_baseward.pop() {
             match item {
@@ -382,10 +381,10 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
 
     fn derive_abstract_declared_type(
         &mut self,
-        base_type: ArithmeticType,
+        base_type: ObjType,
         AbstractDeclarator { mut items_baseward, .. }: AbstractDeclarator,
     ) -> ParsedObjType {
-        let mut cur_type = self.obj_type_repo.get_or_new(base_type.into());
+        let mut cur_type = self.obj_type_repo.get_or_new(base_type);
 
         while let Some(item) = items_baseward.pop() {
             match item {
@@ -467,7 +466,7 @@ mod non_abstract_declarator {
         Fun(Vec<Param>),
     }
     #[derive(Debug)]
-    pub struct Param(pub ArithmeticType, pub Declarator);
+    pub struct Param(pub ObjType, pub Declarator);
 
     #[derive(Debug)]
     pub enum DeclaratorResult {
