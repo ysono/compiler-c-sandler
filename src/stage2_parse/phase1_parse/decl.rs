@@ -312,7 +312,7 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
 
 /// Abstract declarator
 impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
-    pub(super) fn parse_cast_type(&mut self) -> Result<Option<ParsedObjType>> {
+    pub(super) fn parse_type_name(&mut self) -> Result<Option<ParsedObjType>> {
         let mut inner = || -> Result<_> {
             let base_type = match self.parse_specifiers()? {
                 None => return Ok(None),
@@ -325,7 +325,7 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
             let final_type = self.derive_abstract_declared_type(base_type, declarator);
             Ok(Some(final_type))
         };
-        inner().context("[ { <type-specifier> }+ [ <abstract-declarator> ] ]")
+        inner().context("[ <type-name> ]")
     }
 
     fn parse_abstract_declarator(&mut self) -> Result<AbstractDeclarator> {

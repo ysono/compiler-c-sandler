@@ -378,6 +378,8 @@ impl CAstValidator {
                 let exp = Box::new(self.resolve_exp(*exp)?);
                 RExp::AddrOf(AddrOf(exp))
             }
+            RExp::SizeOfType(_) => todo!(),
+            RExp::SizeOfExp(_) => todo!(),
         };
         Ok(rexp)
     }

@@ -5,7 +5,8 @@ use crate::{
         primitive::Const,
         symbol_table_frontend::{InitializerItem, StaticVisibility},
         types_frontend::{
-            ObjType, ParsedFunType, ParsedObjType, ScalarFunType, ScalarType, SubObjType,
+            NonVoidType, ObjType, ParsedFunType, ParsedObjType, ScalarFunType, ScalarType,
+            SubObjType,
         },
     },
     ds_n_a::singleton::Singleton,
@@ -165,6 +166,8 @@ pub enum RExp<C: CAstVariant> {
     FunctionCall(FunctionCall<C>),
     Assignment(Assignment<C>),
     AddrOf(AddrOf<C>),
+    SizeOfType(C::TypeOperand<NonVoidType>),
+    SizeOfExp(SizeOfExp<C>),
 }
 /// Lvalue expression.
 #[derive(Debug)]
@@ -270,6 +273,11 @@ mod expression {
 
     #[derive(Debug)]
     pub struct AddrOf<C: CAstVariant>(pub Box<C::LvalueExpression<ObjType>>);
+
+    #[derive(Debug)]
+    pub struct SizeOfExp<C: CAstVariant> {
+        pub sub_exp: Box<C::Expression<NonVoidType>>,
+    }
 
     #[derive(Debug)]
     pub struct Dereference<C: CAstVariant>(pub Box<C::Expression<ScalarType>>);

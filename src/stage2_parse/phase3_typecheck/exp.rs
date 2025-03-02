@@ -68,6 +68,8 @@ impl TypeChecker {
             RExp::FunctionCall(funcall) => self.typecheck_exp_funcall(funcall),
             RExp::Assignment(assignment) => self.typecheck_exp_assignment(assignment),
             RExp::AddrOf(addrof) => self.typecheck_exp_addrof(addrof),
+            RExp::SizeOfType(_) => todo!(),
+            RExp::SizeOfExp(_) => todo!(),
         }
     }
 

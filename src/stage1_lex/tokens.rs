@@ -70,6 +70,8 @@ pub enum Operator {
     /* control */
     Question,
     Colon,
+    /* sizeof */
+    SizeOf,
 }
 #[derive(PartialEq, Debug)]
 pub enum Control {

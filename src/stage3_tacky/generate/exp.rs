@@ -57,6 +57,8 @@ impl FunInstrsGenerator<'_> {
             c::RExp::FunctionCall(c_fun_call) => self.gen_exp_fun_call(c_fun_call, typ),
             c::RExp::Assignment(c_assign) => self.gen_exp_assignment(c_assign),
             c::RExp::AddrOf(c_addrof) => self.gen_exp_addrof(c_addrof, typ),
+            c::RExp::SizeOfType(_) => todo!(),
+            c::RExp::SizeOfExp(_) => todo!(),
         }
     }
 

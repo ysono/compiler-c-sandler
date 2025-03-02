@@ -4,6 +4,7 @@ use crate::{
     common::types_frontend::ParsedObjType, stage1_lex::tokens as t, stage2_parse::c_ast::*,
 };
 use anyhow::{Context, Result, anyhow};
+use derive_more::From;
 
 impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
     #[inline]
@@ -82,7 +83,7 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
 
             self.parse_unary_exp_tail(head)
         };
-        inner().context("<unary-exp>")
+        inner().context("<cast-or-unary-exp>")
     }
     fn parse_unary_exp_head(&mut self) -> Result<UnaryExpHead> {
         let mut inner = || -> Result<_> {
@@ -114,22 +115,22 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
                     UnaryExpHead::PrimaryExp(primary_exp)
                 }
                 t::Token::Operator(t_op) => {
-                    let op = match t_op {
-                        t::Operator::Tilde => ParsedUnaryOp::Op(UnaryOperator::Complement),
-                        t::Operator::Minus => ParsedUnaryOp::Op(UnaryOperator::Negate),
-                        t::Operator::Bang => ParsedUnaryOp::Op(UnaryOperator::Not),
-                        t::Operator::Star => ParsedUnaryOp::Deref,
-                        t::Operator::Ampersand => ParsedUnaryOp::AddrOf,
+                    let head: UnaryExpHead = match t_op {
+                        t::Operator::Tilde => UnaryOperator::Complement.into(),
+                        t::Operator::Minus => UnaryOperator::Negate.into(),
+                        t::Operator::Bang => UnaryOperator::Not.into(),
+                        t::Operator::Star => ParsedUnaryOp::Deref.into(),
+                        t::Operator::Ampersand => ParsedUnaryOp::AddrOf.into(),
+                        t::Operator::SizeOf => UnaryExpHead::SizeOf,
                         actual => return Err(anyhow!("{actual:#?}")),
                     };
-
-                    UnaryExpHead::UnaryOp(op)
+                    head
                 }
-                t::Token::Demarcator(t::Demarcator::ParenOpen) => match self.parse_cast_type()? {
+                t::Token::Demarcator(t::Demarcator::ParenOpen) => match self.parse_type_name()? {
                     Some(typ) => {
                         self.expect_exact(&[t::Demarcator::ParenClose.into()])?;
 
-                        UnaryExpHead::UnaryOp(ParsedUnaryOp::Cast(typ))
+                        UnaryExpHead::UnaryOp(ParsedUnaryOp::Type(typ))
                     }
                     None => {
                         let primary_exp = self.parse_exp()?;
@@ -143,7 +144,7 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
             };
             Ok(head)
         };
-        inner().context("<unary-exp> head")
+        inner().context("<cast-or-unary-exp> head")
     }
     fn parse_arg_list(&mut self) -> Result<Vec<Expression<ParsedCAst>>> {
         let mut inner = || -> Result<_> {
@@ -181,13 +182,27 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
                         ParsedUnaryOp::Op(op) => RExp::Unary(Unary { op, sub_exp }).into(),
                         ParsedUnaryOp::Deref => LExp::Dereference(Dereference(sub_exp)).into(),
                         ParsedUnaryOp::AddrOf => RExp::AddrOf(AddrOf(sub_exp)).into(),
-                        ParsedUnaryOp::Cast(typ) => RExp::Cast(Cast { typ, sub_exp }).into(),
+                        ParsedUnaryOp::Type(typ) => RExp::Cast(Cast { typ, sub_exp }).into(),
                     };
                     Ok(exp)
                 }
+                UnaryExpHead::SizeOf => {
+                    let sub_head = self.parse_unary_exp_head()?;
+
+                    let rexp = match sub_head {
+                        UnaryExpHead::UnaryOp(ParsedUnaryOp::Type(typ)) => RExp::SizeOfType(typ),
+                        sub_head => {
+                            let sub_exp = self.parse_unary_exp_tail(sub_head)?;
+
+                            let sub_exp = Box::new(sub_exp);
+                            RExp::SizeOfExp(SizeOfExp { sub_exp })
+                        }
+                    };
+                    Ok(Expression::R(rexp))
+                }
             }
         };
-        inner().context("<unary-exp> tail")
+        inner().context("<cast-or-unary-exp> tail")
     }
     fn parse_postfix_exp(
         &mut self,
@@ -295,12 +310,19 @@ mod unary_helpers {
     pub enum UnaryExpHead {
         PrimaryExp(Expression<ParsedCAst>),
         UnaryOp(ParsedUnaryOp),
+        SizeOf,
+    }
+    impl<T: Into<ParsedUnaryOp>> From<T> for UnaryExpHead {
+        fn from(t: T) -> Self {
+            Self::UnaryOp(t.into())
+        }
     }
 
+    #[derive(From)]
     pub enum ParsedUnaryOp {
         Op(UnaryOperator),
         Deref,
         AddrOf,
-        Cast(ParsedObjType),
+        Type(ParsedObjType),
     }
 }

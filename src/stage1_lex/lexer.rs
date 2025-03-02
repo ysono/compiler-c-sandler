@@ -94,6 +94,7 @@ impl<R: Read + BufRead> Lexer<R> {
                     "double"   => TypeSpecifier::Double.into(),
                     "static" => StorageClassSpecifier::Static.into(),
                     "extern" => StorageClassSpecifier::Extern.into(),
+                    "sizeof" => Operator::SizeOf.into(),
                     "if"     => Control::If.into(),
                     "else"   => Control::Else.into(),
                     "do"       => Loop::Do.into(),
