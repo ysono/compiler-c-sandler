@@ -1,6 +1,6 @@
 use super::TypeChecker;
 use crate::{
-    common::types_frontend::{ArithmeticType, ScalarType},
+    common::types_frontend::{ArithmeticType, ScalarType, SubObjType},
     stage2_parse::{c_ast::*, phase2_resolve::ResolvedCAst},
 };
 use anyhow::{Result, anyhow};
@@ -10,7 +10,7 @@ impl TypeChecker {
     pub(super) fn typecheck_exp_unary(
         &mut self,
         Unary { op, sub_exp }: Unary<ResolvedCAst>,
-    ) -> Result<TypedRExp> {
+    ) -> Result<TypedRExp<SubObjType<ScalarType>>> {
         let sub_exp = self.typecheck_exp_and_convert_to_scalar(*sub_exp)?;
 
         let err_invalid_op = || Err(anyhow!("Cannot apply {op:#?} on {sub_exp:#?}"));
@@ -51,7 +51,7 @@ impl TypeChecker {
     pub(super) fn typecheck_exp_conditional(
         &mut self,
         Conditional { condition, then, elze }: Conditional<ResolvedCAst>,
-    ) -> Result<TypedRExp> {
+    ) -> Result<TypedRExp<SubObjType<ScalarType>>> {
         let condition = self.typecheck_exp_and_convert_to_scalar(*condition)?;
         let then = self.typecheck_exp_and_convert_to_scalar(*then)?;
         let elze = self.typecheck_exp_and_convert_to_scalar(*elze)?;
@@ -70,7 +70,7 @@ impl TypeChecker {
     pub(super) fn typecheck_exp_funcall(
         &mut self,
         FunctionCall { ident, args }: FunctionCall<ResolvedCAst>,
-    ) -> Result<TypedRExp> {
+    ) -> Result<TypedRExp<SubObjType<ScalarType>>> {
         let fun_typ = self.frontend_symtab.symtab().get_fun_type(&ident)?;
         if fun_typ.params.len() != args.len() {
             return Err(anyhow!(

@@ -1,6 +1,6 @@
 use super::TypeChecker;
 use crate::{
-    common::types_frontend::NonVoidType,
+    common::types_frontend::{NonVoidType, ScalarType, SubObjType},
     stage2_parse::{c_ast::*, phase2_resolve::ResolvedCAst},
 };
 use anyhow::Result;
@@ -45,7 +45,10 @@ impl TypeChecker {
         }
     }
 
-    fn typecheck_rexp(&mut self, rexp: RExp<ResolvedCAst>) -> Result<TypedRExp> {
+    fn typecheck_rexp(
+        &mut self,
+        rexp: RExp<ResolvedCAst>,
+    ) -> Result<TypedRExp<SubObjType<ScalarType>>> {
         match rexp {
             RExp::Const(konst) => {
                 let typ = self.get_scalar_type(konst.arithmetic_type());

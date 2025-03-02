@@ -12,7 +12,7 @@ impl TypeChecker {
     pub(super) fn typecheck_exp_binary(
         &mut self,
         Binary { op, lhs, rhs }: Binary<ResolvedCAst>,
-    ) -> Result<TypedRExp> {
+    ) -> Result<TypedRExp<SubObjType<ScalarType>>> {
         use BinaryOperator as O;
 
         let lhs = self.typecheck_exp_and_convert_to_scalar(*lhs)?;
@@ -33,7 +33,7 @@ impl TypeChecker {
         op: ComparisonBinaryOperator,
         lhs: ScalarExp,
         rhs: ScalarExp,
-    ) -> Result<TypedRExp> {
+    ) -> Result<TypedRExp<SubObjType<ScalarType>>> {
         use ComparisonBinaryOperator as OC;
 
         let (lhs, rhs) = match op {
@@ -61,7 +61,7 @@ impl TypeChecker {
         op: ArithmeticBinaryOperator,
         lhs: ScalarExp,
         rhs: ScalarExp,
-    ) -> Result<TypedRExp> {
+    ) -> Result<TypedRExp<SubObjType<ScalarType>>> {
         use ArithmeticBinaryOperator as OA;
 
         match op {
@@ -71,7 +71,11 @@ impl TypeChecker {
         }
     }
 
-    fn typecheck_arith_add(&mut self, lhs: ScalarExp, rhs: ScalarExp) -> Result<TypedRExp> {
+    fn typecheck_arith_add(
+        &mut self,
+        lhs: ScalarExp,
+        rhs: ScalarExp,
+    ) -> Result<TypedRExp<SubObjType<ScalarType>>> {
         match (lhs.typ().as_ref(), rhs.typ().as_ref()) {
             (ScalarType::Arith(_), ScalarType::Arith(_)) => {
                 let op = ArithmeticBinaryOperator::Add;
@@ -90,7 +94,11 @@ impl TypeChecker {
             _ => Err(anyhow!("Can't add {lhs:#?} and {rhs:#?}")),
         }
     }
-    fn typecheck_arith_add_ptr(&mut self, ptr_exp: ScalarExp, integ_exp: ScalarExp) -> TypedRExp {
+    fn typecheck_arith_add_ptr(
+        &mut self,
+        ptr_exp: ScalarExp,
+        integ_exp: ScalarExp,
+    ) -> TypedRExp<SubObjType<ScalarType>> {
         let op = PointerArithmeticBinaryOperator::PointerPlusInteger;
 
         let long_typ = self.get_scalar_type(ArithmeticType::Long);
@@ -101,7 +109,11 @@ impl TypeChecker {
         new_binary_exp(op, ptr_exp, integ_exp, ptr_typ)
     }
 
-    fn typecheck_arith_sub(&mut self, lhs: ScalarExp, rhs: ScalarExp) -> Result<TypedRExp> {
+    fn typecheck_arith_sub(
+        &mut self,
+        lhs: ScalarExp,
+        rhs: ScalarExp,
+    ) -> Result<TypedRExp<SubObjType<ScalarType>>> {
         match (lhs.typ().as_ref(), rhs.typ().as_ref()) {
             (ScalarType::Arith(_), ScalarType::Arith(_)) => {
                 let op = ArithmeticBinaryOperator::Sub;
@@ -137,7 +149,7 @@ impl TypeChecker {
         op: ArithmeticBinaryOperator,
         lhs: ScalarExp,
         rhs: ScalarExp,
-    ) -> Result<TypedRExp> {
+    ) -> Result<TypedRExp<SubObjType<ScalarType>>> {
         use ArithmeticBinaryOperator as OA;
 
         let (lhs, rhs) = self.cast_to_common_type(lhs, rhs)?;
@@ -190,7 +202,7 @@ mod helpers {
         lhs: ScalarExp,
         rhs: ScalarExp,
         typ: SubObjType<ScalarType>,
-    ) -> TypedRExp {
+    ) -> TypedRExp<SubObjType<ScalarType>> {
         TypedRExp {
             exp: RExp::Binary(Binary {
                 op: op.into(),

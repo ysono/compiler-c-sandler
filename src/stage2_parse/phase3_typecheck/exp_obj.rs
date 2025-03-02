@@ -1,6 +1,6 @@
 use super::TypeChecker;
 use crate::{
-    common::types_frontend::{NonVoidType, ObjType, PointerType, ScalarType},
+    common::types_frontend::{NonVoidType, ObjType, PointerType, ScalarType, SubObjType},
     ds_n_a::singleton::Singleton,
     stage2_parse::{c_ast::*, phase2_resolve::ResolvedCAst},
 };
@@ -11,7 +11,7 @@ impl TypeChecker {
     pub(super) fn typecheck_exp_assignment(
         &mut self,
         Assignment { lhs, rhs }: Assignment<ResolvedCAst>,
-    ) -> Result<TypedRExp> {
+    ) -> Result<TypedRExp<SubObjType<ScalarType>>> {
         let lhs = {
             /*
             The conceptual flow:
@@ -42,7 +42,7 @@ impl TypeChecker {
     pub(super) fn typecheck_exp_addrof(
         &mut self,
         AddrOf(sub_exp): AddrOf<ResolvedCAst>,
-    ) -> Result<TypedRExp> {
+    ) -> Result<TypedRExp<SubObjType<ScalarType>>> {
         let sub_exp = {
             let lexp = extract_lexp(*sub_exp)?;
             let nonvoid_lexp = self.typecheck_lexp(lexp)?;

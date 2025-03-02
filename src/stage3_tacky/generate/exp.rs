@@ -47,7 +47,10 @@ impl FunInstrsGenerator<'_> {
         }
     }
 
-    pub(super) fn gen_rexp(&mut self, c::TypedRExp { exp, typ }: c::TypedRExp) -> Value {
+    pub(super) fn gen_rexp(
+        &mut self,
+        c::TypedRExp { exp, typ }: c::TypedRExp<SubObjType<ScalarType>>,
+    ) -> Value {
         match exp {
             c::RExp::Const(konst) => Value::Constant(konst),
             c::RExp::Cast(c_cast) => self.gen_exp_cast(c_cast, typ),

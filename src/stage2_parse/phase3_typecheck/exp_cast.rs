@@ -123,7 +123,7 @@ impl TypeChecker {
     pub(super) fn cast_explicitly(
         &mut self,
         Cast { typ: to, sub_exp: from }: Cast<ResolvedCAst>,
-    ) -> Result<TypedRExp> {
+    ) -> Result<TypedRExp<SubObjType<ScalarType>>> {
         let to = to.into_res()?;
         let to = Self::extract_scalar_type(to)
             .map_err(|typ| anyhow!("Cannot explicitly cast to {typ:#?}"))?;
@@ -195,7 +195,10 @@ impl TypeChecker {
             TypedExp::R(out_typed_rexp)
         }
     }
-    fn insert_cast_node(to: SubObjType<ScalarType>, from: ScalarExp) -> TypedRExp {
+    fn insert_cast_node(
+        to: SubObjType<ScalarType>,
+        from: ScalarExp,
+    ) -> TypedRExp<SubObjType<ScalarType>> {
         TypedRExp {
             exp: RExp::Cast(Cast {
                 typ: to.as_owner().clone(),
