@@ -37,16 +37,16 @@
 <cast-or-unary-exp> ::= "(" <type-name> ")" <cast-or-unary-exp>
                       | <unary-exp>
 <unary-exp> ::= <unop> <cast-or-unary-exp>
-              | "sizeof" <unary-exp>
               | "sizeof" "(" <type-name> ")"
+              | "sizeof" <unary-exp>
               | <postfix-exp>
 <type-name> ::= { <type-specifier> }+ [ <abstract-declarator> ]
 <postfix-exp> ::= <primary-exp> { "[" <exp> "]" }
 <primary-exp> ::= <const>
-                | <identifier>
-                | "(" <exp> ")"
                 | { <string> }+
+                | <identifier>
                 | <identifier> "(" [ <argument-list> ] ")"
+                | "(" <exp> ")"
 <argument-list> ::= <exp> { "," <exp> }
 
 <abstract-declarator> ::= "*" [ <abstract-declarator> ] | <direct-abstract-declarator>

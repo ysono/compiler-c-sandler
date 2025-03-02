@@ -78,20 +78,9 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
     }
     fn parse_unary_exp(&mut self) -> Result<Expression<ParsedCAst>> {
         let mut inner = || -> Result<_> {
-            match self.parse_unary_exp_head()? {
-                UnaryExpHead::PrimaryExp(primary_exp) => self.parse_postfix_exp(primary_exp),
-                UnaryExpHead::UnaryOp(op) => {
-                    let sub_exp = Box::new(self.parse_unary_exp()?);
+            let head = self.parse_unary_exp_head()?;
 
-                    let exp = match op {
-                        ParsedUnaryOp::Op(op) => RExp::Unary(Unary { op, sub_exp }).into(),
-                        ParsedUnaryOp::Deref => LExp::Dereference(Dereference(sub_exp)).into(),
-                        ParsedUnaryOp::AddrOf => RExp::AddrOf(AddrOf(sub_exp)).into(),
-                        ParsedUnaryOp::Cast(typ) => RExp::Cast(Cast { typ, sub_exp }).into(),
-                    };
-                    Ok(exp)
-                }
-            }
+            self.parse_unary_exp_tail(head)
         };
         inner().context("<unary-exp>")
     }
@@ -180,6 +169,25 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
             Ok(args)
         };
         inner().context(r#""(" <argument-list> ")""#)
+    }
+    fn parse_unary_exp_tail(&mut self, head: UnaryExpHead) -> Result<Expression<ParsedCAst>> {
+        let inner = || -> Result<_> {
+            match head {
+                UnaryExpHead::PrimaryExp(primary_exp) => self.parse_postfix_exp(primary_exp),
+                UnaryExpHead::UnaryOp(op) => {
+                    let sub_exp = Box::new(self.parse_unary_exp()?);
+
+                    let exp = match op {
+                        ParsedUnaryOp::Op(op) => RExp::Unary(Unary { op, sub_exp }).into(),
+                        ParsedUnaryOp::Deref => LExp::Dereference(Dereference(sub_exp)).into(),
+                        ParsedUnaryOp::AddrOf => RExp::AddrOf(AddrOf(sub_exp)).into(),
+                        ParsedUnaryOp::Cast(typ) => RExp::Cast(Cast { typ, sub_exp }).into(),
+                    };
+                    Ok(exp)
+                }
+            }
+        };
+        inner().context("<unary-exp> tail")
     }
     fn parse_postfix_exp(
         &mut self,
