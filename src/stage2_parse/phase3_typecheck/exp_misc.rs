@@ -1,6 +1,8 @@
 use super::TypeChecker;
 use crate::{
-    common::types_frontend::{ArithmeticType, NonAggrType, ScalarType, SubObjType},
+    common::types_frontend::{
+        ArithmeticType, NonAggrType, NonVoidType, ParsedObjType, ScalarType, SubObjType,
+    },
     stage2_parse::{c_ast::*, phase2_resolve::ResolvedCAst},
 };
 use anyhow::{Result, anyhow};
@@ -89,5 +91,33 @@ impl TypeChecker {
         let typ = fun_typ.ret.clone();
         let exp = RExp::FunctionCall(FunctionCall { ident, args });
         Ok(TypedRExp { typ, exp })
+    }
+
+    pub(super) fn typecheck_exp_sizeof_typ(
+        &mut self,
+        typ_operand: ParsedObjType,
+    ) -> Result<TypedRExp<SubObjType<ScalarType>>> {
+        let typ_operand = typ_operand.into_res()?;
+        let typ_operand = NonVoidType::try_from(typ_operand)
+            .map_err(|typ| anyhow!("Cannot `sizeof` {typ:#?}"))?;
+
+        Ok(self.new_sizeof_node(typ_operand))
+    }
+    pub(super) fn typecheck_exp_sizeof_exp(
+        &mut self,
+        sub_exp: Expression<ResolvedCAst>,
+    ) -> Result<TypedRExp<SubObjType<ScalarType>>> {
+        let typed_exp = self.typecheck_exp(sub_exp)?;
+        let nonvoid_exp = typed_exp
+            .try_map_typ(Ok, |nonaggr_typ| nonaggr_typ.try_into_scalar())
+            .map_err(|typed_exp| anyhow!("Cannot `sizeof` {typed_exp:#?}"))?;
+        let nonvoid_typ = nonvoid_exp.typ().into_owned();
+
+        Ok(self.new_sizeof_node(nonvoid_typ))
+    }
+    fn new_sizeof_node(&mut self, typ_operand: NonVoidType) -> TypedRExp<SubObjType<ScalarType>> {
+        let exp = RExp::SizeOfType(typ_operand);
+        let typ = self.get_scalar_type(ArithmeticType::ULong);
+        TypedRExp { typ, exp }
     }
 }

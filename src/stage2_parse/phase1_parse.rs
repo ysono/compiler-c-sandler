@@ -46,6 +46,7 @@ impl CAstVariant for ParsedCAst {
     type BinaryOperator = BinaryOperator;
     type StringExpression = Vec<u8>;
     type TypeOperand<Typ: Debug> = ParsedObjType;
+    type SizeOfExpExpression = Box<Expression<Self>>;
 }
 
 #[derive(Into)]

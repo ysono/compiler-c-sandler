@@ -40,6 +40,7 @@ pub trait CAstVariant {
     type BinaryOperator: Debug;
     type StringExpression: Debug;
     type TypeOperand<Typ: Debug>: Debug;
+    type SizeOfExpExpression: Debug;
 }
 
 #[derive(Debug)]
@@ -171,7 +172,7 @@ pub enum RExp<C: CAstVariant> {
     Assignment(Assignment<C>),
     AddrOf(AddrOf<C>),
     SizeOfType(C::TypeOperand<NonVoidType>),
-    SizeOfExp(SizeOfExp<C>),
+    SizeOfExp(C::SizeOfExpExpression),
 }
 /// Lvalue expression.
 #[derive(Debug)]
@@ -279,11 +280,6 @@ mod expression {
     pub struct AddrOf<C: CAstVariant>(pub Box<C::Expression_Lvalue_AnyType>);
 
     #[derive(Debug)]
-    pub struct SizeOfExp<C: CAstVariant> {
-        pub sub_exp: Box<C::Expression_AnyType>,
-    }
-
-    #[derive(Debug)]
     pub struct Dereference<C: CAstVariant>(pub Box<C::Expression_ScalarType>);
 
     #[derive(Debug)]
@@ -348,12 +344,21 @@ mod typed_expression {
     }
     pub type AnyExp = TypedExp<NonVoidType, NonAggrType>;
     pub type NonAggrExp = TypedExp<SubObjType<ScalarType>, NonAggrType>;
+    pub type NonVoidExp = TypedExp<NonVoidType, SubObjType<ScalarType>>;
     pub type ScalarExp = TypedExp<SubObjType<ScalarType>, SubObjType<ScalarType>>;
     impl NonAggrExp {
         pub fn typ(&self) -> Cow<NonAggrType> {
             match self {
                 Self::R(nonaggr_rexp) => Cow::Borrowed(&nonaggr_rexp.typ),
                 Self::L(sca_lexp) => Cow::Owned(NonAggrType::from(sca_lexp.typ.clone())),
+            }
+        }
+    }
+    impl NonVoidExp {
+        pub fn typ(&self) -> Cow<NonVoidType> {
+            match self {
+                Self::R(sca_rexp) => Cow::Owned(NonVoidType::from(sca_rexp.typ.clone())),
+                Self::L(nonvoid_lexp) => Cow::Borrowed(&nonvoid_lexp.typ),
             }
         }
     }

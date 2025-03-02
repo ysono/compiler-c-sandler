@@ -194,8 +194,7 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
                         sub_head => {
                             let sub_exp = self.parse_unary_exp_tail(sub_head)?;
 
-                            let sub_exp = Box::new(sub_exp);
-                            RExp::SizeOfExp(SizeOfExp { sub_exp })
+                            RExp::SizeOfExp(Box::new(sub_exp))
                         }
                     };
                     Ok(Expression::R(rexp))

@@ -79,8 +79,12 @@ impl TypeChecker {
             RExp::AddrOf(addrof) => self
                 .typecheck_exp_addrof(addrof)
                 .map(|sca_rexp| sca_rexp.map_typ(NonAggrType::from)),
-            RExp::SizeOfType(_) => todo!(),
-            RExp::SizeOfExp(_) => todo!(),
+            RExp::SizeOfType(typ_operand) => self
+                .typecheck_exp_sizeof_typ(typ_operand)
+                .map(|sca_rexp| sca_rexp.map_typ(NonAggrType::from)),
+            RExp::SizeOfExp(sub_exp) => self
+                .typecheck_exp_sizeof_exp(*sub_exp)
+                .map(|sca_rexp| sca_rexp.map_typ(NonAggrType::from)),
         }
     }
 

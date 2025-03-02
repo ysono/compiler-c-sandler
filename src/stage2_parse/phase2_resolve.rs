@@ -41,6 +41,7 @@ impl CAstVariant for ResolvedCAst {
     type BinaryOperator = BinaryOperator;
     type StringExpression = Vec<u8>;
     type TypeOperand<Typ: Debug> = ParsedObjType;
+    type SizeOfExpExpression = Box<Expression<Self>>;
 }
 
 #[derive(Default)]
@@ -385,9 +386,9 @@ impl CAstValidator {
                 RExp::AddrOf(AddrOf(exp))
             }
             RExp::SizeOfType(typ) => RExp::SizeOfType(typ),
-            RExp::SizeOfExp(SizeOfExp { sub_exp }) => {
+            RExp::SizeOfExp(sub_exp) => {
                 let sub_exp = Box::new(self.resolve_exp(*sub_exp)?);
-                RExp::SizeOfExp(SizeOfExp { sub_exp })
+                RExp::SizeOfExp(sub_exp)
             }
         };
         Ok(rexp)
