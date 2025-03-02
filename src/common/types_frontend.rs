@@ -2,7 +2,7 @@ pub use self::{fun_type::*, obj_type::*, obj_type_node::*, obj_type_parsed::*};
 use crate::{common::types_backend::ByteLen, ds_n_a::singleton::Singleton};
 use anyhow::anyhow;
 use derivative::Derivative;
-use derive_more::{Constructor, From};
+use derive_more::{Constructor, From, TryInto};
 use getset::Getters;
 use owning_ref::OwningRef;
 use std::hash::Hash;
@@ -13,13 +13,18 @@ mod obj_type {
 
     #[derive(Hash, PartialEq, Eq, Debug)]
     pub enum ObjType {
-        Void,
+        Void(VoidType),
         Scalar(ScalarType),
         Array(ArrayType),
     }
+    impl From<VoidType> for ObjType {
+        fn from(void_typ: VoidType) -> Self {
+            Self::Void(void_typ)
+        }
+    }
     impl<St: Into<ScalarType>> From<St> for ObjType {
-        fn from(sca_typ: St) -> Self {
-            Self::Scalar(sca_typ.into())
+        fn from(typ: St) -> Self {
+            Self::Scalar(typ.into())
         }
     }
     impl From<ArrayType> for ObjType {
@@ -27,6 +32,9 @@ mod obj_type {
             Self::Array(arr_typ)
         }
     }
+
+    #[derive(Hash, PartialEq, Eq, Debug)]
+    pub struct VoidType;
 
     #[derive(From, Hash, PartialEq, Eq, Debug)]
     pub enum ScalarType {
@@ -139,6 +147,53 @@ mod obj_type_node {
 
     pub type SubObjType<SubTyp> = OwningRef<Singleton<ObjType>, SubTyp>;
 
+    enum ObjTypeNodeRef {
+        Void(SubObjType<VoidType>),
+        Scalar(SubObjType<ScalarType>),
+        Array(SubObjType<ArrayType>),
+    }
+    impl From<Singleton<ObjType>> for ObjTypeNodeRef {
+        fn from(o: Singleton<ObjType>) -> Self {
+            match o.as_ref() {
+                ObjType::Void(v) => {
+                    let v = unsafe { &*(v as *const _) };
+                    let ownref = OwningRef::new(o).map(|_| v);
+                    Self::Void(ownref)
+                }
+                ObjType::Scalar(s) => {
+                    let s = unsafe { &*(s as *const _) };
+                    let ownref = OwningRef::new(o).map(|_| s);
+                    Self::Scalar(ownref)
+                }
+                ObjType::Array(a) => {
+                    let a = unsafe { &*(a as *const _) };
+                    let ownref = OwningRef::new(o).map(|_| a);
+                    Self::Array(ownref)
+                }
+            }
+        }
+    }
+    impl From<ObjTypeNodeRef> for Singleton<ObjType> {
+        fn from(o_ref: ObjTypeNodeRef) -> Self {
+            match o_ref {
+                ObjTypeNodeRef::Void(v) => v.into_owner(),
+                ObjTypeNodeRef::Scalar(s) => s.into_owner(),
+                ObjTypeNodeRef::Array(a) => a.into_owner(),
+            }
+        }
+    }
+
+    #[derive(From, TryInto, Clone, Debug)]
+    pub enum NonAggrType {
+        Void(SubObjType<VoidType>),
+        Scalar(SubObjType<ScalarType>),
+    }
+    impl NonAggrType {
+        pub fn try_into_scalar(self) -> Result<SubObjType<ScalarType>, Self> {
+            SubObjType::<ScalarType>::try_from(self).map_err(|e| e.input)
+        }
+    }
+
     #[derive(From, Clone, Hash, PartialEq, Eq, Debug)]
     pub enum NonVoidType {
         Scalar(SubObjType<ScalarType>),
@@ -147,18 +202,11 @@ mod obj_type_node {
     impl TryFrom<Singleton<ObjType>> for NonVoidType {
         type Error = Singleton<ObjType>;
         fn try_from(o: Singleton<ObjType>) -> Result<Self, Self::Error> {
-            match o.as_ref() {
-                ObjType::Void => Err(o),
-                ObjType::Scalar(s) => {
-                    let s = unsafe { &*(s as *const _) };
-                    let ownref = OwningRef::new(o).map(|_| s);
-                    Ok(Self::Scalar(ownref))
-                }
-                ObjType::Array(a) => {
-                    let a = unsafe { &*(a as *const _) };
-                    let ownref = OwningRef::new(o).map(|_| a);
-                    Ok(Self::Array(ownref))
-                }
+            let o_ref = ObjTypeNodeRef::from(o);
+            match o_ref {
+                ObjTypeNodeRef::Void(_) => Err(o_ref.into()),
+                ObjTypeNodeRef::Scalar(s) => Ok(Self::Scalar(s)),
+                ObjTypeNodeRef::Array(a) => Ok(Self::Array(a)),
             }
         }
     }
@@ -173,7 +221,7 @@ mod obj_type_node {
     impl NonVoidType {
         pub fn is_nonvoid(o: &ObjType) -> bool {
             match o {
-                ObjType::Void => false,
+                ObjType::Void(_) => false,
                 ObjType::Scalar(_) | ObjType::Array(_) => true,
             }
         }
@@ -254,13 +302,13 @@ mod test {
             let obj_typ = typ_bld.build_obj_type(items_baseward, base_typ);
 
             let single_typ = match obj_typ.as_ref() {
-                ObjType::Void => None,
+                ObjType::Void(_) => None,
                 ObjType::Scalar(_) => None,
                 ObjType::Array(a) => Some(*a.single_type()),
             };
 
             let bytelen = match obj_typ.as_ref() {
-                ObjType::Void => None,
+                ObjType::Void(_) => None,
                 ObjType::Scalar(s) => Some(s.bytelen().as_int()),
                 ObjType::Array(a) => Some(a.bytelen().as_int()),
             };

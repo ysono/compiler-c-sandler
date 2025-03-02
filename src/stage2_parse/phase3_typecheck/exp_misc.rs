@@ -11,7 +11,7 @@ impl TypeChecker {
         &mut self,
         Unary { op, sub_exp }: Unary<ResolvedCAst>,
     ) -> Result<TypedRExp<SubObjType<ScalarType>>> {
-        let sub_exp = self.typecheck_exp_and_convert_to_scalar(*sub_exp)?;
+        let sub_exp = self.typecheck_exp_then_convert_array_then_assert_scalar(*sub_exp)?;
 
         let err_invalid_op = || Err(anyhow!("Cannot apply {op:#?} on {sub_exp:#?}"));
 
@@ -52,9 +52,9 @@ impl TypeChecker {
         &mut self,
         Conditional { condition, then, elze }: Conditional<ResolvedCAst>,
     ) -> Result<TypedRExp<SubObjType<ScalarType>>> {
-        let condition = self.typecheck_exp_and_convert_to_scalar(*condition)?;
-        let then = self.typecheck_exp_and_convert_to_scalar(*then)?;
-        let elze = self.typecheck_exp_and_convert_to_scalar(*elze)?;
+        let condition = self.typecheck_exp_then_convert_array_then_assert_scalar(*condition)?;
+        let then = self.typecheck_exp_then_convert_array_then_assert_scalar(*then)?;
+        let elze = self.typecheck_exp_then_convert_array_then_assert_scalar(*elze)?;
 
         let (then, elze) = self.cast_to_common_type(then, elze)?;
         let typ = then.typ().clone();

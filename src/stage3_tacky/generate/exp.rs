@@ -15,11 +15,14 @@ use std::rc::Rc;
 impl FunInstrsGenerator<'_> {
     pub(super) fn gen_exp(&mut self, typed_exp: c::AnyExp) {
         match typed_exp {
-            c::TypedExp::R(typed_rexp) => {
-                self.gen_rexp(typed_rexp);
+            c::TypedExp::R(nonaggr_rexp) => {
+                let sca_rexp = nonaggr_rexp
+                    .try_map_typ(|nonaggr_typ| nonaggr_typ.try_into_scalar())
+                    .expect("todo");
+                self.gen_rexp(sca_rexp);
             }
-            c::TypedExp::L(typed_lexp) => {
-                self.gen_lexp(typed_lexp);
+            c::TypedExp::L(nonvoid_lexp) => {
+                self.gen_lexp(nonvoid_lexp);
             }
         }
     }

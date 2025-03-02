@@ -5,8 +5,8 @@ use crate::{
         primitive::Const,
         symbol_table_frontend::{InitializerItem, StaticVisibility},
         types_frontend::{
-            NonVoidType, ObjType, ParsedFunType, ParsedObjType, ScalarFunType, ScalarType,
-            SubObjType,
+            NonAggrType, NonVoidType, ObjType, ParsedFunType, ParsedObjType, ScalarFunType,
+            ScalarType, SubObjType,
         },
     },
     ds_n_a::singleton::Singleton,
@@ -309,13 +309,56 @@ mod typed_expression {
             }
         }
     }
-    pub type AnyExp = TypedExp<NonVoidType, SubObjType<ScalarType>>;
+    impl<LTyp, RTyp> TypedExp<LTyp, RTyp> {
+        pub fn try_map_typ<LM, LTyp2, RM, RTyp2>(
+            self,
+            l_mapper: LM,
+            r_mapper: RM,
+        ) -> Result<TypedExp<LTyp2, RTyp2>, Self>
+        where
+            LM: FnOnce(LTyp) -> Result<LTyp2, LTyp>,
+            RM: FnOnce(RTyp) -> Result<RTyp2, RTyp>,
+        {
+            match self {
+                Self::R(typed_rexp) => typed_rexp
+                    .try_map_typ(r_mapper)
+                    .map(TypedExp::R)
+                    .map_err(TypedExp::R),
+                Self::L(typed_lexp) => typed_lexp
+                    .try_map_typ(l_mapper)
+                    .map(TypedExp::L)
+                    .map_err(TypedExp::L),
+            }
+        }
+    }
+    pub type AnyExp = TypedExp<NonVoidType, NonAggrType>;
+    pub type NonAggrExp = TypedExp<SubObjType<ScalarType>, NonAggrType>;
     pub type ScalarExp = TypedExp<SubObjType<ScalarType>, SubObjType<ScalarType>>;
 
     #[derive(Debug)]
     pub struct TypAndExp<Typ, Exp> {
         pub typ: Typ,
         pub exp: Exp,
+    }
+    impl<Typ, Exp> TypAndExp<Typ, Exp> {
+        pub fn map_typ<M, Typ2>(self, mapper: M) -> TypAndExp<Typ2, Exp>
+        where
+            M: FnOnce(Typ) -> Typ2,
+        {
+            let Self { typ, exp } = self;
+            let typ = mapper(typ);
+            TypAndExp { typ, exp }
+        }
+        pub fn try_map_typ<M, Typ2>(self, mapper: M) -> Result<TypAndExp<Typ2, Exp>, Self>
+        where
+            M: FnOnce(Typ) -> Result<Typ2, Typ>,
+        {
+            let Self { typ, exp } = self;
+            match mapper(typ) {
+                Ok(typ) => Ok(TypAndExp { typ, exp }),
+                Err(typ) => Err(Self { typ, exp }),
+            }
+        }
     }
     pub type TypedRExp<RTyp> = TypAndExp<RTyp, RExp<TypeCheckedCAst>>;
     pub type TypedLExp<LTyp> = TypAndExp<LTyp, LExp<TypeCheckedCAst>>;

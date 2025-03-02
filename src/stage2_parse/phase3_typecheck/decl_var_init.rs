@@ -48,7 +48,7 @@ impl TypeChecker {
             }
         };
 
-        let from = self.typecheck_exp_and_convert_to_scalar(from)?;
+        let from = self.typecheck_exp_then_convert_array_then_assert_scalar(from)?;
 
         let () = Self::can_cast_by_assignment(to, &from)?;
 

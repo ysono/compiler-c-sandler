@@ -166,7 +166,8 @@ impl TypeChecker {
             }
             Statement::Expression(exp) => self.typecheck_exp(exp).map(Statement::Expression),
             Statement::If(If { condition, then, elze }) => {
-                let condition = self.typecheck_exp_and_convert_to_scalar(condition)?;
+                let condition =
+                    self.typecheck_exp_then_convert_array_then_assert_scalar(condition)?;
                 let then = Box::new(self.typecheck_stmt(*then)?);
                 let elze = elze
                     .map(|elze| self.typecheck_stmt(*elze))
@@ -178,13 +179,15 @@ impl TypeChecker {
             Statement::Break(loop_id) => Ok(Statement::Break(loop_id)),
             Statement::Continue(loop_id) => Ok(Statement::Continue(loop_id)),
             Statement::While(CondBody { loop_id, condition, body }) => {
-                let condition = self.typecheck_exp_and_convert_to_scalar(condition)?;
+                let condition =
+                    self.typecheck_exp_then_convert_array_then_assert_scalar(condition)?;
                 let body = Box::new(self.typecheck_stmt(*body)?);
                 Ok(Statement::While(CondBody { loop_id, condition, body }))
             }
             Statement::DoWhile(CondBody { loop_id, body, condition }) => {
                 let body = Box::new(self.typecheck_stmt(*body)?);
-                let condition = self.typecheck_exp_and_convert_to_scalar(condition)?;
+                let condition =
+                    self.typecheck_exp_then_convert_array_then_assert_scalar(condition)?;
                 Ok(Statement::DoWhile(CondBody { loop_id, body, condition }))
             }
             Statement::For(For {
@@ -207,7 +210,7 @@ impl TypeChecker {
                     ForInit::None => ForInit::None,
                 };
                 let condition = condition
-                    .map(|cond| self.typecheck_exp_and_convert_to_scalar(cond))
+                    .map(|cond| self.typecheck_exp_then_convert_array_then_assert_scalar(cond))
                     .transpose()?;
                 let post = post.map(|post| self.typecheck_exp(post)).transpose()?;
                 let body = Box::new(self.typecheck_stmt(*body)?);

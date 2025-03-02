@@ -7,7 +7,7 @@ use crate::{
         primitive::Const,
         types_frontend::{
             ArithmeticType, ArrayElementCount, ArrayType, NonVoidType, ObjType, ParsedFunType,
-            ParsedObjType, ParsedObjTypeError, PointerType,
+            ParsedObjType, ParsedObjTypeError, PointerType, VoidType,
         },
     },
     ds_n_a::singleton::Singleton,
@@ -66,7 +66,7 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
             typ_specs[..expected_max_len].sort();
 
             let base_type = match &typ_specs[..] {
-                [TS::Void] => ObjType::Void,
+                [TS::Void] => VoidType.into(),
                 [TS::Char] => AT::Char.into(),
                 [TS::Char, TS::Signed] => AT::SChar.into(),
                 [TS::Char, TS::Unsigned] => AT::UChar.into(),
@@ -173,7 +173,7 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
                 };
 
                 let is_empty_params = params.is_empty()
-                    && matches!(param_base_type, ObjType::Void)
+                    && matches!(param_base_type, ObjType::Void(_))
                     && matches!(
                         self.peek_token()?,
                         t::Token::Demarcator(t::Demarcator::ParenClose)

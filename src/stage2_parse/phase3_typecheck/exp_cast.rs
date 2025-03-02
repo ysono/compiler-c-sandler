@@ -108,8 +108,8 @@ impl TypeChecker {
                     Ok(Either::Left)
                 } else {
                     match (t1.as_ref(), t2.as_ref()) {
-                        (ObjType::Void, _) => Ok(Either::Left),
-                        (_, ObjType::Void) => Ok(Either::Right),
+                        (ObjType::Void(_), _) => Ok(Either::Left),
+                        (_, ObjType::Void(_)) => Ok(Either::Right),
                         _ => Err(()),
                     }
                 }
@@ -128,7 +128,7 @@ impl TypeChecker {
         let to = Self::extract_scalar_type(to)
             .map_err(|typ| anyhow!("Cannot explicitly cast to {typ:#?}"))?;
 
-        let from = self.typecheck_exp_and_convert_to_scalar(*from)?;
+        let from = self.typecheck_exp_then_convert_array_then_assert_scalar(*from)?;
 
         let ok = match (to.as_ref(), from.typ().as_ref()) {
             (ScalarType::Ptr(_), ScalarType::Arith(ArithmeticType::Double)) => Err(()),
@@ -150,7 +150,7 @@ impl TypeChecker {
         to: Cow<'_, SubObjType<ScalarType>>,
         from: Expression<ResolvedCAst>,
     ) -> Result<ScalarExp> {
-        let from = self.typecheck_exp_and_convert_to_scalar(from)?;
+        let from = self.typecheck_exp_then_convert_array_then_assert_scalar(from)?;
 
         let () = Self::can_cast_by_assignment(to.as_ref(), &from)?;
 
@@ -222,7 +222,7 @@ impl TypeChecker {
         obj_typ: Singleton<ObjType>,
     ) -> Result<SubObjType<ScalarType>, SubObjType<ArrayType>> {
         match obj_typ.as_ref() {
-            ObjType::Void => todo!(),
+            ObjType::Void(_) => todo!(),
             ObjType::Scalar(sca_typ) => {
                 let sca_typ = sca_typ as *const ScalarType;
                 let sca_typ = unsafe { &*sca_typ };

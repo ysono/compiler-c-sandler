@@ -1,9 +1,9 @@
 use super::TypeChecker;
 use crate::{
-    common::types_frontend::{NonVoidType, ScalarType, SubObjType},
+    common::types_frontend::{NonAggrType, NonVoidType},
     stage2_parse::{c_ast::*, phase2_resolve::ResolvedCAst},
 };
-use anyhow::Result;
+use anyhow::{Result, anyhow};
 
 impl TypeChecker {
     /// + Validate the input types.
@@ -18,15 +18,15 @@ impl TypeChecker {
     /// 1. Typecheck the given expression.
     /// 1. If the expression is typed array, then transform it into
     ///     an expression that evaluates to a pointer to the zeroth element (_not_ a pointer to the array).
-    pub(super) fn typecheck_exp_and_convert_to_scalar(
+    pub(super) fn typecheck_exp_then_convert_array(
         &mut self,
         exp: Expression<ResolvedCAst>,
-    ) -> Result<ScalarExp> {
+    ) -> Result<NonAggrExp> {
         match exp {
             Expression::R(rexp) => self.typecheck_rexp(rexp).map(TypedExp::R),
             Expression::L(lexp) => {
                 let nonvoid_lexp = self.typecheck_lexp(lexp)?;
-                let sca_exp = match &nonvoid_lexp.typ {
+                let nonaggr_exp = match &nonvoid_lexp.typ {
                     NonVoidType::Scalar(sca_typ) => TypedExp::L(TypedLExp {
                         exp: nonvoid_lexp.exp,
                         typ: sca_typ.clone(),
@@ -34,22 +34,30 @@ impl TypeChecker {
                     NonVoidType::Array(arr_typ) => {
                         let ptr_typ = arr_typ.as_ptr_to_elem();
                         let sca_typ = self.get_scalar_type(ptr_typ);
+                        let nonaggr_typ = NonAggrType::from(sca_typ);
                         TypedExp::R(TypedRExp {
                             exp: RExp::AddrOf(AddrOf(Box::new(nonvoid_lexp))),
-                            typ: sca_typ,
+                            typ: nonaggr_typ,
                         })
                     }
                 };
-                Ok(sca_exp)
+                Ok(nonaggr_exp)
             }
         }
     }
 
-    fn typecheck_rexp(
+    pub(super) fn typecheck_exp_then_convert_array_then_assert_scalar(
         &mut self,
-        rexp: RExp<ResolvedCAst>,
-    ) -> Result<TypedRExp<SubObjType<ScalarType>>> {
-        match rexp {
+        exp: Expression<ResolvedCAst>,
+    ) -> Result<ScalarExp> {
+        let nonaggr_exp = self.typecheck_exp_then_convert_array(exp)?;
+        nonaggr_exp
+            .try_map_typ(Ok, |nonaggr_typ| nonaggr_typ.try_into_scalar())
+            .map_err(|nonaggr_exp| anyhow!("Expected a scalar type but found {nonaggr_exp:#?}"))
+    }
+
+    fn typecheck_rexp(&mut self, rexp: RExp<ResolvedCAst>) -> Result<TypedRExp<NonAggrType>> {
+        let sca_rexp = match rexp {
             RExp::Const(konst) => {
                 let typ = self.get_scalar_type(konst.arithmetic_type());
                 let exp = RExp::Const(konst);
@@ -64,7 +72,9 @@ impl TypeChecker {
             RExp::AddrOf(addrof) => self.typecheck_exp_addrof(addrof),
             RExp::SizeOfType(_) => todo!(),
             RExp::SizeOfExp(_) => todo!(),
-        }
+        }?;
+        let nonaggr_rexp = sca_rexp.map_typ(NonAggrType::from);
+        Ok(nonaggr_rexp)
     }
 
     pub(super) fn typecheck_lexp(

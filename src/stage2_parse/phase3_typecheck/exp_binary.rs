@@ -15,8 +15,8 @@ impl TypeChecker {
     ) -> Result<TypedRExp<SubObjType<ScalarType>>> {
         use BinaryOperator as O;
 
-        let lhs = self.typecheck_exp_and_convert_to_scalar(*lhs)?;
-        let rhs = self.typecheck_exp_and_convert_to_scalar(*rhs)?;
+        let lhs = self.typecheck_exp_then_convert_array_then_assert_scalar(*lhs)?;
+        let rhs = self.typecheck_exp_then_convert_array_then_assert_scalar(*rhs)?;
 
         match op {
             O::Logic(op) => {
@@ -220,8 +220,8 @@ impl TypeChecker {
         &mut self,
         Subscript { exp1, exp2 }: Subscript<ResolvedCAst>,
     ) -> Result<TypedLExp<NonVoidType>> {
-        let exp1 = self.typecheck_exp_and_convert_to_scalar(*exp1)?;
-        let exp2 = self.typecheck_exp_and_convert_to_scalar(*exp2)?;
+        let exp1 = self.typecheck_exp_then_convert_array_then_assert_scalar(*exp1)?;
+        let exp2 = self.typecheck_exp_then_convert_array_then_assert_scalar(*exp2)?;
 
         let res = match (exp1.typ().as_ref(), exp2.typ().as_ref()) {
             (ScalarType::Ptr(p), ScalarType::Arith(a)) => {

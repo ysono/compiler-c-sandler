@@ -60,7 +60,7 @@ impl TypeChecker {
         &mut self,
         Dereference(sub_exp): Dereference<ResolvedCAst>,
     ) -> Result<TypedLExp<NonVoidType>> {
-        let sub_exp = self.typecheck_exp_and_convert_to_scalar(*sub_exp)?;
+        let sub_exp = self.typecheck_exp_then_convert_array_then_assert_scalar(*sub_exp)?;
 
         let typ = match sub_exp.typ().as_ref() {
             ScalarType::Ptr(PointerType { pointee_type }) => {
