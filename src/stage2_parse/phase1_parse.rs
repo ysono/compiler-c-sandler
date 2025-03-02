@@ -36,6 +36,7 @@ impl CAstVariant for ParsedCAst {
     /* Categories of Expressions */
 
     type Expression_AnyType = Expression<Self>;
+    type Expression_NonAggrType = Expression<Self>;
     type Expression_ScalarType = Expression<Self>;
     type Expression_Lvalue_AnyType = Expression<Self>;
     type Expression_Lvalue_ScalarType = Expression<Self>;

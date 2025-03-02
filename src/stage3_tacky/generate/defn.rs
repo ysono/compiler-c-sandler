@@ -27,7 +27,7 @@ impl FunInstrsGenerator<'_> {
 
                     let single_bytelen = typed_exp.typ().bytelen();
 
-                    let val = self.gen_exp_and_get_value(typed_exp);
+                    let val = self.gen_sca_exp_and_get_value(typed_exp);
 
                     cto_gen.push(val, single_bytelen, &mut self.instrs);
                 }

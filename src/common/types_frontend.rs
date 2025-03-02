@@ -188,6 +188,17 @@ mod obj_type_node {
         Void(SubObjType<VoidType>),
         Scalar(SubObjType<ScalarType>),
     }
+    impl TryFrom<Singleton<ObjType>> for NonAggrType {
+        type Error = Singleton<ObjType>;
+        fn try_from(o: Singleton<ObjType>) -> Result<Self, Self::Error> {
+            let o_ref = ObjTypeNodeRef::from(o);
+            match o_ref {
+                ObjTypeNodeRef::Void(v) => Ok(Self::Void(v)),
+                ObjTypeNodeRef::Scalar(s) => Ok(Self::Scalar(s)),
+                ObjTypeNodeRef::Array(_) => Err(o_ref.into()),
+            }
+        }
+    }
     impl NonAggrType {
         pub fn try_into_scalar(self) -> Result<SubObjType<ScalarType>, Self> {
             SubObjType::<ScalarType>::try_from(self).map_err(|e| e.input)

@@ -2,7 +2,7 @@ use super::FunInstrsGenerator;
 use crate::{
     common::{
         types_backend::OperandByteLen,
-        types_frontend::{ArithmeticType, ScalarType, SubObjType},
+        types_frontend::{ArithmeticType, NonAggrType, ScalarType, SubObjType},
     },
     stage2_parse::{c_ast as c, phase3_typecheck::TypeCheckedCAst},
     stage3_tacky::tacky_ast::*,
@@ -17,7 +17,10 @@ impl FunInstrsGenerator<'_> {
         dst_typ: SubObjType<ScalarType>,
     ) -> Value {
         let dst_ari_typ = dst_typ.effective_arithmetic_type();
-        let src_ari_typ = sub_exp.typ().effective_arithmetic_type();
+        let src_ari_typ = match sub_exp.typ().as_ref() {
+            NonAggrType::Void(_) => todo!(),
+            NonAggrType::Scalar(s) => s.effective_arithmetic_type(),
+        };
 
         let src = self.gen_exp_and_get_value(*sub_exp);
 
@@ -84,7 +87,7 @@ impl FunInstrsGenerator<'_> {
 
         let args = args
             .into_iter()
-            .map(|arg| self.gen_exp_and_get_value(arg))
+            .map(|arg| self.gen_sca_exp_and_get_value(arg))
             .collect::<Vec<_>>();
 
         self.instrs.push(Instruction::FunCall(FunCall {

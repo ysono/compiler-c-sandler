@@ -40,8 +40,8 @@ impl FunInstrsGenerator<'_> {
 
         /* Begin instructions */
 
-        let ptr = self.gen_exp_and_get_value(ptr);
-        let idx = self.gen_exp_and_get_value(idx);
+        let ptr = self.gen_sca_exp_and_get_value(ptr);
+        let idx = self.gen_sca_exp_and_get_value(idx);
 
         self.instrs.push(Instruction::AddPtr(AddPtr {
             ptr,
@@ -65,8 +65,8 @@ impl FunInstrsGenerator<'_> {
 
         /* Begin instructions */
 
-        let ptr = self.gen_exp_and_get_value(ptr);
-        let idx = self.gen_exp_and_get_value(idx);
+        let ptr = self.gen_sca_exp_and_get_value(ptr);
+        let idx = self.gen_sca_exp_and_get_value(idx);
 
         self.instrs.extend([
             Instruction::Unary(Unary {
@@ -98,8 +98,8 @@ impl FunInstrsGenerator<'_> {
 
         /* Begin instructions */
 
-        let lhs_ptr = self.gen_exp_and_get_value(lhs_ptr);
-        let rhs_ptr = self.gen_exp_and_get_value(rhs_ptr);
+        let lhs_ptr = self.gen_sca_exp_and_get_value(lhs_ptr);
+        let rhs_ptr = self.gen_sca_exp_and_get_value(rhs_ptr);
 
         self.instrs.extend([
             Instruction::Binary(Binary {
@@ -140,8 +140,8 @@ impl FunInstrsGenerator<'_> {
 
         /* Begin instructions */
 
-        let ptr = self.gen_exp_and_get_value(*ptr_exp);
-        let idx = self.gen_exp_and_get_value(*idx_exp);
+        let ptr = self.gen_sca_exp_and_get_value(*ptr_exp);
+        let idx = self.gen_sca_exp_and_get_value(*idx_exp);
 
         self.instrs.push(Instruction::AddPtr(AddPtr {
             ptr,

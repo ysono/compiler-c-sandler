@@ -45,6 +45,7 @@ impl CAstVariant for TypeCheckedCAst {
     /* Categories of Expressions */
 
     type Expression_AnyType = AnyExp;
+    type Expression_NonAggrType = NonAggrExp;
     type Expression_ScalarType = ScalarExp;
     type Expression_Lvalue_AnyType = TypedLExp<NonVoidType>;
     type Expression_Lvalue_ScalarType = TypedLExp<SubObjType<ScalarType>>;

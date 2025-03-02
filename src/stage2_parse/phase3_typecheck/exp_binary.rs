@@ -37,17 +37,22 @@ impl TypeChecker {
         use ComparisonBinaryOperator as OC;
 
         let (lhs, rhs) = match op {
-            OC::Eq | OC::Neq => self.cast_to_common_type(lhs, rhs)?,
+            OC::Eq | OC::Neq => self.cast_to_common_scalar_type(lhs, rhs)?,
             OC::Lt | OC::Lte | OC::Gt | OC::Gte => {
                 match (lhs.typ().as_ref(), rhs.typ().as_ref()) {
                     (ScalarType::Arith(_), ScalarType::Arith(_)) => {
-                        self.cast_to_common_type(lhs, rhs)?
+                        self.cast_to_common_scalar_type(lhs, rhs)?
                     }
                     (ScalarType::Ptr(p1), ScalarType::Ptr(p2)) if p1 == p2 => (lhs, rhs),
                     _ => return Err(anyhow!("Can't compare {lhs:#?} and {rhs:#?}")),
                 }
-                /* Note, gcc and clang allow comparing pointer vs constexpr-zero-integer as well.
-                If we choose to allow this, we can validate using `cast_to_common_type()` on all scalar types. */
+                /*
+                The differences between eq/neq and lt/lte/gt/gte are:
+                    + lt/lte/gt/gte cannot compare ptr vs constexpr-zero-integer
+                        (gcc and clang allow this by default)
+                    + lt/lte/gt/gte cannot compare ptr-to-void vs ptr-to-non-void
+                        (gcc and clang warn this by default)
+                */
             }
         };
 
@@ -80,7 +85,7 @@ impl TypeChecker {
             (ScalarType::Arith(_), ScalarType::Arith(_)) => {
                 let op = ArithmeticBinaryOperator::Add;
 
-                let (lhs, rhs) = self.cast_to_common_type(lhs, rhs)?;
+                let (lhs, rhs) = self.cast_to_common_scalar_type(lhs, rhs)?;
                 let common_typ = lhs.typ().clone();
 
                 Ok(new_binary_exp(op, lhs, rhs, common_typ))
@@ -118,7 +123,7 @@ impl TypeChecker {
             (ScalarType::Arith(_), ScalarType::Arith(_)) => {
                 let op = ArithmeticBinaryOperator::Sub;
 
-                let (lhs, rhs) = self.cast_to_common_type(lhs, rhs)?;
+                let (lhs, rhs) = self.cast_to_common_scalar_type(lhs, rhs)?;
                 let common_typ = lhs.typ().clone();
 
                 Ok(new_binary_exp(op, lhs, rhs, common_typ))
@@ -152,7 +157,7 @@ impl TypeChecker {
     ) -> Result<TypedRExp<SubObjType<ScalarType>>> {
         use ArithmeticBinaryOperator as OA;
 
-        let (lhs, rhs) = self.cast_to_common_type(lhs, rhs)?;
+        let (lhs, rhs) = self.cast_to_common_scalar_type(lhs, rhs)?;
         let common_typ = lhs.typ().clone();
 
         if matches!(

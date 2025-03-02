@@ -5,14 +5,14 @@ use crate::{
         primitive::Const,
         symbol_table_frontend::{InitializerItem, StaticVisibility},
         types_frontend::{
-            NonAggrType, NonVoidType, ObjType, ParsedFunType, ParsedObjType, ScalarFunType,
-            ScalarType, SubObjType,
+            NonAggrType, NonVoidType, ParsedFunType, ParsedObjType, ScalarFunType, ScalarType,
+            SubObjType,
         },
     },
     ds_n_a::singleton::Singleton,
 };
 use derive_more::From;
-use std::fmt::Debug;
+use std::{borrow::Cow, fmt::Debug};
 
 #[allow(non_camel_case_types)]
 pub trait CAstVariant {
@@ -30,6 +30,7 @@ pub trait CAstVariant {
     /* Categories of Expressions */
 
     type Expression_AnyType: Debug;
+    type Expression_NonAggrType: Debug;
     type Expression_ScalarType: Debug;
     type Expression_Lvalue_AnyType: Debug;
     type Expression_Lvalue_ScalarType: Debug;
@@ -185,8 +186,8 @@ mod expression {
 
     #[derive(Debug)]
     pub struct Cast<C: CAstVariant> {
-        pub typ: C::TypeOperand<Singleton<ObjType>>,
-        pub sub_exp: Box<C::Expression_ScalarType>,
+        pub typ: C::TypeOperand<NonAggrType>,
+        pub sub_exp: Box<C::Expression_NonAggrType>,
     }
 
     #[derive(Debug)]
@@ -258,8 +259,8 @@ mod expression {
     #[derive(Debug)]
     pub struct Conditional<C: CAstVariant> {
         pub condition: Box<C::Expression_ScalarType>,
-        pub then: Box<C::Expression_ScalarType>,
-        pub elze: Box<C::Expression_ScalarType>,
+        pub then: Box<C::Expression_NonAggrType>,
+        pub elze: Box<C::Expression_NonAggrType>,
     }
 
     #[derive(Debug)]
@@ -310,6 +311,20 @@ mod typed_expression {
         }
     }
     impl<LTyp, RTyp> TypedExp<LTyp, RTyp> {
+        pub fn map_typ<LM, LTyp2, RM, RTyp2>(
+            self,
+            l_mapper: LM,
+            r_mapper: RM,
+        ) -> TypedExp<LTyp2, RTyp2>
+        where
+            LM: FnOnce(LTyp) -> LTyp2,
+            RM: FnOnce(RTyp) -> RTyp2,
+        {
+            match self {
+                Self::R(typed_rexp) => TypedExp::R(typed_rexp.map_typ(r_mapper)),
+                Self::L(typed_lexp) => TypedExp::L(typed_lexp.map_typ(l_mapper)),
+            }
+        }
         pub fn try_map_typ<LM, LTyp2, RM, RTyp2>(
             self,
             l_mapper: LM,
@@ -334,6 +349,14 @@ mod typed_expression {
     pub type AnyExp = TypedExp<NonVoidType, NonAggrType>;
     pub type NonAggrExp = TypedExp<SubObjType<ScalarType>, NonAggrType>;
     pub type ScalarExp = TypedExp<SubObjType<ScalarType>, SubObjType<ScalarType>>;
+    impl NonAggrExp {
+        pub fn typ(&self) -> Cow<NonAggrType> {
+            match self {
+                Self::R(nonaggr_rexp) => Cow::Borrowed(&nonaggr_rexp.typ),
+                Self::L(sca_lexp) => Cow::Owned(NonAggrType::from(sca_lexp.typ.clone())),
+            }
+        }
+    }
 
     #[derive(Debug)]
     pub struct TypAndExp<Typ, Exp> {

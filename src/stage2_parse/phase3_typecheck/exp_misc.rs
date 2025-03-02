@@ -1,6 +1,6 @@
 use super::TypeChecker;
 use crate::{
-    common::types_frontend::{ArithmeticType, ScalarType, SubObjType},
+    common::types_frontend::{ArithmeticType, NonAggrType, ScalarType, SubObjType},
     stage2_parse::{c_ast::*, phase2_resolve::ResolvedCAst},
 };
 use anyhow::{Result, anyhow};
@@ -51,13 +51,13 @@ impl TypeChecker {
     pub(super) fn typecheck_exp_conditional(
         &mut self,
         Conditional { condition, then, elze }: Conditional<ResolvedCAst>,
-    ) -> Result<TypedRExp<SubObjType<ScalarType>>> {
+    ) -> Result<TypedRExp<NonAggrType>> {
         let condition = self.typecheck_exp_then_convert_array_then_assert_scalar(*condition)?;
-        let then = self.typecheck_exp_then_convert_array_then_assert_scalar(*then)?;
-        let elze = self.typecheck_exp_then_convert_array_then_assert_scalar(*elze)?;
+        let then = self.typecheck_exp_then_convert_array(*then)?;
+        let elze = self.typecheck_exp_then_convert_array(*elze)?;
 
-        let (then, elze) = self.cast_to_common_type(then, elze)?;
-        let typ = then.typ().clone();
+        let (then, elze) = self.cast_to_common_nonaggr_type(then, elze)?;
+        let typ = then.typ().into_owned();
 
         let exp = RExp::Conditional(Conditional {
             condition: Box::new(condition),

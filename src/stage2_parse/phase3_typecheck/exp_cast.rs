@@ -2,7 +2,9 @@ use super::TypeChecker;
 use crate::{
     common::{
         types_backend::OperandByteLen,
-        types_frontend::{ArithmeticType, ArrayType, ObjType, PointerType, ScalarType, SubObjType},
+        types_frontend::{
+            ArithmeticType, ArrayType, NonAggrType, ObjType, PointerType, ScalarType, SubObjType,
+        },
     },
     ds_n_a::singleton::Singleton,
     stage2_parse::{c_ast::*, phase2_resolve::ResolvedCAst},
@@ -10,25 +12,51 @@ use crate::{
 };
 use anyhow::{Result, anyhow};
 use owning_ref::OwningRef;
-use std::{borrow::Cow, cmp::Ordering};
+use std::{borrow::Cow, cmp::Ordering, convert::identity};
 
 /// Common type
+///
+/// Given an expression that requires its two sub-expressions to have the same type,
+///     cast these sub-expressions to their "common type".
 impl TypeChecker {
-    /// Given an expression that requires its two sub-expressions to have the same type,
-    ///     cast these sub-expressions to their "common type".
-    pub(super) fn cast_to_common_type(
+    pub(super) fn cast_to_common_nonaggr_type(
+        &mut self,
+        exp1: NonAggrExp,
+        exp2: NonAggrExp,
+    ) -> Result<(NonAggrExp, NonAggrExp)> {
+        match (exp1.typ().as_ref(), exp2.typ().as_ref()) {
+            (NonAggrType::Void(_), NonAggrType::Void(_)) => Ok((exp1, exp2)),
+            (NonAggrType::Scalar(s1), NonAggrType::Scalar(s2)) => {
+                let s1 = s1.clone();
+                let s2 = s2.clone();
+                let exp1 = exp1.map_typ(identity, |_| s1);
+                let exp2 = exp2.map_typ(identity, |_| s2);
+
+                let (exp1, exp2) = self.cast_to_common_scalar_type(exp1, exp2)?;
+
+                let exp1 = exp1.map_typ(identity, NonAggrType::from);
+                let exp2 = exp2.map_typ(identity, NonAggrType::from);
+                Ok((exp1, exp2))
+            }
+            (t1 @ NonAggrType::Void(_), t2 @ NonAggrType::Scalar(_))
+            | (t1 @ NonAggrType::Scalar(_), t2 @ NonAggrType::Void(_)) => {
+                Err(anyhow!("No common type between {t1:#?} and {t2:#?}"))
+            }
+        }
+    }
+    pub(super) fn cast_to_common_scalar_type(
         &mut self,
         exp1: ScalarExp,
         exp2: ScalarExp,
     ) -> Result<(ScalarExp, ScalarExp)> {
-        let common_typ = self.derive_common_type(&exp1, &exp2)?;
+        let common_typ = self.derive_common_scalar_type(&exp1, &exp2)?;
 
         let exp1 = Self::maybe_insert_cast_node(Cow::Borrowed(&common_typ), exp1);
         let exp2 = Self::maybe_insert_cast_node(Cow::Owned(common_typ), exp2);
 
         Ok((exp1, exp2))
     }
-    fn derive_common_type(
+    fn derive_common_scalar_type(
         &mut self,
         exp1: &ScalarExp,
         exp2: &ScalarExp,
@@ -123,17 +151,24 @@ impl TypeChecker {
     pub(super) fn cast_explicitly(
         &mut self,
         Cast { typ: to, sub_exp: from }: Cast<ResolvedCAst>,
-    ) -> Result<TypedRExp<SubObjType<ScalarType>>> {
+    ) -> Result<TypedRExp<NonAggrType>> {
+        use NonAggrType as NAT;
+
         let to = to.into_res()?;
-        let to = Self::extract_scalar_type(to)
+        let to = NonAggrType::try_from(to)
             .map_err(|typ| anyhow!("Cannot explicitly cast to {typ:#?}"))?;
 
-        let from = self.typecheck_exp_then_convert_array_then_assert_scalar(*from)?;
+        let from = self.typecheck_exp_then_convert_array(*from)?;
 
-        let ok = match (to.as_ref(), from.typ().as_ref()) {
-            (ScalarType::Ptr(_), ScalarType::Arith(ArithmeticType::Double)) => Err(()),
-            (ScalarType::Arith(ArithmeticType::Double), ScalarType::Ptr(_)) => Err(()),
-            _ => Ok(()),
+        let ok = match (&to, from.typ().as_ref()) {
+            (NAT::Void(_), NAT::Void(_)) => Ok(()),
+            (NAT::Void(_), NAT::Scalar(_)) => Ok(()),
+            (NAT::Scalar(_), NAT::Void(_)) => Err(()),
+            (NAT::Scalar(s2), NAT::Scalar(s1)) => match (s2.as_ref(), s1.as_ref()) {
+                (ScalarType::Ptr(_), ScalarType::Arith(ArithmeticType::Double)) => Err(()),
+                (ScalarType::Arith(ArithmeticType::Double), ScalarType::Ptr(_)) => Err(()),
+                _ => Ok(()),
+            },
         };
         let () = ok.map_err(|()| anyhow!("Cannot explicitly cast {to:#?} <- {from:#?}"))?;
 
@@ -171,13 +206,14 @@ impl TypeChecker {
 
 /// Promotion
 impl TypeChecker {
-    pub(super) fn promote_character_to_int(&mut self, in_typed_exp: ScalarExp) -> ScalarExp {
-        if matches!(in_typed_exp.typ().as_ref(), ScalarType::Arith(a) if a.is_character()) {
-            let int_typ = self.get_scalar_type(ArithmeticType::Int);
-            let out_typed_rexp = Self::insert_cast_node(int_typ, in_typed_exp);
-            TypedExp::R(out_typed_rexp)
+    pub(super) fn promote_character_to_int(&mut self, in_sca_exp: ScalarExp) -> ScalarExp {
+        if matches!(in_sca_exp.typ().as_ref(), ScalarType::Arith(a) if a.is_character()) {
+            let in_nonaggr_exp = in_sca_exp.map_typ(identity, NonAggrType::from);
+            let out_sca_typ = self.get_scalar_type(ArithmeticType::Int);
+            let out_sca_rexp = Self::insert_cast_node(out_sca_typ, in_nonaggr_exp);
+            TypedExp::R(out_sca_rexp)
         } else {
-            in_typed_exp
+            in_sca_exp
         }
     }
 }
@@ -191,17 +227,18 @@ impl TypeChecker {
         if to.as_ref() == from.typ() {
             from
         } else {
-            let out_typed_rexp = Self::insert_cast_node(to.into_owned(), from);
-            TypedExp::R(out_typed_rexp)
+            let from = from.map_typ(identity, NonAggrType::from);
+            let out_sca_rexp = Self::insert_cast_node(to.into_owned(), from);
+            TypedExp::R(out_sca_rexp)
         }
     }
-    fn insert_cast_node(
-        to: SubObjType<ScalarType>,
-        from: ScalarExp,
-    ) -> TypedRExp<SubObjType<ScalarType>> {
+    fn insert_cast_node<Typ: Clone + Into<NonAggrType>>(
+        to: Typ,
+        from: NonAggrExp,
+    ) -> TypedRExp<Typ> {
         TypedRExp {
             exp: RExp::Cast(Cast {
-                typ: to.as_owner().clone(),
+                typ: to.clone().into(),
                 sub_exp: Box::new(from),
             }),
             typ: to,

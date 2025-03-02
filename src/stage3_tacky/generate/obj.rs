@@ -12,7 +12,7 @@ impl FunInstrsGenerator<'_> {
         c::Assignment { lhs, rhs }: c::Assignment<TypeCheckedCAst>,
     ) -> Value {
         let lhs = self.gen_lexp(*lhs);
-        let rhs = self.gen_exp_and_get_value(*rhs);
+        let rhs = self.gen_sca_exp_and_get_value(*rhs);
         self.gen_assignment(lhs, rhs)
     }
     pub(super) fn gen_assignment(
@@ -47,7 +47,7 @@ impl FunInstrsGenerator<'_> {
         c::Dereference(sub_exp): c::Dereference<TypeCheckedCAst>,
         pointee_type: LTyp,
     ) -> Object<LTyp> {
-        let addr = self.gen_exp_and_get_value(*sub_exp);
+        let addr = self.gen_sca_exp_and_get_value(*sub_exp);
         Object::Pointee { addr, typ: pointee_type }
     }
     pub(super) fn gen_exp_addrof(

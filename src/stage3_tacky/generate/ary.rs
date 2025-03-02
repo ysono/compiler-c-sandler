@@ -27,7 +27,7 @@ impl FunInstrsGenerator<'_> {
             CO::Negate => TON::Negate.into(),
             CO::Not => TOC::Not.into(),
         };
-        let src = self.gen_exp_and_get_value(*sub_exp);
+        let src = self.gen_sca_exp_and_get_value(*sub_exp);
         let dst = self.register_new_value(out_typ);
         self.instrs
             .push(Instruction::Unary(Unary { op, src, dst: dst.clone() }));
@@ -83,8 +83,8 @@ impl FunInstrsGenerator<'_> {
         c::Binary { op: _, lhs, rhs }: c::Binary<TypeCheckedCAst>,
         out_typ: SubObjType<ScalarType>,
     ) -> Value {
-        let lhs = self.gen_exp_and_get_value(*lhs);
-        let rhs = self.gen_exp_and_get_value(*rhs);
+        let lhs = self.gen_sca_exp_and_get_value(*lhs);
+        let rhs = self.gen_sca_exp_and_get_value(*rhs);
         let dst = self.register_new_value(out_typ);
         self.instrs.push(Instruction::Binary(Binary {
             op,
@@ -126,11 +126,11 @@ impl FunInstrsGenerator<'_> {
 
         /* Begin instructions */
 
-        let lhs_val = self.gen_exp_and_get_value(*lhs);
+        let lhs_val = self.gen_sca_exp_and_get_value(*lhs);
 
         self.instrs.push(new_shortcirc_jump_instr(lhs_val));
 
-        let rhs_val = self.gen_exp_and_get_value(*rhs);
+        let rhs_val = self.gen_sca_exp_and_get_value(*rhs);
 
         self.instrs.push(new_shortcirc_jump_instr(rhs_val));
 

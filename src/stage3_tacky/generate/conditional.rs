@@ -20,7 +20,7 @@ impl FunInstrsGenerator<'_> {
 
                 /* Begin instructions */
 
-                let condition = self.gen_exp_and_get_value(condition);
+                let condition = self.gen_sca_exp_and_get_value(condition);
 
                 self.instrs.push(Instruction::JumpIf(JumpIf {
                     condition,
@@ -38,7 +38,7 @@ impl FunInstrsGenerator<'_> {
 
                 /* Begin instructions */
 
-                let condition = self.gen_exp_and_get_value(condition);
+                let condition = self.gen_sca_exp_and_get_value(condition);
 
                 self.instrs.push(Instruction::JumpIf(JumpIf {
                     condition,
@@ -70,7 +70,7 @@ impl FunInstrsGenerator<'_> {
 
         /* Begin instructions */
 
-        let condition = self.gen_exp_and_get_value(*condition);
+        let condition = self.gen_sca_exp_and_get_value(*condition);
 
         self.instrs.push(Instruction::JumpIf(JumpIf {
             condition,

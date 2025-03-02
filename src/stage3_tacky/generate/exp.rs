@@ -3,23 +3,20 @@ use crate::{
     common::{
         identifier::SymbolIdentifier,
         symbol_table_frontend::{ObjAttrs, Symbol},
-        types_frontend::{NonVoidType, ScalarType, SubObjType},
+        types_frontend::{NonAggrType, NonVoidType, ScalarType, SubObjType},
     },
     ds_n_a::witness::Witness,
     stage2_parse::c_ast as c,
     stage3_tacky::tacky_ast::*,
 };
-use std::rc::Rc;
+use std::{convert::identity, rc::Rc};
 
 /// Expression
 impl FunInstrsGenerator<'_> {
     pub(super) fn gen_exp(&mut self, typed_exp: c::AnyExp) {
         match typed_exp {
             c::TypedExp::R(nonaggr_rexp) => {
-                let sca_rexp = nonaggr_rexp
-                    .try_map_typ(|nonaggr_typ| nonaggr_typ.try_into_scalar())
-                    .expect("todo");
-                self.gen_rexp(sca_rexp);
+                self.gen_rexp(nonaggr_rexp);
             }
             c::TypedExp::L(nonvoid_lexp) => {
                 self.gen_lexp(nonvoid_lexp);
@@ -30,11 +27,11 @@ impl FunInstrsGenerator<'_> {
     /// 1. Generate tacky instructions; and get as the result either a value or an object.
     /// 1. If the given expression was an lvalue-expression, ie if the expression designated an object,
     ///     then lvalue-convert the expression, ie extract the value out of the object.
-    pub(super) fn gen_exp_and_get_value(&mut self, typed_exp: c::ScalarExp) -> Value {
-        match typed_exp {
-            c::TypedExp::R(typed_rexp) => self.gen_rexp(typed_rexp),
-            c::TypedExp::L(typed_lexp) => {
-                let obj = self.gen_lexp(typed_lexp);
+    pub(super) fn gen_exp_and_get_value(&mut self, nonaggr_exp: c::NonAggrExp) -> Value {
+        match nonaggr_exp {
+            c::TypedExp::R(nonaggr_rexp) => self.gen_rexp(nonaggr_rexp),
+            c::TypedExp::L(sca_lexp) => {
+                let obj = self.gen_lexp(sca_lexp);
                 match obj {
                     Object::Direct(ident, sca_typ_witness) => {
                         Value::Variable(ident, sca_typ_witness)
@@ -50,10 +47,19 @@ impl FunInstrsGenerator<'_> {
         }
     }
 
+    pub(super) fn gen_sca_exp_and_get_value(&mut self, sca_exp: c::ScalarExp) -> Value {
+        let nonaggr_exp = sca_exp.map_typ(identity, NonAggrType::from);
+        self.gen_exp_and_get_value(nonaggr_exp)
+    }
+
     pub(super) fn gen_rexp(
         &mut self,
-        c::TypedRExp { exp, typ }: c::TypedRExp<SubObjType<ScalarType>>,
+        c::TypedRExp { exp, typ }: c::TypedRExp<NonAggrType>,
     ) -> Value {
+        let typ = match typ {
+            NonAggrType::Void(_) => todo!(),
+            NonAggrType::Scalar(s) => s,
+        };
         match exp {
             c::RExp::Const(konst) => Value::Constant(konst),
             c::RExp::Cast(c_cast) => self.gen_exp_cast(c_cast, typ),

@@ -57,24 +57,33 @@ impl TypeChecker {
     }
 
     fn typecheck_rexp(&mut self, rexp: RExp<ResolvedCAst>) -> Result<TypedRExp<NonAggrType>> {
-        let sca_rexp = match rexp {
+        match rexp {
             RExp::Const(konst) => {
                 let typ = self.get_scalar_type(konst.arithmetic_type());
+                let typ = NonAggrType::Scalar(typ);
                 let exp = RExp::Const(konst);
                 Ok(TypedRExp { typ, exp })
             }
             RExp::Cast(cast) => self.cast_explicitly(cast),
-            RExp::Unary(unary) => self.typecheck_exp_unary(unary),
-            RExp::Binary(binary) => self.typecheck_exp_binary(binary),
+            RExp::Unary(unary) => self
+                .typecheck_exp_unary(unary)
+                .map(|sca_rexp| sca_rexp.map_typ(NonAggrType::from)),
+            RExp::Binary(binary) => self
+                .typecheck_exp_binary(binary)
+                .map(|sca_rexp| sca_rexp.map_typ(NonAggrType::from)),
             RExp::Conditional(cond) => self.typecheck_exp_conditional(cond),
-            RExp::FunctionCall(funcall) => self.typecheck_exp_funcall(funcall),
-            RExp::Assignment(assignment) => self.typecheck_exp_assignment(assignment),
-            RExp::AddrOf(addrof) => self.typecheck_exp_addrof(addrof),
+            RExp::FunctionCall(funcall) => self
+                .typecheck_exp_funcall(funcall)
+                .map(|sca_rexp| sca_rexp.map_typ(NonAggrType::from)),
+            RExp::Assignment(assignment) => self
+                .typecheck_exp_assignment(assignment)
+                .map(|sca_rexp| sca_rexp.map_typ(NonAggrType::from)),
+            RExp::AddrOf(addrof) => self
+                .typecheck_exp_addrof(addrof)
+                .map(|sca_rexp| sca_rexp.map_typ(NonAggrType::from)),
             RExp::SizeOfType(_) => todo!(),
             RExp::SizeOfExp(_) => todo!(),
-        }?;
-        let nonaggr_rexp = sca_rexp.map_typ(NonAggrType::from);
-        Ok(nonaggr_rexp)
+        }
     }
 
     pub(super) fn typecheck_lexp(
