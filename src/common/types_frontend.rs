@@ -183,7 +183,7 @@ mod obj_type_node {
         }
     }
 
-    #[derive(From, TryInto, Clone, Debug)]
+    #[derive(From, TryInto, Clone, Hash, PartialEq, Eq, Debug)]
     pub enum NonAggrType {
         Void(SubObjType<VoidType>),
         Scalar(SubObjType<ScalarType>),
@@ -288,12 +288,12 @@ mod fun_type {
     ///     unchecked at the Parse phase
     ///     and validated at the Typecheck phase.
     #[derive(Hash, PartialEq, Eq, Debug)]
-    pub struct FunType<Typ> {
-        pub params: Vec<Typ>,
-        pub ret: Typ,
+    pub struct FunType<ParamTyp, RetTyp> {
+        pub params: Vec<ParamTyp>,
+        pub ret: RetTyp,
     }
-    pub type ParsedFunType = FunType<ParsedObjType>;
-    pub type TypecheckedFunType = FunType<SubObjType<ScalarType>>;
+    pub type ParsedFunType = FunType<ParsedObjType, ParsedObjType>;
+    pub type TypecheckedFunType = FunType<SubObjType<ScalarType>, NonAggrType>;
 }
 
 #[cfg(test)]

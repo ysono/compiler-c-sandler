@@ -20,12 +20,14 @@ use crate::{
     common::{
         identifier::{LoopId, SymbolIdentifier},
         symbol_table_frontend::FrontendSymbolTableWithDeduper,
-        types_frontend::{NonVoidType, ObjType, ScalarType, SubObjType, TypecheckedFunType},
+        types_frontend::{
+            NonAggrType, NonVoidType, ObjType, ScalarType, SubObjType, TypecheckedFunType,
+        },
     },
     ds_n_a::singleton::{Singleton, SingletonRepository},
     stage2_parse::{c_ast::*, phase2_resolve::ResolvedCAst},
 };
-use anyhow::Result;
+use anyhow::{Result, anyhow};
 use std::{borrow::Cow, fmt::Debug, rc::Rc};
 
 #[derive(Debug)]
@@ -153,16 +155,24 @@ impl TypeChecker {
         match stmt {
             Statement::Return(exp) => {
                 // Does transform.
+
                 let fun_typ = self.curr_fun_type.as_ref().unwrap();
                 let ret_typ = fun_typ.ret.clone();
 
-                match exp {
-                    Some(exp) => {
-                        let exp = self.cast_by_assignment(Cow::Owned(ret_typ), exp)?;
-
+                match (ret_typ, exp) {
+                    (NonAggrType::Void(_), None) => Ok(Statement::Return(None)),
+                    (NonAggrType::Scalar(ret_sca_typ), Some(exp)) => {
+                        let exp = self.cast_by_assignment(Cow::Owned(ret_sca_typ), exp)?;
                         Ok(Statement::Return(Some(exp)))
                     }
-                    None => todo!(),
+                    (ret_typ, exp) => {
+                        /* Given a function that returns `void`, it's illegal to have a `return <exp>;` stmt, even if the <exp> is typed void.
+                        gcc and clang allow it in non-pedantic mode. */
+                        Err(anyhow!(
+                            "Invalid return stmt. ret_typ={ret_typ:#?} vs has_exp={}",
+                            exp.is_some()
+                        ))
+                    }
                 }
             }
             Statement::Expression(exp) => self.typecheck_exp(exp).map(Statement::Expression),

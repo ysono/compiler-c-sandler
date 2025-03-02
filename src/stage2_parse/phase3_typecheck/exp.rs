@@ -72,9 +72,7 @@ impl TypeChecker {
                 .typecheck_exp_binary(binary)
                 .map(|sca_rexp| sca_rexp.map_typ(NonAggrType::from)),
             RExp::Conditional(cond) => self.typecheck_exp_conditional(cond),
-            RExp::FunctionCall(funcall) => self
-                .typecheck_exp_funcall(funcall)
-                .map(|sca_rexp| sca_rexp.map_typ(NonAggrType::from)),
+            RExp::FunctionCall(funcall) => self.typecheck_exp_funcall(funcall),
             RExp::Assignment(assignment) => self
                 .typecheck_exp_assignment(assignment)
                 .map(|sca_rexp| sca_rexp.map_typ(NonAggrType::from)),

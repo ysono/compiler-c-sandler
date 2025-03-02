@@ -70,7 +70,7 @@ impl TypeChecker {
     pub(super) fn typecheck_exp_funcall(
         &mut self,
         FunctionCall { ident, args }: FunctionCall<ResolvedCAst>,
-    ) -> Result<TypedRExp<SubObjType<ScalarType>>> {
+    ) -> Result<TypedRExp<NonAggrType>> {
         let fun_typ = self.frontend_symtab.symtab().get_fun_type(&ident)?;
         if fun_typ.params.len() != args.len() {
             return Err(anyhow!(
