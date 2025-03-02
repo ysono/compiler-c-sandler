@@ -20,7 +20,7 @@ use crate::{
     common::{
         identifier::{LoopId, SymbolIdentifier},
         symbol_table_frontend::FrontendSymbolTableWithDeduper,
-        types_frontend::{NonVoidType, ObjType, ScalarFunType, ScalarType, SubObjType},
+        types_frontend::{NonVoidType, ObjType, ScalarType, SubObjType, TypecheckedFunType},
     },
     ds_n_a::singleton::{Singleton, SingletonRepository},
     stage2_parse::{c_ast::*, phase2_resolve::ResolvedCAst},
@@ -59,11 +59,11 @@ impl CAstVariant for TypeCheckedCAst {
 
 pub struct TypeChecker {
     obj_type_repo: SingletonRepository<ObjType>,
-    fun_type_repo: SingletonRepository<ScalarFunType>,
+    fun_type_repo: SingletonRepository<TypecheckedFunType>,
 
     frontend_symtab: FrontendSymbolTableWithDeduper,
 
-    curr_fun_type: Option<Singleton<ScalarFunType>>,
+    curr_fun_type: Option<Singleton<TypecheckedFunType>>,
 }
 impl TypeChecker {
     pub fn new(obj_type_repo: SingletonRepository<ObjType>) -> Self {

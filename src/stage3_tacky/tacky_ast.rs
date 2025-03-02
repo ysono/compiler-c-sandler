@@ -5,7 +5,7 @@ use crate::{
         primitive::Const,
         symbol_table_frontend::StaticVisibility,
         types_backend::ByteLen,
-        types_frontend::{ScalarFunType, ScalarType, SubObjType},
+        types_frontend::{ScalarType, SubObjType, TypecheckedFunType},
     },
     ds_n_a::{singleton::Singleton, witness::Witness},
 };
@@ -20,7 +20,7 @@ pub struct Program {
 #[derive(Debug)]
 pub struct Function {
     pub ident: Rc<SymbolIdentifier>,
-    pub typ: Singleton<ScalarFunType>,
+    pub typ: Singleton<TypecheckedFunType>,
     pub visibility: StaticVisibility,
     pub param_idents: Vec<Rc<SymbolIdentifier>>,
     pub instrs: Vec<Instruction>,

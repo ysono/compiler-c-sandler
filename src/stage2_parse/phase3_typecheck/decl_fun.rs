@@ -3,7 +3,9 @@ use crate::{
     common::{
         identifier::SymbolIdentifier,
         symbol_table_frontend::{FunAttrs, StaticVisibility, Symbol},
-        types_frontend::{ParsedFunType, ParsedObjType, ScalarFunType, ScalarType, SubObjType},
+        types_frontend::{
+            ParsedFunType, ParsedObjType, ScalarType, SubObjType, TypecheckedFunType,
+        },
     },
     ds_n_a::singleton::Singleton,
     stage2_parse::{c_ast::*, phase2_resolve::ResolvedCAst},
@@ -56,7 +58,7 @@ impl TypeChecker {
     fn typecheck_fun_type(
         &mut self,
         in_fun_typ: Singleton<ParsedFunType>,
-    ) -> Result<Singleton<ScalarFunType>> {
+    ) -> Result<Singleton<TypecheckedFunType>> {
         let ParsedFunType { params, ret } = in_fun_typ.as_ref();
 
         let ret = ret.as_res()?;
@@ -75,7 +77,9 @@ impl TypeChecker {
             })
             .collect::<Result<Vec<_>>>()?;
 
-        let out_fun_typ = self.fun_type_repo.get_or_new(ScalarFunType { params, ret });
+        let out_fun_typ = self
+            .fun_type_repo
+            .get_or_new(TypecheckedFunType { params, ret });
         Ok(out_fun_typ)
     }
 
@@ -85,7 +89,7 @@ impl TypeChecker {
         ident: &Rc<SymbolIdentifier>,
         new_sc: Option<StorageClassSpecifier>,
         new_body: Option<&Block<ResolvedCAst>>,
-        new_typ: &Singleton<ScalarFunType>,
+        new_typ: &Singleton<TypecheckedFunType>,
     ) -> Result<StaticVisibility> {
         let mut inner = || {
             let new_viz = Self::derive_fun_decl_visibility(new_scope, new_sc, new_body)?;
@@ -126,7 +130,7 @@ impl TypeChecker {
         ident: Rc<SymbolIdentifier>,
         new_viz: Viz,
         newly_defined: bool,
-        new_typ: &Singleton<ScalarFunType>,
+        new_typ: &Singleton<TypecheckedFunType>,
     ) -> Result<StaticVisibility> {
         match self.frontend_symtab.symtab_mut().entry(ident) {
             Entry::Vacant(entry) => {

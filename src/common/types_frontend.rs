@@ -293,7 +293,7 @@ mod fun_type {
         pub ret: Typ,
     }
     pub type ParsedFunType = FunType<ParsedObjType>;
-    pub type ScalarFunType = FunType<SubObjType<ScalarType>>;
+    pub type TypecheckedFunType = FunType<SubObjType<ScalarType>>;
 }
 
 #[cfg(test)]

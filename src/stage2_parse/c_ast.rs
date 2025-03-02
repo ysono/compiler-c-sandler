@@ -5,8 +5,8 @@ use crate::{
         primitive::Const,
         symbol_table_frontend::{InitializerItem, StaticVisibility},
         types_frontend::{
-            NonAggrType, NonVoidType, ParsedFunType, ParsedObjType, ScalarFunType, ScalarType,
-            SubObjType,
+            NonAggrType, NonVoidType, ParsedFunType, ParsedObjType, ScalarType, SubObjType,
+            TypecheckedFunType,
         },
     },
     ds_n_a::singleton::Singleton,
@@ -89,7 +89,7 @@ mod declaration {
     #[derive(Debug)]
     pub struct FunctionDefinition<C: CAstVariant> {
         pub ident: C::SymbolId,
-        pub typ: Singleton<ScalarFunType>,
+        pub typ: Singleton<TypecheckedFunType>,
         pub visibility: StaticVisibility,
         pub param_idents: Vec<C::SymbolId>,
         pub body: Block<C>,

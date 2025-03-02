@@ -3,7 +3,7 @@ use crate::{
         identifier::SymbolIdentifier,
         primitive::Const,
         types_backend::ByteLen,
-        types_frontend::{NonVoidType, ScalarFunType},
+        types_frontend::{NonVoidType, TypecheckedFunType},
     },
     ds_n_a::{singleton::Singleton, weak_ptr::WeakPtr},
 };
@@ -18,7 +18,7 @@ pub enum Symbol {
         attrs: ObjAttrs,
     },
     Fun {
-        typ: Singleton<ScalarFunType>,
+        typ: Singleton<TypecheckedFunType>,
         attrs: FunAttrs,
     },
 }
@@ -86,7 +86,7 @@ impl FrontendSymbolTable {
             _ => Err(anyhow!("Not object. {ident:#?} {symbol:#?}")),
         }
     }
-    pub fn get_fun_type(&self, ident: &SymbolIdentifier) -> Result<&Singleton<ScalarFunType>> {
+    pub fn get_fun_type(&self, ident: &SymbolIdentifier) -> Result<&Singleton<TypecheckedFunType>> {
         let symbol = self.get(ident)?;
         match symbol {
             Symbol::Fun { typ, .. } => Ok(typ),
