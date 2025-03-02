@@ -15,7 +15,11 @@ impl FunInstrsGenerator<'_> {
         let rhs = self.gen_exp_and_get_value(*rhs);
         self.gen_assignment(lhs, rhs)
     }
-    pub(super) fn gen_assignment(&mut self, dst_obj: Object<ScalarType>, src_val: Value) -> Value {
+    pub(super) fn gen_assignment(
+        &mut self,
+        dst_obj: Object<SubObjType<ScalarType>>,
+        src_val: Value,
+    ) -> Value {
         match dst_obj {
             Object::Direct(ident, sca_typ_witness) => {
                 let dst_val = Value::Variable(ident, sca_typ_witness);
@@ -41,7 +45,7 @@ impl FunInstrsGenerator<'_> {
     pub(super) fn gen_exp_deref<LTyp>(
         &mut self,
         c::Dereference(sub_exp): c::Dereference<TypeCheckedCAst>,
-        pointee_type: SubObjType<LTyp>,
+        pointee_type: LTyp,
     ) -> Object<LTyp> {
         let addr = self.gen_exp_and_get_value(*sub_exp);
         Object::Pointee { addr, typ: pointee_type }

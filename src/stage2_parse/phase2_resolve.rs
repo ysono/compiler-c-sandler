@@ -30,8 +30,10 @@ impl CAstVariant for ResolvedCAst {
 
     /* Categories of Expressions */
 
-    type Expression<SubTyp: Debug> = Expression<Self>;
-    type LvalueExpression<SubTyp: Debug> = Expression<Self>;
+    type Expression_AnyType = Expression<Self>;
+    type Expression_ScalarType = Expression<Self>;
+    type Expression_Lvalue_AnyType = Expression<Self>;
+    type Expression_Lvalue_ScalarType = Expression<Self>;
 
     /* Specific Expressions ; Operands */
 

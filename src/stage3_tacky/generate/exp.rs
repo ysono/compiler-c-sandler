@@ -13,7 +13,7 @@ use std::rc::Rc;
 
 /// Expression
 impl FunInstrsGenerator<'_> {
-    pub(super) fn gen_exp<LTyp>(&mut self, typed_exp: c::TypedExp<LTyp>) {
+    pub(super) fn gen_exp(&mut self, typed_exp: c::AnyExp) {
         match typed_exp {
             c::TypedExp::R(typed_rexp) => {
                 self.gen_rexp(typed_rexp);
@@ -27,7 +27,7 @@ impl FunInstrsGenerator<'_> {
     /// 1. Generate tacky instructions; and get as the result either a value or an object.
     /// 1. If the given expression was an lvalue-expression, ie if the expression designated an object,
     ///     then lvalue-convert the expression, ie extract the value out of the object.
-    pub(super) fn gen_exp_and_get_value(&mut self, typed_exp: c::TypedExp<ScalarType>) -> Value {
+    pub(super) fn gen_exp_and_get_value(&mut self, typed_exp: c::ScalarExp) -> Value {
         match typed_exp {
             c::TypedExp::R(typed_rexp) => self.gen_rexp(typed_rexp),
             c::TypedExp::L(typed_lexp) => {
@@ -62,10 +62,10 @@ impl FunInstrsGenerator<'_> {
         }
     }
 
-    pub(super) fn gen_lexp<LTyp>(
+    pub(super) fn gen_lexp<LSubTyp>(
         &mut self,
-        c::TypedLExp { exp, typ }: c::TypedLExp<LTyp>,
-    ) -> Object<LTyp> {
+        c::TypedLExp { exp, typ }: c::TypedLExp<SubObjType<LSubTyp>>,
+    ) -> Object<SubObjType<LSubTyp>> {
         match exp {
             c::LExp::String(ident) => Object::Direct(ident, Witness::new(&typ)),
             c::LExp::Var(ident) => Object::Direct(ident, Witness::new(&typ)),

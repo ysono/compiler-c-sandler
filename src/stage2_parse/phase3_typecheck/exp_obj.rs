@@ -1,6 +1,6 @@
 use super::TypeChecker;
 use crate::{
-    common::types_frontend::{ObjType, PointerType, ScalarType},
+    common::types_frontend::{ObjType, PointerType, ScalarType, SubObjType},
     stage2_parse::{c_ast::*, phase2_resolve::ResolvedCAst},
 };
 use anyhow::{Result, anyhow};
@@ -57,7 +57,7 @@ impl TypeChecker {
     pub(super) fn typecheck_exp_deref(
         &mut self,
         Dereference(sub_exp): Dereference<ResolvedCAst>,
-    ) -> Result<TypedLExp<ObjType>> {
+    ) -> Result<TypedLExp<SubObjType<ObjType>>> {
         let sub_exp = self.typecheck_exp_and_convert_to_scalar(*sub_exp)?;
 
         let typ = match sub_exp.typ().as_ref() {

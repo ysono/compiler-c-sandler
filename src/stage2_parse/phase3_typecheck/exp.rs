@@ -1,6 +1,6 @@
 use super::TypeChecker;
 use crate::{
-    common::types_frontend::{ObjType, ScalarType},
+    common::types_frontend::{ObjType, SubObjType},
     stage2_parse::{c_ast::*, phase2_resolve::ResolvedCAst},
 };
 use anyhow::Result;
@@ -9,10 +9,7 @@ use owning_ref::OwningRef;
 impl TypeChecker {
     /// + Validate the input types.
     /// + Annotate the output type.
-    pub(super) fn typecheck_exp(
-        &mut self,
-        exp: Expression<ResolvedCAst>,
-    ) -> Result<TypedExp<ObjType>> {
+    pub(super) fn typecheck_exp(&mut self, exp: Expression<ResolvedCAst>) -> Result<AnyExp> {
         match exp {
             Expression::R(rexp) => self.typecheck_rexp(rexp).map(TypedExp::R),
             Expression::L(lexp) => self.typecheck_lexp(lexp).map(TypedExp::L),
@@ -25,7 +22,7 @@ impl TypeChecker {
     pub(super) fn typecheck_exp_and_convert_to_scalar(
         &mut self,
         exp: Expression<ResolvedCAst>,
-    ) -> Result<TypedExp<ScalarType>> {
+    ) -> Result<ScalarExp> {
         let obj_typed_exp = self.typecheck_exp(exp)?;
 
         let sca_typed_exp = match obj_typed_exp {
@@ -76,7 +73,7 @@ impl TypeChecker {
     pub(super) fn typecheck_lexp(
         &mut self,
         lexp: LExp<ResolvedCAst>,
-    ) -> Result<TypedLExp<ObjType>> {
+    ) -> Result<TypedLExp<SubObjType<ObjType>>> {
         match lexp {
             LExp::String(chars) => {
                 let (ident, typ) = self.define_static_readonly_string(chars);

@@ -14,6 +14,7 @@ use crate::{
 use derive_more::From;
 use std::fmt::Debug;
 
+#[allow(non_camel_case_types)]
 pub trait CAstVariant {
     /* Declarations */
 
@@ -28,8 +29,10 @@ pub trait CAstVariant {
 
     /* Categories of Expressions */
 
-    type Expression<SubTyp: Debug>: Debug;
-    type LvalueExpression<SubTyp: Debug>: Debug;
+    type Expression_AnyType: Debug;
+    type Expression_ScalarType: Debug;
+    type Expression_Lvalue_AnyType: Debug;
+    type Expression_Lvalue_ScalarType: Debug;
 
     /* Specific Expressions ; Operands */
 
@@ -61,7 +64,7 @@ mod declaration {
 
     #[derive(Debug)]
     pub enum VariableInitializer<C: CAstVariant> {
-        Single(C::Expression<ObjType>),
+        Single(C::Expression_AnyType),
         Compound(Vec<VariableInitializer<C>>),
     }
 
@@ -71,7 +74,7 @@ mod declaration {
         pub init: Vec<RuntimeInitializerItem>,
     }
 
-    pub type RuntimeInitializerItem = InitializerItem<TypedExp<ScalarType>, ()>;
+    pub type RuntimeInitializerItem = InitializerItem<ScalarExp, ()>;
 
     #[derive(Debug)]
     pub struct FunctionDeclaration<C: CAstVariant> {
@@ -105,8 +108,8 @@ pub enum BlockItem<C: CAstVariant> {
 
 #[derive(Debug)]
 pub enum Statement<C: CAstVariant> {
-    Return(Option<C::Expression<ScalarType>>),
-    Expression(C::Expression<ObjType>),
+    Return(Option<C::Expression_ScalarType>),
+    Expression(C::Expression_AnyType),
     If(If<C>),
     Compound(Block<C>),
     Break(C::LoopId),
@@ -121,7 +124,7 @@ mod statement {
 
     #[derive(Debug)]
     pub struct If<C: CAstVariant> {
-        pub condition: C::Expression<ScalarType>,
+        pub condition: C::Expression_ScalarType,
         pub then: Box<Statement<C>>,
         pub elze: Option<Box<Statement<C>>>,
     }
@@ -129,7 +132,7 @@ mod statement {
     #[derive(Debug)]
     pub struct CondBody<C: CAstVariant> {
         pub loop_id: C::LoopId,
-        pub condition: C::Expression<ScalarType>,
+        pub condition: C::Expression_ScalarType,
         pub body: Box<Statement<C>>,
     }
 
@@ -137,15 +140,15 @@ mod statement {
     pub struct For<C: CAstVariant> {
         pub loop_id: C::LoopId,
         pub init: ForInit<C>,
-        pub condition: Option<C::Expression<ScalarType>>,
-        pub post: Option<C::Expression<ObjType>>,
+        pub condition: Option<C::Expression_ScalarType>,
+        pub post: Option<C::Expression_AnyType>,
         pub body: Box<Statement<C>>,
     }
 
     #[derive(Debug)]
     pub enum ForInit<C: CAstVariant> {
         Decl(C::ForInitDeclaration),
-        Exp(C::Expression<ObjType>),
+        Exp(C::Expression_AnyType),
         None,
     }
 }
@@ -183,20 +186,20 @@ mod expression {
     #[derive(Debug)]
     pub struct Cast<C: CAstVariant> {
         pub typ: C::TypeOperand<Singleton<ObjType>>,
-        pub sub_exp: Box<C::Expression<ScalarType>>,
+        pub sub_exp: Box<C::Expression_ScalarType>,
     }
 
     #[derive(Debug)]
     pub struct Unary<C: CAstVariant> {
         pub op: UnaryOperator,
-        pub sub_exp: Box<C::Expression<ScalarType>>,
+        pub sub_exp: Box<C::Expression_ScalarType>,
     }
 
     #[derive(Debug)]
     pub struct Binary<C: CAstVariant> {
         pub op: C::BinaryOperator,
-        pub lhs: Box<C::Expression<ScalarType>>,
-        pub rhs: Box<C::Expression<ScalarType>>,
+        pub lhs: Box<C::Expression_ScalarType>,
+        pub rhs: Box<C::Expression_ScalarType>,
     }
 
     #[derive(Debug)]
@@ -254,38 +257,38 @@ mod expression {
 
     #[derive(Debug)]
     pub struct Conditional<C: CAstVariant> {
-        pub condition: Box<C::Expression<ScalarType>>,
-        pub then: Box<C::Expression<ScalarType>>,
-        pub elze: Box<C::Expression<ScalarType>>,
+        pub condition: Box<C::Expression_ScalarType>,
+        pub then: Box<C::Expression_ScalarType>,
+        pub elze: Box<C::Expression_ScalarType>,
     }
 
     #[derive(Debug)]
     pub struct FunctionCall<C: CAstVariant> {
         pub ident: C::SymbolId,
-        pub args: Vec<C::Expression<ScalarType>>,
+        pub args: Vec<C::Expression_ScalarType>,
     }
 
     #[derive(Debug)]
     pub struct Assignment<C: CAstVariant> {
-        pub lhs: Box<C::LvalueExpression<ScalarType>>,
-        pub rhs: Box<C::Expression<ScalarType>>,
+        pub lhs: Box<C::Expression_Lvalue_ScalarType>,
+        pub rhs: Box<C::Expression_ScalarType>,
     }
 
     #[derive(Debug)]
-    pub struct AddrOf<C: CAstVariant>(pub Box<C::LvalueExpression<ObjType>>);
+    pub struct AddrOf<C: CAstVariant>(pub Box<C::Expression_Lvalue_AnyType>);
 
     #[derive(Debug)]
     pub struct SizeOfExp<C: CAstVariant> {
-        pub sub_exp: Box<C::Expression<NonVoidType>>,
+        pub sub_exp: Box<C::Expression_AnyType>,
     }
 
     #[derive(Debug)]
-    pub struct Dereference<C: CAstVariant>(pub Box<C::Expression<ScalarType>>);
+    pub struct Dereference<C: CAstVariant>(pub Box<C::Expression_ScalarType>);
 
     #[derive(Debug)]
     pub struct Subscript<C: CAstVariant> {
-        pub exp1: Box<C::Expression<ScalarType>>,
-        pub exp2: Box<C::Expression<ScalarType>>,
+        pub exp1: Box<C::Expression_ScalarType>,
+        pub exp2: Box<C::Expression_ScalarType>,
     }
 }
 
@@ -298,7 +301,9 @@ mod typed_expression {
         R(TypedRExp),
         L(TypedLExp<LTyp>),
     }
-    impl TypedExp<ScalarType> {
+    pub type AnyExp = TypedExp<SubObjType<ObjType>>;
+    pub type ScalarExp = TypedExp<SubObjType<ScalarType>>;
+    impl ScalarExp {
         pub fn typ(&self) -> &SubObjType<ScalarType> {
             match self {
                 Self::R(typed_rexp) => &typed_rexp.typ,
@@ -313,5 +318,5 @@ mod typed_expression {
         pub exp: Exp,
     }
     pub type TypedRExp = TypAndExp<SubObjType<ScalarType>, RExp<TypeCheckedCAst>>;
-    pub type TypedLExp<LTyp> = TypAndExp<SubObjType<LTyp>, LExp<TypeCheckedCAst>>;
+    pub type TypedLExp<LTyp> = TypAndExp<LTyp, LExp<TypeCheckedCAst>>;
 }

@@ -28,8 +28,8 @@ impl FunInstrsGenerator<'_> {
 
     fn gen_ptr_plus_integ(
         &mut self,
-        ptr: c::TypedExp<ScalarType>,
-        idx: c::TypedExp<ScalarType>,
+        ptr: c::ScalarExp,
+        idx: c::ScalarExp,
         ptr_typ: SubObjType<ScalarType>,
     ) -> Value {
         let scale = extract_pointee_bytelen(ptr.typ()).unwrap();
@@ -52,8 +52,8 @@ impl FunInstrsGenerator<'_> {
 
     fn gen_ptr_minus_integ(
         &mut self,
-        ptr: c::TypedExp<ScalarType>,
-        idx: c::TypedExp<ScalarType>,
+        ptr: c::ScalarExp,
+        idx: c::ScalarExp,
         ptr_typ: SubObjType<ScalarType>,
     ) -> Value {
         let scale = extract_pointee_bytelen(ptr.typ()).unwrap();
@@ -85,8 +85,8 @@ impl FunInstrsGenerator<'_> {
 
     fn gen_ptr_minus_ptr(
         &mut self,
-        lhs_ptr: c::TypedExp<ScalarType>,
-        rhs_ptr: c::TypedExp<ScalarType>,
+        lhs_ptr: c::ScalarExp,
+        rhs_ptr: c::ScalarExp,
         out_typ: SubObjType<ScalarType>,
     ) -> Value {
         let scale = extract_pointee_bytelen(lhs_ptr.typ()).unwrap();
@@ -120,11 +120,11 @@ impl FunInstrsGenerator<'_> {
 
 /// Subscript
 impl FunInstrsGenerator<'_> {
-    pub(super) fn gen_exp_subscript<LTyp>(
+    pub(super) fn gen_exp_subscript<LSubTyp>(
         &mut self,
         c::Subscript { exp1: ptr_exp, exp2: idx_exp }: c::Subscript<TypeCheckedCAst>,
-        pointee_type: SubObjType<LTyp>,
-    ) -> Object<LTyp> {
+        pointee_type: SubObjType<LSubTyp>,
+    ) -> Object<SubObjType<LSubTyp>> {
         debug_assert!(extract_pointer_type(ptr_exp.typ()).is_ok());
         debug_assert_eq!(
             extract_arithmetic_type(idx_exp.typ().as_owner()),

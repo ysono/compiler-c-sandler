@@ -206,14 +206,14 @@ mod operand {
     /// The "object" concept comprises a memory location that contains a "value"; and is mutable.
     pub(in crate::stage3_tacky) enum Object<LTyp> {
         /// An object whose memory location is identified directly.
-        Direct(Rc<SymbolIdentifier>, Witness<SubObjType<LTyp>>),
+        Direct(Rc<SymbolIdentifier>, Witness<LTyp>),
 
         /// An object whose memory location is contained in a separate value.
         Pointee {
             addr: Value,
 
             /// The type of the target pointee object (not the type of the memory location value).
-            typ: SubObjType<LTyp>,
+            typ: LTyp,
         },
     }
 }
