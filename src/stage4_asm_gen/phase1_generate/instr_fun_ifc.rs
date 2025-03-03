@@ -133,17 +133,15 @@ impl InstrsGenerator {
         }
 
         /* Push the instruction that `mov`s the return value. */
-        let dst = match dst {
-            Some(dst) => dst,
-            None => todo!(),
-        };
-        let (dst, _, dst_asm_type) = self.value_to_operand_and_type(dst);
-        let ret_reg = derive_return_register(dst_asm_type);
-        asm_instrs.push(Instruction::Mov {
-            asm_type: dst_asm_type,
-            src: Operand::Register(ret_reg).into(),
-            dst,
-        });
+        if let Some(dst) = dst {
+            let (dst, _, dst_asm_type) = self.value_to_operand_and_type(dst);
+            let ret_reg = derive_return_register(dst_asm_type);
+            asm_instrs.push(Instruction::Mov {
+                asm_type: dst_asm_type,
+                src: Operand::Register(ret_reg).into(),
+                dst,
+            });
+        }
 
         asm_instrs
     }
@@ -183,19 +181,22 @@ impl InstrsGenerator {
         &mut self,
         t_val: Option<t::Value>,
     ) -> Vec<Instruction<GeneratedAsmAst>> {
-        let t_val = t_val.unwrap(); // TODO
-
-        let (src, _, asm_type) = self.value_to_operand_and_type(t_val);
-        let ret_reg = derive_return_register(asm_type);
-        let asm_instr_1 = Instruction::Mov {
-            asm_type,
-            src,
-            dst: Operand::Register(ret_reg).into(),
-        };
+        let asm_instr_1 = t_val.map(|t_val| {
+            let (src, _, asm_type) = self.value_to_operand_and_type(t_val);
+            let ret_reg = derive_return_register(asm_type);
+            Instruction::Mov {
+                asm_type,
+                src,
+                dst: Operand::Register(ret_reg).into(),
+            }
+        });
 
         let asm_instr_2 = Instruction::Ret;
 
-        vec![asm_instr_1, asm_instr_2]
+        [asm_instr_1, Some(asm_instr_2)]
+            .into_iter()
+            .flatten()
+            .collect()
     }
 }
 
