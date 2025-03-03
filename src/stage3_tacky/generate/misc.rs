@@ -1,8 +1,9 @@
 use super::FunInstrsGenerator;
 use crate::{
     common::{
+        primitive::Const,
         types_backend::OperandByteLen,
-        types_frontend::{ArithmeticType, NonAggrType},
+        types_frontend::{ArithmeticType, NonAggrType, NonVoidType},
     },
     stage2_parse::{c_ast as c, phase3_typecheck::TypeCheckedCAst},
     stage3_tacky::tacky_ast::*,
@@ -102,5 +103,13 @@ impl FunInstrsGenerator<'_> {
         }));
 
         result
+    }
+}
+
+/// C Sizeof
+impl FunInstrsGenerator<'_> {
+    pub(super) fn gen_exp_sizeof(typ_operand: NonVoidType) -> Value {
+        let bytelen = typ_operand.bytelen().as_int();
+        Value::Constant(Const::ULong(bytelen))
     }
 }
