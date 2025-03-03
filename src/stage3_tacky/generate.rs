@@ -88,7 +88,7 @@ impl FunInstrsGenerator<'_> {
         The return type of any non-`main` function that lacks a `return` statement is undefined.
         Therefore, it's correct to always return `int`. */
         let val = Value::Constant(Const::Int(0));
-        self.instrs.push(Instruction::Return(val));
+        self.instrs.push(Instruction::Return(Some(val)));
 
         Function {
             ident,
@@ -116,13 +116,10 @@ impl FunInstrsGenerator<'_> {
 impl FunInstrsGenerator<'_> {
     fn gen_stmt(&mut self, c_stmt: c::Statement<TypeCheckedCAst>) {
         match c_stmt {
-            c::Statement::Return(c_exp) => match c_exp {
-                Some(c_exp) => {
-                    let val = self.gen_sca_exp_and_get_value(c_exp);
-                    self.instrs.push(Instruction::Return(val));
-                }
-                None => todo!(),
-            },
+            c::Statement::Return(c_exp) => {
+                let opt_val = c_exp.map(|c_exp| self.gen_sca_exp_and_get_value(c_exp));
+                self.instrs.push(Instruction::Return(opt_val));
+            }
             c::Statement::Expression(c_exp) => {
                 self.gen_exp(c_exp);
             }

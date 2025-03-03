@@ -23,8 +23,8 @@ pub fn remove_tacky_implicit_return_instr(mut t_prog: tacky_ast::Program) -> tac
         let last_instr = fun.instrs.pop();
         assert!(matches!(
             last_instr,
-            Some(tacky_ast::Instruction::Return(tacky_ast::Value::Constant(
-                Const::Int(0)
+            Some(tacky_ast::Instruction::Return(Some(
+                tacky_ast::Value::Constant(Const::Int(0))
             )))
         ));
     }

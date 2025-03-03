@@ -28,7 +28,7 @@ pub struct Function {
 
 #[derive(Debug)]
 pub enum Instruction {
-    Return(Value),
+    Return(Option<Value>),
     SignExtend(SrcDst),
     ZeroExtend(SrcDst),
     Truncate(SrcDst),

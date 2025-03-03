@@ -179,7 +179,12 @@ impl InstrsGenerator {
         }
     }
 
-    pub(super) fn gen_return(&mut self, t_val: t::Value) -> Vec<Instruction<GeneratedAsmAst>> {
+    pub(super) fn gen_return(
+        &mut self,
+        t_val: Option<t::Value>,
+    ) -> Vec<Instruction<GeneratedAsmAst>> {
+        let t_val = t_val.unwrap(); // TODO
+
         let (src, _, asm_type) = self.value_to_operand_and_type(t_val);
         let ret_reg = derive_return_register(asm_type);
         let asm_instr_1 = Instruction::Mov {
