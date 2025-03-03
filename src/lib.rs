@@ -16,6 +16,11 @@ mod utils {
         ( $($comment:tt),* ) => {{} /* Empty expression */};
     }
     pub(crate) use noop;
+
+    pub enum Either {
+        Left,
+        Right,
+    }
 }
 
 #[cfg(test)]

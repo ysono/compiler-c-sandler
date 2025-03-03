@@ -6,6 +6,7 @@ use crate::{
     },
     ds_n_a::singleton::Singleton,
     stage2_parse::{c_ast::*, phase2_resolve::ResolvedCAst},
+    utils::Either,
 };
 use anyhow::{Result, anyhow};
 use owning_ref::OwningRef;
@@ -37,14 +38,8 @@ impl TypeChecker {
                 let ari_typ = Self::derive_common_arithmetic_type(*a1, *a2);
                 Ok(self.get_scalar_type(ari_typ))
             }
-            (ScalarType::Ptr(ptr_typ), _) => {
-                Self::validate_common_pointer_type(ptr_typ, exp2)?;
-                Ok(exp1.typ().clone())
-            }
-            (_, ScalarType::Ptr(ptr_typ)) => {
-                Self::validate_common_pointer_type(ptr_typ, exp1)?;
-                Ok(exp2.typ().clone())
-            }
+            (ScalarType::Ptr(ptr_typ), _) => Self::derive_common_pointer_type(ptr_typ, exp1, exp2),
+            (_, ScalarType::Ptr(ptr_typ)) => Self::derive_common_pointer_type(ptr_typ, exp2, exp1),
         }
     }
     /// Aka "usual arithmetic conversion".
@@ -82,17 +77,43 @@ impl TypeChecker {
             }
         }
     }
-    fn validate_common_pointer_type(ptr_typ: &PointerType, other_exp: &ScalarExp) -> Result<()> {
-        #[allow(clippy::if_same_then_else)]
-        if matches!(other_exp.typ().as_ref(), ScalarType::Ptr(ptr_typ_2) if ptr_typ == ptr_typ_2) {
-            Ok(())
-        } else if matches!(other_exp, TypedExp::R(TypedRExp{exp: RExp::Const(k), ..}) if k.is_zero_integer())
-        {
-            Ok(())
-        } else {
-            Err(anyhow!(
-                "No common type between {ptr_typ:#?} and {other_exp:#?}"
-            ))
+    fn derive_common_pointer_type(
+        ptr_typ: &PointerType,
+        ptr_exp: &ScalarExp,
+        other_exp: &ScalarExp,
+    ) -> Result<SubObjType<ScalarType>> {
+        Self::detect_common_pointer_type(ptr_typ, other_exp)
+            .map_err(|()| anyhow!("No common type between {ptr_typ:#?} and {other_exp:#?}"))
+            .map(|either| match either {
+                Either::Left => ptr_exp.typ().clone(),
+                Either::Right => other_exp.typ().clone(),
+            })
+    }
+    fn detect_common_pointer_type(
+        ptr_typ: &PointerType,
+        other_exp: &ScalarExp,
+    ) -> Result<Either, ()> {
+        match other_exp.typ().as_ref() {
+            ScalarType::Arith(_) => match other_exp {
+                TypedExp::R(TypedRExp { exp: RExp::Const(k), .. }) if k.is_zero_integer() => {
+                    Ok(Either::Left)
+                }
+                _ => Err(()),
+            },
+            ScalarType::Ptr(ptr_typ_2) => {
+                let PointerType { pointee_type: t1 } = ptr_typ;
+                let PointerType { pointee_type: t2 } = ptr_typ_2;
+                if t1 == t2 {
+                    /* First compare by Rc::ptr_eq(). */
+                    Ok(Either::Left)
+                } else {
+                    match (t1.as_ref(), t2.as_ref()) {
+                        (ObjType::Void, _) => Ok(Either::Left),
+                        (_, ObjType::Void) => Ok(Either::Right),
+                        _ => Err(()),
+                    }
+                }
+            }
         }
     }
 }
@@ -139,12 +160,10 @@ impl TypeChecker {
     pub(super) fn can_cast_by_assignment(to: &ScalarType, from: &ScalarExp) -> Result<()> {
         let ok = match (to, from.typ().as_ref()) {
             (ScalarType::Arith(_), ScalarType::Arith(_)) => Ok(()),
-            (ScalarType::Ptr(p2), ScalarType::Ptr(p1)) if p2 == p1 => Ok(()),
-            (ScalarType::Ptr(_), _) => match from {
-                TypedExp::R(TypedRExp { exp: RExp::Const(k), .. }) if k.is_zero_integer() => Ok(()),
-                _ => Err(()),
-            },
-            _ => Err(()),
+            (ScalarType::Arith(_), ScalarType::Ptr(_)) => Err(()),
+            (ScalarType::Ptr(ptr_to), _) => {
+                Self::detect_common_pointer_type(ptr_to, from).map(|_either| ())
+            }
         };
         ok.map_err(|()| anyhow!("Cannot \"convert as if by assignment\" {to:#?} <- {from:#?}"))
     }
