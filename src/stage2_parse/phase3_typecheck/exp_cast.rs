@@ -3,10 +3,9 @@ use crate::{
     common::{
         types_backend::OperandByteLen,
         types_frontend::{
-            ArithmeticType, ArrayType, NonAggrType, ObjType, PointerType, ScalarType, SubObjType,
+            ArithmeticType, NonAggrType, ObjType, PointerType, ScalarType, SubObjType,
         },
     },
-    ds_n_a::singleton::Singleton,
     stage2_parse::{c_ast::*, phase2_resolve::ResolvedCAst},
     utils::Either,
 };
@@ -252,26 +251,11 @@ impl TypeChecker {
         &mut self,
         typ: Typ,
     ) -> SubObjType<ScalarType> {
-        let obj_typ = self.obj_type_repo.get_or_new(ObjType::Scalar(typ.into()));
-        Self::extract_scalar_type(obj_typ).unwrap()
-    }
-    pub(super) fn extract_scalar_type(
-        obj_typ: Singleton<ObjType>,
-    ) -> Result<SubObjType<ScalarType>, SubObjType<ArrayType>> {
-        match obj_typ.as_ref() {
-            ObjType::Void(_) => todo!(),
-            ObjType::Scalar(sca_typ) => {
-                let sca_typ = sca_typ as *const ScalarType;
-                let sca_typ = unsafe { &*sca_typ };
-                let ownref = OwningRef::new(obj_typ).map(|_| sca_typ);
-                Ok(ownref)
-            }
-            ObjType::Array(arr_typ) => {
-                let arr_typ = arr_typ as *const ArrayType;
-                let arr_typ = unsafe { &*arr_typ };
-                let ownref = OwningRef::new(obj_typ).map(|_| arr_typ);
-                Err(ownref)
-            }
-        }
+        let obj_typ = ObjType::Scalar(typ.into());
+        let obj_typ_node = self.obj_type_repo.get_or_new(obj_typ);
+        OwningRef::new(obj_typ_node).map(|o| match o {
+            ObjType::Scalar(s) => s,
+            _ => unreachable!(),
+        })
     }
 }
