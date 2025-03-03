@@ -66,7 +66,7 @@ impl TypeChecker {
                         StaticInitializerItem::Single(out_konst)
                     }
                 }
-                RExp::AddrOf(AddrOf(sub_exp)) => match *sub_exp {
+                RExp::AddrOf(AddrOf { sub_exp, .. }) => match *sub_exp {
                     TypedLExp {
                         exp: LExp::String(static_obj_ident),
                         ..

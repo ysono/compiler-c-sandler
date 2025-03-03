@@ -1,7 +1,7 @@
 use super::TypeChecker;
 use crate::{
     common::types_frontend::{NonVoidType, ObjType, PointerType, ScalarType, SubObjType},
-    ds_n_a::singleton::Singleton,
+    ds_n_a::{singleton::Singleton, witness::Witness},
     stage2_parse::{c_ast::*, phase2_resolve::ResolvedCAst},
 };
 use anyhow::{Result, anyhow};
@@ -41,7 +41,7 @@ impl TypeChecker {
 
     pub(super) fn typecheck_exp_addrof(
         &mut self,
-        AddrOf(sub_exp): AddrOf<ResolvedCAst>,
+        AddrOf { sub_exp, concrete_typ: () }: AddrOf<ResolvedCAst>,
     ) -> Result<TypedRExp<SubObjType<ScalarType>>> {
         let sub_exp = {
             let lexp = extract_lexp(*sub_exp)?;
@@ -52,7 +52,10 @@ impl TypeChecker {
         let pointee_type: Singleton<ObjType> = sub_exp.typ.clone().into();
         let typ = self.get_scalar_type(PointerType { pointee_type });
 
-        let exp = RExp::AddrOf(AddrOf(Box::new(sub_exp)));
+        let exp = RExp::AddrOf(AddrOf {
+            sub_exp: Box::new(sub_exp),
+            concrete_typ: Witness::new(&typ),
+        });
         Ok(TypedRExp { typ, exp })
     }
 

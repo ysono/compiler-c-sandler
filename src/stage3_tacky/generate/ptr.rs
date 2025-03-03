@@ -4,7 +4,7 @@ use crate::{
         primitive::Const,
         types_backend::ByteLen,
         types_frontend::{
-            ArithmeticType, NonVoidType, ObjType, PointerType, ScalarType, SubObjType,
+            ArithmeticType, NonAggrType, NonVoidType, ObjType, PointerType, ScalarType, SubObjType,
         },
     },
     stage2_parse::{c_ast as c, phase3_typecheck::TypeCheckedCAst},
@@ -16,15 +16,17 @@ impl FunInstrsGenerator<'_> {
     pub(super) fn gen_exp_binary_ptr(
         &mut self,
         op: c::PointerArithmeticBinaryOperator,
-        c::Binary { op: _, lhs, rhs }: c::Binary<TypeCheckedCAst>,
-        out_typ: SubObjType<ScalarType>,
+        c::Binary { op: _, lhs, rhs, concrete_typ }: c::Binary<TypeCheckedCAst>,
+        ifc_typ: NonAggrType,
     ) -> Value {
         use c::PointerArithmeticBinaryOperator as COP;
 
+        let sca_typ = Self::extract_sca_typ(ifc_typ, concrete_typ);
+
         match op {
-            COP::PointerPlusInteger => self.gen_ptr_plus_integ(*lhs, *rhs, out_typ),
-            COP::PointerMinusInteger => self.gen_ptr_minus_integ(*lhs, *rhs, out_typ),
-            COP::PointerMinusPointer => self.gen_ptr_minus_ptr(*lhs, *rhs, out_typ),
+            COP::PointerPlusInteger => self.gen_ptr_plus_integ(*lhs, *rhs, sca_typ),
+            COP::PointerMinusInteger => self.gen_ptr_minus_integ(*lhs, *rhs, sca_typ),
+            COP::PointerMinusPointer => self.gen_ptr_minus_ptr(*lhs, *rhs, sca_typ),
         }
     }
 
@@ -125,7 +127,7 @@ impl FunInstrsGenerator<'_> {
     pub(super) fn gen_exp_subscript<LTyp: Clone + Into<NonVoidType>>(
         &mut self,
         c::Subscript { exp1: ptr_exp, exp2: idx_exp }: c::Subscript<TypeCheckedCAst>,
-        pointee_type: LTyp,
+        ifc_typ: LTyp,
     ) -> Object<LTyp> {
         debug_assert!(extract_pointer_type(ptr_exp.typ()).is_ok());
         debug_assert_eq!(
@@ -136,7 +138,7 @@ impl FunInstrsGenerator<'_> {
         let ptr_typ = ptr_exp.typ().clone();
         let addr = self.register_new_value(ptr_typ);
 
-        let scale = pointee_type.clone().into().bytelen();
+        let scale = ifc_typ.clone().into().bytelen();
 
         /* Begin instructions */
 
@@ -150,7 +152,7 @@ impl FunInstrsGenerator<'_> {
             dst: addr.clone(),
         }));
 
-        Object::Pointee { addr, typ: pointee_type }
+        Object::Pointee { addr, typ: ifc_typ }
     }
 }
 

@@ -1,6 +1,6 @@
 use super::FunInstrsGenerator;
 use crate::{
-    common::types_frontend::{ScalarType, SubObjType},
+    common::types_frontend::{NonAggrType, ScalarType, SubObjType},
     stage2_parse::{c_ast as c, phase3_typecheck::TypeCheckedCAst},
     stage3_tacky::tacky_ast::*,
 };
@@ -52,12 +52,12 @@ impl FunInstrsGenerator<'_> {
     }
     pub(super) fn gen_exp_addrof(
         &mut self,
-        c::AddrOf(sub_exp): c::AddrOf<TypeCheckedCAst>,
-        pointer_type: SubObjType<ScalarType>,
+        c::AddrOf { sub_exp, concrete_typ }: c::AddrOf<TypeCheckedCAst>,
+        ifc_typ: NonAggrType,
     ) -> Value {
         match self.gen_lexp(*sub_exp) {
-            Object::Direct(ident, _obj_typ_witness) => {
-                let dst = self.register_new_value(pointer_type);
+            Object::Direct(ident, _nonvoid_typ_witness) => {
+                let dst = self.register_new_value(Self::extract_sca_typ(ifc_typ, concrete_typ));
                 self.instrs.push(Instruction::GetAddress(GetAddress {
                     src_obj: ident,
                     dst_addr: dst.clone(),

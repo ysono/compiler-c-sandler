@@ -24,7 +24,10 @@ use crate::{
             NonAggrType, NonVoidType, ObjType, ScalarType, SubObjType, TypecheckedFunType,
         },
     },
-    ds_n_a::singleton::{Singleton, SingletonRepository},
+    ds_n_a::{
+        singleton::{Singleton, SingletonRepository},
+        witness::Witness,
+    },
     stage2_parse::{c_ast::*, phase2_resolve::ResolvedCAst},
 };
 use anyhow::{Result, anyhow};
@@ -52,12 +55,16 @@ impl CAstVariant for TypeCheckedCAst {
     type Expression_Lvalue_AnyType = TypedLExp<NonVoidType>;
     type Expression_Lvalue_ScalarType = TypedLExp<SubObjType<ScalarType>>;
 
-    /* Specific Expressions ; Operands */
+    /* Specific Expressions and their parameters */
 
     type BinaryOperator = TypeCheckedBinaryOperator;
     type StringExpression = Rc<SymbolIdentifier>;
     type TypeOperand<Typ: Debug> = Typ;
     type SizeOfExpExpression = ();
+
+    /* Expressions' outputs */
+
+    type ConcreteType<Typ: Debug> = Witness<Typ>;
 }
 
 pub struct TypeChecker {

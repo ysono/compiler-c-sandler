@@ -1,9 +1,6 @@
 use super::FunInstrsGenerator;
 use crate::{
-    common::{
-        identifier::JumpLabel,
-        types_frontend::{ScalarType, SubObjType},
-    },
+    common::{identifier::JumpLabel, types_frontend::NonAggrType},
     stage2_parse::{c_ast as c, phase3_typecheck::TypeCheckedCAst},
     stage3_tacky::tacky_ast::*,
 };
@@ -61,12 +58,12 @@ impl FunInstrsGenerator<'_> {
     pub(super) fn gen_exp_conditional(
         &mut self,
         c::Conditional { condition, then, elze }: c::Conditional<TypeCheckedCAst>,
-        out_typ: SubObjType<ScalarType>,
-    ) -> Value {
+        ifc_typ: NonAggrType,
+    ) -> Option<Value> {
         let [label_else, label_end] =
             JumpLabel::create(None, "exp_cond", ["else", "end"]).map(Rc::new);
 
-        let result = self.register_new_value(out_typ);
+        let result = self.maybe_register_new_value(ifc_typ);
 
         /* Begin instructions */
 
@@ -80,8 +77,12 @@ impl FunInstrsGenerator<'_> {
 
         let then = self.gen_exp_and_get_value(*then);
 
-        self.instrs
-            .push(Instruction::Copy(SrcDst { src: then, dst: result.clone() }));
+        if let Some(then) = then {
+            self.instrs.push(Instruction::Copy(SrcDst {
+                src: then,
+                dst: result.clone().unwrap(),
+            }));
+        }
 
         self.instrs.push(Instruction::Jump(Rc::clone(&label_end)));
 
@@ -89,8 +90,12 @@ impl FunInstrsGenerator<'_> {
 
         let elze = self.gen_exp_and_get_value(*elze);
 
-        self.instrs
-            .push(Instruction::Copy(SrcDst { src: elze, dst: result.clone() }));
+        if let Some(elze) = elze {
+            self.instrs.push(Instruction::Copy(SrcDst {
+                src: elze,
+                dst: result.clone().unwrap(),
+            }));
+        }
 
         self.instrs.push(Instruction::Label(label_end));
 

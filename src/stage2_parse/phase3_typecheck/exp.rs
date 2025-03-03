@@ -1,6 +1,7 @@
 use super::TypeChecker;
 use crate::{
     common::types_frontend::{NonAggrType, NonVoidType},
+    ds_n_a::witness::Witness,
     stage2_parse::{c_ast::*, phase2_resolve::ResolvedCAst},
 };
 use anyhow::{Result, anyhow};
@@ -34,9 +35,13 @@ impl TypeChecker {
                     NonVoidType::Array(arr_typ) => {
                         let ptr_typ = arr_typ.as_ptr_to_elem();
                         let sca_typ = self.get_scalar_type(ptr_typ);
+                        let concrete_typ = Witness::new(&sca_typ);
                         let nonaggr_typ = NonAggrType::from(sca_typ);
                         TypedExp::R(TypedRExp {
-                            exp: RExp::AddrOf(AddrOf(Box::new(nonvoid_lexp))),
+                            exp: RExp::AddrOf(AddrOf {
+                                sub_exp: Box::new(nonvoid_lexp),
+                                concrete_typ,
+                            }),
                             typ: nonaggr_typ,
                         })
                     }

@@ -1,10 +1,6 @@
 use super::FunInstrsGenerator;
 use crate::{
-    common::{
-        identifier::JumpLabel,
-        primitive::Const,
-        types_frontend::{ScalarType, SubObjType},
-    },
+    common::{identifier::JumpLabel, primitive::Const, types_frontend::NonAggrType},
     stage2_parse::{c_ast as c, phase3_typecheck::TypeCheckedCAst},
     stage3_tacky::tacky_ast::*,
 };
@@ -14,8 +10,8 @@ use std::rc::Rc;
 impl FunInstrsGenerator<'_> {
     pub(super) fn gen_exp_unary(
         &mut self,
-        c::Unary { op, sub_exp }: c::Unary<TypeCheckedCAst>,
-        out_typ: SubObjType<ScalarType>,
+        c::Unary { op, sub_exp, concrete_typ }: c::Unary<TypeCheckedCAst>,
+        ifc_typ: NonAggrType,
     ) -> Value {
         use c::UnaryOperator as CO;
 
@@ -28,7 +24,7 @@ impl FunInstrsGenerator<'_> {
             CO::Not => TOC::Not.into(),
         };
         let src = self.gen_sca_exp_and_get_value(*sub_exp);
-        let dst = self.register_new_value(out_typ);
+        let dst = self.register_new_value(Self::extract_sca_typ(ifc_typ, concrete_typ));
         self.instrs
             .push(Instruction::Unary(Unary { op, src, dst: dst.clone() }));
         dst
@@ -40,7 +36,7 @@ impl FunInstrsGenerator<'_> {
     pub(super) fn gen_exp_binary(
         &mut self,
         c_binary: c::Binary<TypeCheckedCAst>,
-        out_typ: SubObjType<ScalarType>,
+        ifc_typ: NonAggrType,
     ) -> Value {
         use c::TypeCheckedBinaryOperator as CO;
 
@@ -60,10 +56,10 @@ impl FunInstrsGenerator<'_> {
                     COA::Div => TOD::Div.into(),
                     COA::Rem => TOD::Rem.into(),
                 };
-                self.gen_exp_binary_evalboth(t_op, c_binary, out_typ)
+                self.gen_exp_binary_evalboth(t_op, c_binary, ifc_typ)
             }
-            CO::ArithPtr(c_op_p) => self.gen_exp_binary_ptr(*c_op_p, c_binary, out_typ),
-            CO::Logic(c_op_l) => self.gen_exp_binary_shortcirc(*c_op_l, c_binary, out_typ),
+            CO::ArithPtr(c_op_p) => self.gen_exp_binary_ptr(*c_op_p, c_binary, ifc_typ),
+            CO::Logic(c_op_l) => self.gen_exp_binary_shortcirc(*c_op_l, c_binary, ifc_typ),
             CO::Cmp(c_op_c) => {
                 let t_op = match c_op_c {
                     COC::Eq => TOC::Eq.into(),
@@ -73,19 +69,19 @@ impl FunInstrsGenerator<'_> {
                     COC::Gt => TOC::Gt.into(),
                     COC::Gte => TOC::Gte.into(),
                 };
-                self.gen_exp_binary_evalboth(t_op, c_binary, out_typ)
+                self.gen_exp_binary_evalboth(t_op, c_binary, ifc_typ)
             }
         }
     }
     fn gen_exp_binary_evalboth(
         &mut self,
         op: BinaryOperator,
-        c::Binary { op: _, lhs, rhs }: c::Binary<TypeCheckedCAst>,
-        out_typ: SubObjType<ScalarType>,
+        c::Binary { op: _, lhs, rhs, concrete_typ }: c::Binary<TypeCheckedCAst>,
+        ifc_typ: NonAggrType,
     ) -> Value {
         let lhs = self.gen_sca_exp_and_get_value(*lhs);
         let rhs = self.gen_sca_exp_and_get_value(*rhs);
-        let dst = self.register_new_value(out_typ);
+        let dst = self.register_new_value(Self::extract_sca_typ(ifc_typ, concrete_typ));
         self.instrs.push(Instruction::Binary(Binary {
             op,
             lhs,
@@ -97,8 +93,8 @@ impl FunInstrsGenerator<'_> {
     fn gen_exp_binary_shortcirc(
         &mut self,
         op: c::LogicBinaryOperator,
-        c::Binary { op: _, lhs, rhs }: c::Binary<TypeCheckedCAst>,
-        out_typ: SubObjType<ScalarType>,
+        c::Binary { op: _, lhs, rhs, concrete_typ }: c::Binary<TypeCheckedCAst>,
+        ifc_typ: NonAggrType,
     ) -> Value {
         let descr = match op {
             c::LogicBinaryOperator::And => "and",
@@ -116,13 +112,15 @@ impl FunInstrsGenerator<'_> {
             Instruction::JumpIf(JumpIf { condition, jump_crit, lbl })
         };
 
-        let new_out_const = |i: i32| Const::Int(i).cast_at_compile_time(&out_typ);
+        let sca_typ = Self::extract_sca_typ(ifc_typ, concrete_typ);
+
+        let new_out_const = |i: i32| Const::Int(i).cast_at_compile_time(&sca_typ);
         let (shortcirc_val, fully_evald_val) = match op {
             c::LogicBinaryOperator::And => (new_out_const(0), new_out_const(1)),
             c::LogicBinaryOperator::Or => (new_out_const(1), new_out_const(0)),
         };
 
-        let result = self.register_new_value(out_typ);
+        let result = self.register_new_value(sca_typ);
 
         /* Begin instructions */
 

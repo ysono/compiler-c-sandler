@@ -2,6 +2,7 @@ use self::helpers::*;
 use super::TypeChecker;
 use crate::{
     common::types_frontend::{ArithmeticType, NonVoidType, PointerType, ScalarType, SubObjType},
+    ds_n_a::witness::Witness,
     stage2_parse::{c_ast::*, phase2_resolve::ResolvedCAst},
 };
 use anyhow::{Result, anyhow};
@@ -11,7 +12,7 @@ use std::borrow::Cow;
 impl TypeChecker {
     pub(super) fn typecheck_exp_binary(
         &mut self,
-        Binary { op, lhs, rhs }: Binary<ResolvedCAst>,
+        Binary { op, lhs, rhs, concrete_typ: () }: Binary<ResolvedCAst>,
     ) -> Result<TypedRExp<SubObjType<ScalarType>>> {
         use BinaryOperator as O;
 
@@ -213,6 +214,7 @@ mod helpers {
                 op: op.into(),
                 lhs: Box::new(lhs),
                 rhs: Box::new(rhs),
+                concrete_typ: Witness::new(&typ),
             }),
             typ,
         }

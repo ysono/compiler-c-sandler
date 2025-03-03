@@ -35,12 +35,16 @@ pub trait CAstVariant {
     type Expression_Lvalue_AnyType: Debug;
     type Expression_Lvalue_ScalarType: Debug;
 
-    /* Specific Expressions ; Operands */
+    /* Specific Expressions and their parameters */
 
     type BinaryOperator: Debug;
     type StringExpression: Debug;
     type TypeOperand<Typ: Debug>: Debug;
     type SizeOfExpExpression: Debug;
+
+    /* Expressions' outputs */
+
+    type ConcreteType<Typ: Debug>: Debug;
 }
 
 #[derive(Debug)]
@@ -195,6 +199,7 @@ mod expression {
     pub struct Unary<C: CAstVariant> {
         pub op: UnaryOperator,
         pub sub_exp: Box<C::Expression_ScalarType>,
+        pub concrete_typ: C::ConcreteType<SubObjType<ScalarType>>,
     }
 
     #[derive(Debug)]
@@ -202,6 +207,7 @@ mod expression {
         pub op: C::BinaryOperator,
         pub lhs: Box<C::Expression_ScalarType>,
         pub rhs: Box<C::Expression_ScalarType>,
+        pub concrete_typ: C::ConcreteType<SubObjType<ScalarType>>,
     }
 
     #[derive(Debug)]
@@ -277,7 +283,10 @@ mod expression {
     }
 
     #[derive(Debug)]
-    pub struct AddrOf<C: CAstVariant>(pub Box<C::Expression_Lvalue_AnyType>);
+    pub struct AddrOf<C: CAstVariant> {
+        pub sub_exp: Box<C::Expression_Lvalue_AnyType>,
+        pub concrete_typ: C::ConcreteType<SubObjType<ScalarType>>,
+    }
 
     #[derive(Debug)]
     pub struct Dereference<C: CAstVariant>(pub Box<C::Expression_ScalarType>);
@@ -363,6 +372,14 @@ mod typed_expression {
         }
     }
 
+    /// Each typechecked Expression node contains 1 or 2 pieces of info about its type:
+    ///     + Concrete type
+    ///         + is encoded iff useful for the subsequent stage (Tacky).
+    ///         + is encoded within each Expression variant, at a field typed [`CAstVariant::ConcreteType`].
+    ///     + Interface type
+    ///         + is a type as re-characterized by the recipient parent Expression node.
+    ///         + is used by the Typechecker stage.
+    ///         + is encoded at [`TypAndExp::typ`]
     #[derive(Debug)]
     pub struct TypAndExp<Typ, Exp> {
         pub typ: Typ,

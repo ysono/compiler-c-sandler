@@ -122,7 +122,7 @@ mod instruction {
     pub struct FunCall {
         pub ident: Rc<SymbolIdentifier>,
         pub args: Vec<Value>,
-        pub dst: Value,
+        pub dst: Option<Value>,
     }
 }
 

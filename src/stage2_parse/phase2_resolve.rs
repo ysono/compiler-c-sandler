@@ -36,12 +36,16 @@ impl CAstVariant for ResolvedCAst {
     type Expression_Lvalue_AnyType = Expression<Self>;
     type Expression_Lvalue_ScalarType = Expression<Self>;
 
-    /* Specific Expressions ; Operands */
+    /* Specific Expressions and their parameters */
 
     type BinaryOperator = BinaryOperator;
     type StringExpression = Vec<u8>;
     type TypeOperand<Typ: Debug> = ParsedObjType;
     type SizeOfExpExpression = Box<Expression<Self>>;
+
+    /* Expressions' outputs */
+
+    type ConcreteType<Typ: Debug> = ();
 }
 
 #[derive(Default)]
@@ -352,14 +356,14 @@ impl CAstValidator {
                 let sub_exp = Box::new(self.resolve_exp(*sub_exp)?);
                 RExp::Cast(Cast { typ, sub_exp })
             }
-            RExp::Unary(Unary { op, sub_exp }) => {
+            RExp::Unary(Unary { op, sub_exp, concrete_typ }) => {
                 let sub_exp = Box::new(self.resolve_exp(*sub_exp)?);
-                RExp::Unary(Unary { op, sub_exp })
+                RExp::Unary(Unary { op, sub_exp, concrete_typ })
             }
-            RExp::Binary(Binary { op, lhs, rhs }) => {
+            RExp::Binary(Binary { op, lhs, rhs, concrete_typ }) => {
                 let lhs = Box::new(self.resolve_exp(*lhs)?);
                 let rhs = Box::new(self.resolve_exp(*rhs)?);
-                RExp::Binary(Binary { op, lhs, rhs })
+                RExp::Binary(Binary { op, lhs, rhs, concrete_typ })
             }
             RExp::Conditional(Conditional { condition, then, elze }) => {
                 let condition = Box::new(self.resolve_exp(*condition)?);
@@ -381,9 +385,9 @@ impl CAstValidator {
                 let rhs = Box::new(self.resolve_exp(*rhs)?);
                 RExp::Assignment(Assignment { lhs, rhs })
             }
-            RExp::AddrOf(AddrOf(exp)) => {
-                let exp = Box::new(self.resolve_exp(*exp)?);
-                RExp::AddrOf(AddrOf(exp))
+            RExp::AddrOf(AddrOf { sub_exp, concrete_typ }) => {
+                let sub_exp = Box::new(self.resolve_exp(*sub_exp)?);
+                RExp::AddrOf(AddrOf { sub_exp, concrete_typ })
             }
             RExp::SizeOfType(typ) => RExp::SizeOfType(typ),
             RExp::SizeOfExp(sub_exp) => {

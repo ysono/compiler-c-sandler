@@ -164,7 +164,7 @@ mod test {
             symbol_table_frontend::FrontendSymbolTable,
             types_frontend::{ArithmeticType, ObjType, ScalarType, SubObjType},
         },
-        ds_n_a::singleton::SingletonRepository,
+        ds_n_a::{singleton::SingletonRepository, witness::Witness},
         test::utils::{TypeBuilder, fail},
     };
     use owning_ref::OwningRef;
@@ -196,6 +196,7 @@ mod test {
                 op: c::ArithmeticBinaryOperator::Add.into(),
                 lhs: Box::new(lhs),
                 rhs: Box::new(rhs),
+                concrete_typ: Witness::new(&typ),
             }),
             typ,
         });

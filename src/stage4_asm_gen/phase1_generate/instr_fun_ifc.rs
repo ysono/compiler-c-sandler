@@ -133,6 +133,10 @@ impl InstrsGenerator {
         }
 
         /* Push the instruction that `mov`s the return value. */
+        let dst = match dst {
+            Some(dst) => dst,
+            None => todo!(),
+        };
         let (dst, _, dst_asm_type) = self.value_to_operand_and_type(dst);
         let ret_reg = derive_return_register(dst_asm_type);
         asm_instrs.push(Instruction::Mov {

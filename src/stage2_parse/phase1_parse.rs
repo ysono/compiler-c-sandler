@@ -41,12 +41,16 @@ impl CAstVariant for ParsedCAst {
     type Expression_Lvalue_AnyType = Expression<Self>;
     type Expression_Lvalue_ScalarType = Expression<Self>;
 
-    /* Specific Expressions ; Operands */
+    /* Specific Expressions and their parameters */
 
     type BinaryOperator = BinaryOperator;
     type StringExpression = Vec<u8>;
     type TypeOperand<Typ: Debug> = ParsedObjType;
     type SizeOfExpExpression = Box<Expression<Self>>;
+
+    /* Expressions' outputs */
+
+    type ConcreteType<Typ: Debug> = ();
 }
 
 #[derive(Into)]

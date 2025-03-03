@@ -3,6 +3,7 @@ use crate::{
     common::types_frontend::{
         ArithmeticType, NonAggrType, NonVoidType, ParsedObjType, ScalarType, SubObjType,
     },
+    ds_n_a::witness::Witness,
     stage2_parse::{c_ast::*, phase2_resolve::ResolvedCAst},
 };
 use anyhow::{Result, anyhow};
@@ -11,7 +12,7 @@ use std::borrow::Cow;
 impl TypeChecker {
     pub(super) fn typecheck_exp_unary(
         &mut self,
-        Unary { op, sub_exp }: Unary<ResolvedCAst>,
+        Unary { op, sub_exp, concrete_typ: () }: Unary<ResolvedCAst>,
     ) -> Result<TypedRExp<SubObjType<ScalarType>>> {
         let sub_exp = self.typecheck_exp_then_convert_array_then_assert_scalar(*sub_exp)?;
 
@@ -46,6 +47,7 @@ impl TypeChecker {
         let exp = RExp::Unary(Unary {
             op,
             sub_exp: Box::new(final_sub_exp),
+            concrete_typ: Witness::new(&out_typ),
         });
         Ok(TypedRExp { typ: out_typ, exp })
     }
