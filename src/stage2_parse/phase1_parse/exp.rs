@@ -175,7 +175,7 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
     fn parse_unary_exp_tail(&mut self, head: UnaryExpHead) -> Result<Expression<ParsedCAst>> {
         let inner = || -> Result<_> {
             match head {
-                UnaryExpHead::PrimaryExp(primary_exp) => self.parse_postfix_exp(primary_exp),
+                UnaryExpHead::PrimaryExp(primary_exp) => self.parse_subscripts(primary_exp),
                 UnaryExpHead::UnaryOp(op) => {
                     let sub_exp = Box::new(self.parse_unary_exp()?);
 
@@ -209,7 +209,7 @@ impl<T: Iterator<Item = Result<t::Token>>> Parser<T> {
         };
         inner().context("<cast-or-unary-exp> tail")
     }
-    fn parse_postfix_exp(
+    fn parse_subscripts(
         &mut self,
         mut lhs_exp: Expression<ParsedCAst>,
     ) -> Result<Expression<ParsedCAst>> {

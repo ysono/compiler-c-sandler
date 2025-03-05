@@ -21,17 +21,16 @@ impl TypeChecker {
                 1. Assert that the LHS expression is scalar-typed.
             */
             let lexp = extract_lexp(*lhs)?;
-            let TypedLExp { typ, exp } = self.typecheck_lexp(lexp)?;
-            let typ = match typ {
-                NonVoidType::Scalar(s) => s,
-                NonVoidType::Array(a) => return Err(anyhow!("Cannot assign to {a:#?}")),
-            };
-            TypedLExp { typ, exp }
+            let nonvoid_lexp = self.typecheck_lexp(lexp)?;
+            let sca_lexp = nonvoid_lexp
+                .try_map_typ(|nonvoid_typ| nonvoid_typ.try_into_scalar())
+                .map_err(|typed_exp| anyhow!("Cannot assign to {typed_exp:#?}"))?;
+            sca_lexp
         };
 
-        let typ = lhs.typ.clone();
-        let rhs = self.cast_by_assignment(Cow::Borrowed(&typ), *rhs)?;
+        let rhs = self.cast_by_assignment(Cow::Borrowed(&lhs.typ), *rhs)?;
 
+        let typ = lhs.typ.clone();
         let exp = RExp::Assignment(Assignment {
             lhs: Box::new(lhs),
             rhs: Box::new(rhs),

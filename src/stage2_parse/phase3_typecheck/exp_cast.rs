@@ -181,7 +181,7 @@ impl TypeChecker {
     /// Cast unidirectionally and implicitly, in various assignment-like contexts.
     pub(super) fn cast_by_assignment(
         &mut self,
-        to: Cow<'_, SubObjType<ScalarType>>,
+        to: Cow<SubObjType<ScalarType>>,
         from: Expression<ResolvedCAst>,
     ) -> Result<ScalarExp> {
         let from = self.typecheck_exp_then_convert_array_then_assert_scalar(from)?;
@@ -220,7 +220,7 @@ impl TypeChecker {
 /// Helpers on casting
 impl TypeChecker {
     pub(super) fn maybe_insert_cast_node(
-        to: Cow<'_, SubObjType<ScalarType>>,
+        to: Cow<SubObjType<ScalarType>>,
         from: ScalarExp,
     ) -> ScalarExp {
         if to.as_ref() == from.typ() {

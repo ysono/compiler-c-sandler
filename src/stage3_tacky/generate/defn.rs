@@ -22,12 +22,12 @@ impl FunInstrsGenerator<'_> {
 
         for item in init {
             match item {
-                c::RuntimeInitializerItem::Single(typed_exp) => {
+                c::RuntimeInitializerItem::Single(sca_exp) => {
                     cto_gen.flush(&mut self.instrs);
 
-                    let single_bytelen = typed_exp.typ().bytelen();
+                    let single_bytelen = sca_exp.typ().bytelen();
 
-                    let val = self.gen_sca_exp_and_get_value(typed_exp);
+                    let val = self.gen_sca_exp_and_get_value(sca_exp);
 
                     cto_gen.push(val, single_bytelen, &mut self.instrs);
                 }

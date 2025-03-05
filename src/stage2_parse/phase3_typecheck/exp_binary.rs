@@ -161,12 +161,12 @@ impl TypeChecker {
         let (lhs, rhs) = self.cast_to_common_scalar_type(lhs, rhs)?;
         let common_typ = lhs.typ().clone();
 
-        if matches!(
-            (&op, common_typ.as_ref()),
-            (OA::Rem, ScalarType::Arith(ArithmeticType::Double)) | (_, ScalarType::Ptr(_))
-        ) {
-            return Err(anyhow!("Can't apply {op:#?} on {lhs:#?} and {rhs:#?}"));
-        }
+        let ok = match (&op, common_typ.as_ref()) {
+            (_, ScalarType::Ptr(_)) => Err(()),
+            (OA::Rem, ScalarType::Arith(ArithmeticType::Double)) => Err(()),
+            _ => Ok(()),
+        };
+        let () = ok.map_err(|()| anyhow!("Can't apply {op:#?} on {lhs:#?} and {rhs:#?}"))?;
 
         Ok(new_binary_exp(op, lhs, rhs, common_typ))
     }

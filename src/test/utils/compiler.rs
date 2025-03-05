@@ -13,10 +13,7 @@ use crate::{
     stage4_asm_gen::{FinalizedAsmAst, asm_ast},
 };
 use anyhow::{Result, anyhow};
-use std::{
-    io::{BufReader, Cursor},
-    path::PathBuf,
-};
+use std::{io::Cursor, path::PathBuf};
 
 fn compile(pre_processed_src_code: &str, until: CompilerUntil) -> Result<CompilationResult> {
     let args = Args {
@@ -27,7 +24,7 @@ fn compile(pre_processed_src_code: &str, until: CompilerUntil) -> Result<Compila
     let driver = Driver::from(args);
 
     let mock_src_filepath = SrcFilepath::try_from(PathBuf::from("/tmp/mock.c")).unwrap();
-    let pp_reader = BufReader::new(Cursor::new(pre_processed_src_code));
+    let pp_reader = Cursor::new(pre_processed_src_code);
     driver.compile(&mock_src_filepath, pp_reader)
 }
 

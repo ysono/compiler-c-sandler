@@ -205,7 +205,7 @@ mod obj_type_node {
         }
     }
 
-    #[derive(From, Clone, Hash, PartialEq, Eq, Debug)]
+    #[derive(From, TryInto, Clone, Hash, PartialEq, Eq, Debug)]
     pub enum NonVoidType {
         Scalar(SubObjType<ScalarType>),
         Array(SubObjType<ArrayType>),
@@ -235,6 +235,9 @@ mod obj_type_node {
                 ObjType::Void(_) => false,
                 ObjType::Scalar(_) | ObjType::Array(_) => true,
             }
+        }
+        pub fn try_into_scalar(self) -> Result<SubObjType<ScalarType>, Self> {
+            SubObjType::<ScalarType>::try_from(self).map_err(|e| e.input)
         }
         pub fn bytelen(&self) -> ByteLen {
             match self {
